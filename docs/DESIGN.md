@@ -290,9 +290,12 @@ Each tick, for every section on a rooted piece, `section.analyse()`:
 1. Takes the distal load at the section (`F`, `M` from the beam pass,
    adjusted to the section's position along the segment).
 2. Computes the *actual* section properties of the remaining wood — area,
-   centroid, second moments `Ixx, Iyy, Ixy` — from the cells. Closed saw
-   kerfs can carry compression but not tension, at reduced stiffness
-   (`KERF_CONTACT = 0.15`), found with a small active-set iteration.
+   centroid, second moments `Ixx, Iyy, Ixy` — from the intact cells. A kerf
+   is an 8 mm gap, so it carries nothing while the wood beside it is elastic.
+   Only if the intact wood is past its compressive yield (`COMP`) — it
+   crushes, the kerf closes — do closed kerfs carry compression (never
+   tension, relative stiffness `KERF_CONTACT`), found with a small
+   active-set iteration.
 3. Gets the stress in every cell from the unsymmetric bending formula
    (derivation in `section.js`).
 4. Applies the failure rules:
@@ -320,8 +323,11 @@ Each tick, for every section on a rooted piece, `section.analyse()`:
      tension are checked against the strip's capacity. Side lean or a
      swinging load beyond it tears the hinge and the piece goes where gravity
      takes it.
-   - The joint has a velocity-damping motor scaled by strip strength, so a
-     thick hinge lets the tree over slowly and a thin one lets it go.
+   - Bending fibres resist with a roughly constant moment: the joint has a
+     velocity-0 motor whose torque is capped at half the moment that was
+     driving the hinge when it formed (never more than 0.6 × the strip's
+     plastic moment σ·L·w²/4). The piece starts over slowly and accelerates
+     as its lean grows; it can never stall on a hinge.
 
 What emerges without special cases:
 

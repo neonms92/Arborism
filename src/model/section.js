@@ -83,19 +83,27 @@ export function gapOf(sec, c) { return sec.zmax[c] - sec.zmin[c] + CFG.KERF_WIDT
  * Loads are those the DISTAL part applies at the section centre:
  *   Nax = F . a   (positive = pulling the distal part away = tension)
  *   Mu, Mv = M . u, M . v  (bending moment components, N m)
- * Fills sec.stress (Pa, tension positive), sec.maxT, sec.pinch[k] (N).
+ * Fills sec.stress (Pa, tension positive, at cell centres), sec.maxT (worst
+ * tension at a cell's extreme fibre), sec.closed, sec.pinch[k] (N).
  *
- * Linear stress field s = s0 + s1 (x-cx) + s2 (y-cy) over a weighted section:
- * intact cells weight 1; closed kerfs / torn cells weight KERF_CONTACT but only
- * in compression (active-set iteration).
+ * Linear stress field s = s0 + s1 (x-cx) + s2 (y-cy) over the section.
  * Equilibrium:  sum(s dA) = Nax ;  sum(s y dA) = Mu ;  -sum(s x dA) = Mv.
+ *
+ * Pass 1: intact wood alone carries the load (a saw kerf is an 8 mm gap; it
+ * does not touch while the wood beside it is still elastic).
+ * Pass 2: only if that wood is past its compressive yield (COMP) -- it crushes,
+ * the kerf closes -- closed kerfs / torn cells also carry compression, at
+ * relative stiffness KERF_CONTACT, never tension (active-set iteration). The
+ * force they carry is what clamps a saw bar (sec.pinch).
  */
 export function analyse(sec, Nax, Mu, Mv) {
   const R = sec.R, dA = UNIT_DA * R * R, KC = CFG.KERF_CONTACT;
-  const closedGap = CFG.KERF_WIDTH * 1.5;
+  const closedGap = CFG.KERF_WIDTH * 1.5, half = CELL_SIZE * R / 2;
   const st = sec.state, act = sec.act;
   let s0 = 0, s1 = 0, s2 = 0, cx = 0, cy = 0, ok = false;
-  for (let it = 0; it < 6; it++) {
+  act.fill(0);
+  sec.closed = false;
+  for (let it = 0; it < 7; it++) {
     let A = 0, Sx = 0, Sy = 0;
     for (let c = 0; c < NCELL; c++) {
       const w = st[c] === INTACT ? 1 : (act[c] ? KC : 0);
@@ -113,7 +121,7 @@ export function analyse(sec, Nax, Mu, Mv) {
     }
     A *= dA; Ixx *= dA; Iyy *= dA; Ixy *= dA;
     // each cell's own second moment keeps one-cell-thick strips well conditioned
-    const own = A * (CELL_SIZE * R) * (CELL_SIZE * R) / 12;
+    const own = A * (2 * half) * (2 * half) / 12;
     Ixx += own; Iyy += own;
     const det = Ixx * Iyy - Ixy * Ixy;
     const Mup = Mu - cy * Nax, Mxp = -Mv - cx * Nax;
@@ -121,6 +129,17 @@ export function analyse(sec, Nax, Mu, Mv) {
     s1 = (Mxp * Ixx - Mup * Ixy) / det;
     s2 = (Mup * Iyy - Mxp * Ixy) / det;
     ok = true;
+    if (it === 0) {
+      // does the intact wood crush anywhere? if not, kerfs stay open: done.
+      const edge = (Math.abs(s1) + Math.abs(s2)) * half;
+      let minC = 0;
+      for (let c = 0; c < NCELL; c++) if (st[c] === INTACT) {
+        const lin = s0 + s1 * (CELLS[c].x * R - cx) + s2 * (CELLS[c].y * R - cy) - edge;
+        if (lin < minC) minC = lin;
+      }
+      if (minC > -CFG.COMP) break;
+      sec.closed = true;
+    }
     let changed = false;
     for (let c = 0; c < NCELL; c++) {
       if (st[c] === INTACT) continue;
@@ -132,19 +151,20 @@ export function analyse(sec, Nax, Mu, Mv) {
     if (!changed) break;
   }
   let maxT = 0;
+  const edge = (Math.abs(s1) + Math.abs(s2)) * half;   // centre -> extreme fibre of a cell
   const pinch = sec.pinch; pinch.length = sec.kerfs.length; pinch.fill(0);
   for (let c = 0; c < NCELL; c++) {
     if (!ok) { sec.stress[c] = 0; continue; }
     const lin = s0 + s1 * (CELLS[c].x * R - cx) + s2 * (CELLS[c].y * R - cy);
     if (st[c] === INTACT) {
-      sec.stress[c] = lin; if (lin > maxT) maxT = lin;
+      sec.stress[c] = lin; if (lin + edge > maxT) maxT = lin + edge;
     } else if (act[c]) {
       sec.stress[c] = KC * lin;
       const f = -KC * lin * dA, m = sec.mask[c];
       for (let k = 0; k < pinch.length; k++) if (m & (1 << k)) pinch[k] += f;
     } else sec.stress[c] = 0;
   }
-  sec.maxT = maxT;
+  sec.maxT = maxT; sec.edge = edge;
   return ok;
 }
 

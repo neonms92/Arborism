@@ -27,12 +27,13 @@ export const CFG = {
   // --- section (cut cross-section) ---
   GRID: 17,                // cells across the diameter
   KERF_WIDTH: 0.008,       // m
-  KERF_CONTACT: 0.15,      // relative stiffness of a closed kerf in compression
+  COMP: 12e6,              // Pa, compressive yield: above this the wood crushes and kerfs close
+  KERF_CONTACT: 0.5,       // relative stiffness of a closed kerf in compression
   HINGE_MAX_THICK: 0.22,   // strip thickness / diameter below which wood hinges
   HINGE_MIN_ASPECT: 2,     // strip length / thickness
   FIBRE_K: 0.12,           // theta_fibre = FIBRE_K / (thickness/diameter)
   FIBRE_MIN: 0.2, FIBRE_MAX: 1.6,   // rad
-  HINGE_DAMP: 1.0,         // s; joint damping = plastic moment * this
+  HINGE_RESIST: 0.5,       // hinge resisting moment as a fraction of the moment driving it when it formed
 
   // --- chainsaw ---
   FEED: 0.05,              // m/s at full throttle

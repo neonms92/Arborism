@@ -37,9 +37,9 @@ export function generateTree(seed, newId, origin = [0, 0, 0]) {
   }
 
   // Trunk: slight lean so a felling cut has something to work with.
-  const lean = rnd(0.02, 0.06), leanAz = rnd(0, Math.PI * 2);
+  const lean = rnd(0.10, 0.15), leanAz = rnd(0, Math.PI * 2);
   const trunk = chain(-1, origin, [Math.sin(lean) * Math.cos(leanAz), 1, Math.sin(lean) * Math.sin(leanAz)],
-    11, 0.27, 0.06, 1.0, 0.25, 0.02);
+    11, 0.27, 0.06, 1.0, 0.03, 0.02);
 
   let az = rnd(0, Math.PI * 2);
   for (let i = 3; i < trunk.length; i++) {            // first limb at ~4 m

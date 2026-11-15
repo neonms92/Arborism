@@ -103,6 +103,7 @@ export class Structure {
       const Mc = [M[0] - cxF[0], M[1] - cxF[1], M[2] - cxF[2]];
       N = dot(F, ax); Mu = dot(Mc, u); Mv = dot(Mc, v);
     } else if (sec.intact === NCELL) return;
+    sec.load = [N, Mu, Mv];
     if (!analyse(sec, N, Mu, Mv)) { this.separate(sec, null); return; }
     if (sec.maxT <= CFG.MOR) return;
 
@@ -116,7 +117,7 @@ export class Structure {
     const h = hingeShape(sec);
     if (isHingeLike(h, sec.R)) { this.separate(sec, h); return; }
     const over = [];
-    for (let c = 0; c < NCELL; c++) if (sec.state[c] === INTACT && sec.stress[c] > CFG.MOR) over.push(c);
+    for (let c = 0; c < NCELL; c++) if (sec.state[c] === INTACT && sec.stress[c] + sec.edge > CFG.MOR) over.push(c);
     over.sort((a, b) => sec.stress[b] - sec.stress[a]);
     over.length = Math.min(over.length, Math.max(1, Math.ceil(CFG.TEAR_FRACTION * NCELL)));
     sim.emit({ t: 'tear', sec: sec.id, cells: over });
@@ -142,7 +143,15 @@ export class Structure {
       sim.bodies.get(parent), sim.bodies.get(newPiece), true);
     joint.setContactsEnabled(false);
     const plastic = CFG.MOR * h.L * h.w * h.w / 4;
-    joint.configureMotorVelocity(0, plastic * CFG.HINGE_DAMP);
+    // Bending fibres resist with a roughly constant moment (a plastic hinge): a
+    // velocity-0 motor with a torque cap.
+    // It is capped at a fraction of the moment that was driving the hinge when it
+    // formed, so a hinge always commits instead of stalling.
+    const [N, Mu, Mv] = sec.load || [0, 0, 0];
+    const drive = Math.abs((Mu - h.cy * N) * h.hx + (Mv + h.cx * N) * h.hy);
+    joint.configureMotorModel(R.MotorModel.ForceBased);
+    joint.configureMotorVelocity(0, plastic * 50);
+    joint.setMotorMaxForce(Math.min(plastic * 0.6, drive > 1 ? drive * CFG.HINGE_RESIST : plastic * 0.3));
     const ca = closeAngles(sec, h);
     const fibre = Math.min(CFG.FIBRE_MAX, Math.max(CFG.FIBRE_MIN, CFG.FIBRE_K / (h.w / (2 * sec.R))));
     this.hinges.set(newPiece, {
