@@ -59,3 +59,10 @@ tested against a local `peerjs` server through the same code path
 (`?signal=`). If the public server proves unreliable, the cheapest free
 replacement is a Cloudflare Worker running PeerServer-compatible signaling;
 that would need the owner's account, so it is not done here.
+
+**D12 — The vendored PeerJS has a one-line patch.** PeerJS maps
+`reliable:false` to `{ordered:false}`, which still retransmits; it offers no
+way to request a lossy channel. `vendor/peerjs/peerjs.min.js` is patched so
+`reliable:false` creates the channel with `{ordered:false, maxRetransmits:0}`.
+Stale snapshots must be dropped, not queued. Re-apply the patch if PeerJS is
+ever updated (the `sed` line is in CLAUDE.md).
