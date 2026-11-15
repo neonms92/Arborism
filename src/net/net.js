@@ -32,9 +32,11 @@ export class Net {
     this.isHost = true;
     return new Promise((resolve, reject) => {
       const peer = this.peer = new Peer(CFG.PEER_PREFIX + room, peerOptions());
-      peer.on('open', () => resolve());
-      peer.on('error', (e) => { reject(e); console.warn('peer error', e.type); });
-      peer.on('disconnected', () => { if (!peer.destroyed) peer.reconnect(); });
+      let opened = false;
+      peer.on('open', () => { opened = true; resolve(); });
+      // before the room is registered any error is fatal; afterwards only log (peers stay connected without signaling)
+      peer.on('error', (e) => { if (!opened) { peer.destroy(); reject(e); } else console.warn('signaling:', e.type); });
+      peer.on('disconnected', () => { if (opened) setTimeout(() => { if (!peer.destroyed && peer.disconnected) peer.reconnect(); }, 5000); });
       peer.on('connection', (conn) => {
         const key = conn.peer;
         let c = this.clients.get(key); if (!c) this.clients.set(key, c = { rel: null, fast: null, pid: -1, ready: false });
