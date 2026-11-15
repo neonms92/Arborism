@@ -1,0 +1,11 @@
+Copyright (c) 2026 Nathan Spears. All rights reserved.
+
+This repository and its contents (source code, assets, documentation and
+any other material) are the property of the copyright holder. No license,
+express or implied, is granted to any person to use, copy, modify, merge,
+publish, distribute, sublicense or sell any part of this work, except with
+the prior written permission of the copyright holder.
+
+Third-party libraries in the vendor/ directory remain under their own
+licenses, which are included with them or available from their original
+distributions.

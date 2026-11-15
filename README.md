@@ -56,3 +56,8 @@ If a friend cannot connect, see "Known risks" in `docs/DESIGN.md`
 ## Develop
 
 See `CLAUDE.md`. No build step: `python3 -m http.server` in the repo root.
+
+## License
+
+Copyright (c) 2026 Nathan Spears. All rights reserved. See `LICENSE`.
+Libraries in `vendor/` keep their own licenses.
