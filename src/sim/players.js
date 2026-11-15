@@ -63,7 +63,7 @@ export class Players {
   }
   onContact(pid, force) {
     const p = this.list.get(pid);
-    if (p && p.mode === MODE.CLIMB) {            // kinematic: no velocity change to read, use the force
+    if (p && p.mode === MODE.CLIMB && !p.ride) {   // kinematic: no velocity change to read, use the force
       const dv = force * CFG.TICK / CFG.P_MASS;
       p.hit = Math.max(p.hit || 0, dv);
     }
@@ -76,6 +76,7 @@ export class Players {
       p.body.setLinvel(vel || { x: 0, y: 0, z: 0 }, true);
     }
     p.mode = MODE.GROUND; p.cl = null; p.lan = false; p.ride = null;
+    p.col.setSensor(false);
   }
   toClimb(p, segId, t, side) {
     p.body.setBodyType(this.sim.R.RigidBodyType.KinematicPositionBased, true);
@@ -86,9 +87,18 @@ export class Players {
   onSplit(ev, info) {
     for (const p of this.list.values()) {
       if (p.saw.on && (p.saw.seg === ev.seg || info.moved.includes(p.saw.seg))) sawOff(this.sim, p);
-      if (p.cl && p.cl.seg === ev.seg && ev.at > 0) {
+      if (!p.cl) continue;
+      if (p.cl.seg === ev.seg && ev.at > 0) {
         if (p.cl.t > ev.at) { p.cl.seg = ev.newSeg; p.cl.t = (p.cl.t - ev.at) / (1 - ev.at); }
         else p.cl.t = p.cl.t / ev.at;
+      }
+      // the wood this climber is on just became a moving piece
+      if (info.moved.includes(p.cl.seg) && !p.ride) {
+        if (p.lan) { p.ride = { max: 0, still: 0, prev: null }; p.col.setSensor(true); }   // tied to it: ride it (no self-collision)
+        else {
+          const v = this.sim.bodies.get(ev.newPiece).velocityAtPoint(p.body.translation());
+          this.toGround(p, v); this.sim.toast('The wood you were on broke away and you were not tied in', p.id);
+        }
       }
     }
   }
@@ -189,11 +199,6 @@ export class Players {
     let s = w.segs.get(cl.seg);
     if (!s) { this.toGround(p); return; }
     const fixed = w.pieces.get(s.piece).fixed;
-    if (!fixed && !p.lan) {           // the wood broke away and nothing ties us to it
-      const v = sim.bodies.get(s.piece).velocityAtPoint(p.body.translation());
-      this.toGround(p, v); sim.toast('Your branch broke away and you were not tied in', p.id); return;
-    }
-    if (!fixed && !p.ride) p.ride = { max: 0, still: 0, prev: null };
     if (pressed.lanyard && control && !p.ride) {
       p.lan = !p.lan; if (!p.lan) sawOff(sim, p);
     }
@@ -248,7 +253,9 @@ export class Players {
     const pos = sim.toWorld(s.piece, [c[0] + cl.side[0] * d, c[1] + cl.side[1] * d, c[2] + cl.side[2] * d], _a);
     p.body.setNextKinematicTranslation(pos);
     if (fixed) {
-      sim.loads.push({ seg: s.id, p: c, f: [0, -CFG.P_MASS * CFG.GRAVITY, 0] });
+      // moving bounces the limb: a simple dynamic factor on the climber's weight
+      const dyn = control && !p.saw.on && (inp.mx || inp.my) ? CFG.CLIMB_BOUNCE : 1;
+      sim.loads.push({ seg: s.id, p: c, f: [0, -CFG.P_MASS * CFG.GRAVITY * dyn, 0] });
       p.prompt = p.prompt || (p.lan ? 'Y: unclip lanyard' : 'Y: clip lanyard   B: step off');
     } else {
       // riding a falling piece because we are lanyarded to it

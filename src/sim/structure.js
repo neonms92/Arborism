@@ -106,7 +106,8 @@ export class Structure {
     if (!analyse(sec, N, Mu, Mv)) { this.separate(sec, null); return; }
     if (sec.maxT <= CFG.MOR) return;
 
-    if (sec.maxT > CFG.SNAP_FACTOR * CFG.MOR) {
+    // gross overload on wood that has not started to fail: a clean snap (shock load)
+    if (sec.maxT > CFG.SNAP_FACTOR * CFG.MOR && !sec.cracked) {
       sim.emit({ t: 'tear', sec: sec.id, all: 1 });
       sim.toast('SNAP!');
       this.separate(sec, null);

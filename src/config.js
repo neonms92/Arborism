@@ -13,7 +13,7 @@ export const CFG = {
 
   // --- wood (green hardwood) ---
   DENSITY: 900,            // kg/m^3
-  MOR: 45e6,               // Pa, modulus of rupture (tension failure in bending)
+  MOR: 30e6,               // Pa, modulus of rupture (tension failure in bending)
   SHEAR: 8e6,              // Pa
   GRAVITY: 9.81,
   OVERLOAD_WATCH: 0.8,     // utilisation above which a section is created at a joint
@@ -59,8 +59,9 @@ export const CFG = {
   WALK: 3.5, JUMP: 3.4,
   CLIMB: 1.1,              // m/s along the stem
   AROUND: 1.4,             // m/s around the stem
+  CLIMB_BOUNCE: 1.6,       // weight multiplier while moving on spurs
   STANDOFF: 0.38,          // m from bark to body centre
-  SPUR_MIN_R: 0.04,
+  SPUR_MIN_R: 0.03,
   STUB_LEN: 0.3,           // a branch shorter than this does not block the lanyard
   REACH: 2.6,              // m, interact reach
   DV_SHAKEN: 4, DV_HURT: 7, DV_DOWN: 11,   // m/s impact thresholds

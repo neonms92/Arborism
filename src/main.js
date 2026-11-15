@@ -176,4 +176,4 @@ document.addEventListener('visibilitychange', () => {
 if (room) localStorage.setItem('arb-room', room);
 
 // handy for poking at things from the console
-window.arb = { world, view, net, get sim() { return sim; }, get aux() { return aux; }, get me() { return me; }, input };
+window.arb = { CFG, world, view, net, get sim() { return sim; }, get aux() { return aux; }, get me() { return me; }, input };
