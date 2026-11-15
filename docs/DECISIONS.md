@@ -66,3 +66,25 @@ way to request a lossy channel. `vendor/peerjs/peerjs.min.js` is patched so
 `reliable:false` creates the channel with `{ordered:false, maxRetransmits:0}`.
 Stale snapshots must be dropped, not queued. Re-apply the patch if PeerJS is
 ever updated (the `sed` line is in CLAUDE.md).
+
+**D13 — Kerfs close only when the wood beside them crushes.** First version
+let every closed kerf share compression elastically; that pinched every cut
+on a big trunk just from the tree's weight. A real kerf is an 8 mm gap and
+elastic strain is microns. Now the intact wood carries everything until it
+passes `COMP`; only then do kerfs carry load and clamp the bar. Matches what
+sawyers see (undercuts pinch past a third; back-leaners sit back late).
+
+**D14 — Hinge resistance is tied to the moment that formed the hinge.**
+A cap based only on strip dimensions could equal the driving moment and
+leave a tree frozen on its hinge. Capping at half the driving moment means
+a hinge always commits, slowly at first.
+
+**D15 — Game `MOR` is 30 MPa, not clear-wood 50.** With real strength a
+climber cannot break anything they can stand on, which is true to life but
+leaves the climbing with no teeth. 30 MPa plus a bounce factor while moving
+(`CLIMB_BOUNCE`) makes the last metre of a limb genuinely risky without
+making big wood fragile.
+
+**D16 — The demo tree leans 6–8°.** A balanced tree cannot be felled without
+wedges or a pull line, neither of which exists yet. The lean gives felling a
+right and a wrong direction today.

@@ -166,12 +166,13 @@ function frame(now) {
   }
   view.update(dt, sim ? hostSource : interp, aux, me, inp);
   const info = role === 'solo' ? 'solo' : role === 'host' ? `HOST  room ${room}  (${net.clients.size} joined)` : `joined ${room}`;
-  hud.update(dt, aux, me, info + (document.hidden ? '' : ''), stressOf);
+  hud.update(dt, aux, me, info, stressOf);
 }
 requestAnimationFrame(frame);
 
 document.addEventListener('visibilitychange', () => {
-  if (sim && net.clients.size && document.hidden) console.warn('Host tab hidden: the simulation pauses for everyone.');
+  // rAF stops in a hidden tab, so the host's sim (and everyone's game) pauses. See DESIGN.md risk 3 / task P2-8.
+  if (sim && net.clients.size && !document.hidden) hud.toast('Host tab was hidden: the game was paused for everyone');
 });
 if (room) localStorage.setItem('arb-room', room);
 

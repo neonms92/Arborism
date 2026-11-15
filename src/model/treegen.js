@@ -52,10 +52,10 @@ export function generateTree(seed, newId, origin = [0, 0, 0]) {
     const length = (i === 3 ? 5.6 : rnd(2.6, 4.8)) * (1 - 0.45 * i / trunk.length);
     const limb = chain(t.id, t.b, dir, length, i === 3 ? Math.max(rb, 0.085) : rb, 0.02, 0.8, 0.06, 0.07);
     for (let j = 1; j < limb.length - 1; j++) {
-      if (R() < 0.45) continue;
+      if (R() < 0.3) continue;
       const l = limb[j], a2 = rnd(0, Math.PI * 2);
       const d2 = [dir[0] * 0.5 + Math.cos(a2), 0.3 + rnd(0, 0.6), dir[2] * 0.5 + Math.sin(a2)];
-      chain(l.id, l.b, d2, rnd(1.0, 2.2), l.r1 * rnd(0.45, 0.6), 0.015, 0.7, 0.08, 0.1);
+      chain(l.id, l.b, d2, rnd(1.0, 2.2), Math.max(0.024, l.r1 * rnd(0.45, 0.6)), 0.015, 0.7, 0.08, 0.1);
     }
   }
   return segs;

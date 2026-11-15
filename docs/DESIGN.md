@@ -262,15 +262,20 @@ cross-section is carrying, the way an engineer would:
    utilisation u = (σ_bend + max(σ_axial,0)) / MOR + (τ_tors / S)²
    ```
 
-   `MOR` (modulus of rupture, green hardwood ≈ 50 MPa) and `S` (shear) live
-   in `config.js`. This is per-tick, cheap, and gives a number per segment
-   that the view can show as a colour (the **stress overlay**, the main
-   teaching tool).
+   `MOR` (modulus of rupture) and `S` (shear) live in `config.js`. Clear
+   green hardwood is ≈ 50 MPa; the game uses 30 MPa to stand in for knots,
+   unions and defects. This is per-tick, cheap, and gives a number per
+   segment that the view can show as a colour (the **stress overlay**, the
+   main teaching tool).
 
-Sanity check that the numbers produce the right drama: a 10 cm limb, 4 m
-long, carries its own weight at u ≈ 0.1. Put a 90 kg climber 3 m out and
-u ≈ 0.65; bounce on it and it goes. A 150 kg piece dropped 1 m onto a rope
-through a block on that same limb pulls ≈ 10 kN at the block and snaps it.
+Measured on the demo tree (seed 7), so the next person knows what "normal"
+looks like: the 19 cm limb carries itself at u ≈ 0.08. An 85 kg climber
+walking out it raises the worst joint to u ≈ 0.25 at 6 cm diameter and
+u ≈ 0.6 on the last spur-able wood; moving multiplies their weight by
+`CLIMB_BOUNCE` (1.6), which is what tips thin wood over. A 55 kg limb caught
+on a snug rope peaks at ≈ 1.9 kN; the same limb with 1.5 m of slack peaks at
+≈ 5.3 kN, and the block carries up to twice that. Real wood is strong: the
+drama comes from shock loads and thin wood, not from standing on big limbs.
 Nobody scripted any of that.
 
 ### 3.3 How wood fails — the section model
@@ -398,13 +403,17 @@ gap they left*:
 
 ### 4.3 Pinch
 
-While a kerf is being cut, the analysis reports the compressive force
-carried by that kerf's closed cells. Feed rate is multiplied by
-`1 − F/PINCH_STUCK`; at `F ≥ PINCH_STUCK` the bar is stuck: the saw stops
-cutting and cannot be withdrawn until the load changes (someone pulls a
-rope, or the wood fails). In the prototype a stuck saw can be abandoned by
-releasing precision mode (it returns to hand); task P2-6 makes it stay in
-the tree.
+A kerf is an 8 mm gap; it does not touch the bar while the wood beside it is
+elastic. When the remaining wood is loaded past its compressive yield
+(`COMP`) it crushes, the kerf closes, and the closed cells start carrying
+compression (3.3 step 2). The compressive force carried by the kerf being
+cut clamps the bar: feed rate is multiplied by `1 − F/PINCH_STUCK`; at
+`F ≥ PINCH_STUCK` the bar is stuck and stops cutting until the load changes
+(someone pulls a rope, or the wood fails). In practice: an undercut pinches
+if taken much past a third; a back cut on a back-leaning or side-leaning tree
+pinches as the hinge gets thin; cuts on the tension side never pinch.
+In the prototype a stuck saw can be abandoned by releasing precision mode (it
+returns to hand); task P2-2 makes it stay in the tree.
 
 ### 4.4 Feedback
 
@@ -488,7 +497,8 @@ Each player is one Rapier capsule with rotation locked.
 
 ### 6.2 Spurs and lanyard rules
 
-- Spurs need a stem of radius ≥ 4 cm.
+- Spurs need a stem of radius ≥ 3 cm (`SPUR_MIN_R`). Moving on spurs
+  multiplies the climber's weight on the wood by `CLIMB_BOUNCE`.
 - **Lanyard on** (clipped round the stem): both hands free → the saw can be
   used. The lanyard cannot pass a union (a joint where another branch longer
   than 0.3 m still attaches): the player must unclip, step past, re-clip.
@@ -523,7 +533,7 @@ through Steam — see Risks). Keyboard/mouse in brackets.
 | Control | Ground | Climbing | Precision cutting (hold LT) | On the rope tail |
 |---|---|---|---|---|
 | Left stick [WASD] | move | Y: along stem, X: around stem | Y: slide bar along stem, X: rotate entry side | — |
-| Right stick [mouse] | look | look | X: look, Y: tilt the bar | look |
+| Right stick [mouse] | look | look | X: look, Y: tilt the bar [also Z / X keys] | look |
 | RT [LMB] | — | — | throttle = feed | ease grip (let it run) |
 | LT [RMB] | precision mode (with saw) | precision mode (with saw) | — | haul in |
 | A [Space] | jump | — | — | — |
@@ -531,7 +541,7 @@ through Steam — see Risks). Keyboard/mouse in brackets.
 | Y [F] | — | clip / unclip lanyard | — | — |
 | B [C] | — | step off / let go | — | — |
 | LB / RB [Q / R, 1-3] | previous / next tool | same | — | — |
-| D-pad ↑↓ [wheel] | — | — | — | add / remove a wrap |
+| D-pad ↑↓ [arrows / wheel] | — | — | — | add / remove a wrap |
 | Back [Tab] | stress overlay | same | same | same |
 | Start [Enter] | respawn (prototype) | | | |
 
@@ -594,7 +604,7 @@ the block first, then X on another stem ties the end; X on the knot unties.
 
 ## 9. Build plan
 
-Phase 2 (the risky core) is the foundation session's job; its state is in
+Phase 2 (the risky core) was built in the foundation session; its state is in
 `docs/STATUS.md`. Everything below is sized for one sitting by a model that
 should **not** need to redesign anything. Rules for every task:
 
