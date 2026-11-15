@@ -130,7 +130,7 @@ export class View {
       const shade = 0.85 + ((s.id * 37) % 10) / 60;
       for (let i = start; i < pos.length / 3; i++) col.push(0.42 * shade, 0.31 * shade, 0.22 * shade);
       if (s.leaf > 0) {
-        const r = 0.35 + s.leaf * 0.3;
+        const r = 0.3 + s.leaf * 0.18;
         for (let i = 0; i < ico.count; i++) lpos.push(s.b[0] + ico.getX(i) * r, s.b[1] + ico.getY(i) * r * 0.8, s.b[2] + ico.getZ(i) * r);
       }
     }

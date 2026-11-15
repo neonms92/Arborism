@@ -61,7 +61,9 @@ export class Hud {
       const st = sec ? sec.state[i] : INTACT;
       if (st === INTACT) {
         const v = stress ? stress[i] / 100 : 0;      // fraction of MOR
-        const t = Math.max(-1, Math.min(1, v));
+        // tension scaled to MOR, compression to the crushing stress; sqrt so small loads still read
+        const lim = v >= 0 ? 1 : CFG.COMP / CFG.MOR;
+        const t = Math.sign(v) * Math.sqrt(Math.min(1, Math.abs(v) / lim));
         const r = 205 + (t > 0 ? 50 * t : 0), g = 170 - Math.abs(t) * 120, b = 120 + (t < 0 ? -t * 135 : -t * 80);
         ctx.fillStyle = `rgb(${r | 0},${g | 0},${b | 0})`;
       } else if (st === CUT) ctx.fillStyle = gapOf(sec, i) > CFG.KERF_WIDTH * 1.5 ? '#000' : '#3a3a3a';
