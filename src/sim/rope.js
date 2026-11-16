@@ -24,9 +24,9 @@ export class Rope {
   }
   prompt(p, aim) {
     const st = this.sim.world.rope.state, t = this.target(p, aim);
-    if (st === 0) return t && t.fixed ? 'X: hang the rigging block here' : 'Look at a limb to hang the block';
-    if (st === 1) return t ? 'X: tie the rope here   B: take the block down' : 'Look at the limb to tie off   B: take the block down';
-    if (t && this.node(this.sim.world.rope.anchor).distanceTo(t.point) < 0.7) return 'X: untie';
+    if (st === 0) return t && t.fixed ? '{interact}: hang the rigging block here' : 'Look at a limb to hang the block';
+    if (st === 1) return t ? '{interact}: tie the rope here' : 'Look at the limb to tie off   {drop} (on the ground): take the block down';
+    if (t && this.node(this.sim.world.rope.anchor).distanceTo(t.point) < 0.7) return '{interact}: untie';
     return 'Rope is tied. Look at the knot to untie';
   }
   place(p, aim) {
@@ -49,6 +49,19 @@ export class Rope {
   }
   clear(p) {
     if (this.sim.world.rope.state === 1) this.sim.emit({ t: 'rope', rope: { state: 0 } });
+  }
+
+  /** Straight runs of rope in the world, for anything that can cut it. */
+  spans() {
+    const r = this.sim.world.rope, out = [];
+    if (r.state >= 2) out.push([this.node(r.anchor), this.node(r.block)]);
+    if (r.state >= 1) out.push([this.node(r.block), this.node(r.device)]);
+    return out;
+  }
+  cut() {
+    this.sim.emit({ t: 'rope', rope: { state: 0 } });
+    this.sim.toast('The rope was cut!');
+    this.reset();
   }
 
   nearDevice(p) {
