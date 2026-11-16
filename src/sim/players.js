@@ -184,13 +184,13 @@ export class Players {
     } else if (aim && aim.dist < CFG.REACH && p.tool === TOOL.HANDS) {
       const s = sim.world.segs.get(aim.seg), piece = sim.world.pieces.get(s.piece);
       if (piece.fixed && p.inj < INJ.HURT) {
-        const loc = sim.toLocal(s.piece, aim.point), tt = Math.min(1, Math.max(0, segParam(s, loc)));
+        const loc = sim.segToLocal(s, aim.point), tt = Math.min(1, Math.max(0, segParam(s, loc)));
         if (segRadius(s, tt) >= CFG.SPUR_MIN_R) {
           p.prompt = '{interact}: spur in and throw the lanyard round';
           if (pressed.interact) {
             const ax = segAxis(s), c = lerp3(s.a, s.b, tt);
             // side = from the stem toward the player, perpendicular to the stem
-            const bt = p.body.translation(), pl = sim.toLocal(s.piece, bt);
+            const bt = p.body.translation(), pl = sim.segToLocal(s, bt);
             let side = [pl[0] - c[0], pl[1] - c[1], pl[2] - c[2]];
             const d = side[0] * ax[0] + side[1] * ax[1] + side[2] * ax[2];
             side = perp(side.map((x, i) => x - ax[i] * d), ax);
@@ -217,11 +217,11 @@ export class Players {
       if (pressed.interact) sim.rope.place(p, aim);
     } else if (control && p.tool === TOOL.HANDS && !p.ride && aim && aim.dist < CFG.REACH) {
       // throw the lanyard round another stem within reach: the way past a union
-      const s2 = w.segs.get(aim.seg), loc = sim.toLocal(s2.piece, aim.point), t2 = Math.min(1, Math.max(0, segParam(s2, loc)));
+      const s2 = w.segs.get(aim.seg), loc = sim.segToLocal(s2, aim.point), t2 = Math.min(1, Math.max(0, segParam(s2, loc)));
       if (w.pieces.get(s2.piece).fixed && segRadius(s2, t2) >= CFG.SPUR_MIN_R && (s2.id !== s.id || Math.abs(t2 - cl.t) * segLen(s) > 0.3)) {
         p.prompt = '{interact}: move the lanyard here';
         if (pressed.interact) {
-          const c = lerp3(s2.a, s2.b, t2), pl = sim.toLocal(s2.piece, p.body.translation());
+          const c = lerp3(s2.a, s2.b, t2), pl = sim.segToLocal(s2, p.body.translation());
           cl.seg = s2.id; cl.t = t2; cl.side = perp([pl[0] - c[0], pl[1] - c[1], pl[2] - c[2]], segAxis(s2));
           s = s2;
         }
@@ -230,7 +230,7 @@ export class Players {
 
     if (control && !p.ride) {
       let ax = segAxis(s), L = segLen(s);
-      const axW = sim.dirToWorld(s.piece, ax, _a);
+      const axW = sim.segDirToWorld(s, ax, _a);
       const look = _b.set(-Math.sin(inp.yaw), 0, -Math.cos(inp.yaw));
       const sign = axW.dot(_c.copy(UP).addScaledVector(look, 0.6)) >= 0 ? 1 : -1;
       // around the stem
@@ -249,7 +249,7 @@ export class Players {
           const want = _c.set(-Math.sin(inp.yaw) * Math.cos(inp.pitch), Math.sin(inp.pitch), -Math.cos(inp.yaw) * Math.cos(inp.pitch)).multiplyScalar(0.9).add(axW);
           let best = kids[0], bd = -Infinity;
           for (const k of kids) {
-            const d = sim.dirToWorld(s.piece, segAxis(w.segs.get(k)), _b).dot(want);
+            const d = sim.segDirToWorld(w.segs.get(k), segAxis(w.segs.get(k)), _b).dot(want);
             if (d > bd) { bd = d; best = k; }
           }
           s = w.segs.get(best); cl.seg = best; t = 0.01;
@@ -258,7 +258,7 @@ export class Players {
       } else if (t < 0) {
         if (s.parent < 0) {
           t = 0;
-          if (sim.toWorld(s.piece, s.a, _b).y < 0.6) { this.toGround(p); return; }
+          if (sim.segToWorld(s, s.a, _b).y < 0.6) { this.toGround(p); return; }
         } else {
           const real = w.kids(s.parent).filter((k) => w.isRealBranch(k)).length;
           if (real >= 2) { t = 0; this.say(p, 'The lanyard stops at the union. Look at the stem you want and {interact} (hands) to move it'); }
@@ -270,7 +270,7 @@ export class Players {
 
     // pose derived from (segment, t, side)
     const c = lerp3(s.a, s.b, cl.t), d = segRadius(s, cl.t) + CFG.STANDOFF;
-    const pos = sim.toWorld(s.piece, [c[0] + cl.side[0] * d, c[1] + cl.side[1] * d, c[2] + cl.side[2] * d], _a);
+    const pos = sim.segToWorld(s, [c[0] + cl.side[0] * d, c[1] + cl.side[1] * d, c[2] + cl.side[2] * d], _a);
     p.body.setNextKinematicTranslation(pos);
     if (held) {
       // the climber's weight goes into whatever wood the spurs are in; moving bounces it
@@ -280,7 +280,7 @@ export class Players {
       const vy = (pos.y - (cl.py ?? pos.y)) / dt, ay = (vy - (cl.vy ?? vy)) / dt;
       cl.py = pos.y; cl.vy = vy; cl.ad = (cl.ad || 0) + 0.1 * (-ay - (cl.ad || 0));
       const share = fixed ? 1 : Math.max(0, Math.min(1, 1 - cl.ad / CFG.GRAVITY));
-      sim.applyForce(s.id, sim.toWorld(s.piece, c, _b), _c.set(0, -CFG.P_MASS * CFG.GRAVITY * dyn * share, 0));
+      sim.applyForce(s.id, sim.segToWorld(s, c, _b), _c.set(0, -CFG.P_MASS * CFG.GRAVITY * dyn * share, 0));
       p.prompt = p.prompt || '{move}: climb   {drop}: let go of the tree';
     } else {
       // riding a falling piece because we are lanyarded to it

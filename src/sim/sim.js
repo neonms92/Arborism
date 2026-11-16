@@ -6,13 +6,14 @@ import * as THREE from 'three';
 import { CFG } from '../config.js';
 import { segLen, segAxis, segMass, lerp3 } from '../model/world.js';
 import { generateTree } from '../model/treegen.js';
+import { frameApply, frameDir, frameInverse } from '../model/flex.js';
 import { Players } from './players.js';
 import { Rope } from './rope.js';
 import { Structure } from './structure.js';
 
 export const PLAYER_BODY_ID = 60000;   // snapshot ids >= this are players
 const Y = new THREE.Vector3(0, 1, 0);
-const _v = new THREE.Vector3(), _q = new THREE.Quaternion();
+const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
 
 export class Sim {
   static async create(world, seed = 7) {
@@ -33,6 +34,7 @@ export class Sim {
     this.colSeg = new Map();          // collider handle -> seg id
     this.colPlayer = new Map();       // collider handle -> player id
     this.born = new Map();            // piece id -> tick created
+    this.colBase = new Map();         // seg id -> {mid, q, at}: its collider's unbent pose, and where it was last put
     this.loads = [];                  // this tick's point loads on rooted pieces: {seg, p:[3], f:[3]}
     this.contactRaw = new Map();      // seg id -> [fx,fy,fz] from last rapier step
     this.contactF = new Map();        // filtered
@@ -72,6 +74,7 @@ export class Sim {
       for (const s of this.world.segsOf(ev.piece)) this.addCollider(s, body);
     } else if (ev.t === 'divide') {
       const s = this.world.segs.get(ev.seg), body = this.bodies.get(s.piece);
+      this.structure.flex.copy(ev.seg, ev.newSeg);
       this.dropCollider(ev.seg); this.addCollider(s, body);
       this.addCollider(this.world.segs.get(ev.newSeg), body);
       this.players.onDivide(ev);
@@ -80,8 +83,14 @@ export class Sim {
       const old = this.bodies.get(info.oldPiece);
       for (const id of info.moved) this.dropCollider(id);
       if (info.cutSeg !== info.root) { this.dropCollider(info.cutSeg); this.addCollider(this.world.segs.get(info.cutSeg), old); }
-      const desc = RAPIER.RigidBodyDesc.dynamic().setTranslation(old.translation().x, old.translation().y, old.translation().z)
-        .setRotation(old.rotation()).setLinvel(old.linvel().x, old.linvel().y, old.linvel().z).setAngvel(old.angvel())
+      // The new body starts where that wood actually was: the old body's pose, bent as its root segment was bent.
+      const fr = this.partFrame; this.partFrame = null;
+      const ot = old.translation(), or = old.rotation();
+      const q0 = new THREE.Quaternion(or.x, or.y, or.z, or.w), t0 = new THREE.Vector3(ot.x, ot.y, ot.z);
+      if (fr) { t0.add(new THREE.Vector3(fr.t[0], fr.t[1], fr.t[2]).applyQuaternion(q0)); q0.multiply(new THREE.Quaternion(fr.q[0], fr.q[1], fr.q[2], fr.q[3])); }
+      this.structure.flex.release(info.moved, fr);
+      const desc = RAPIER.RigidBodyDesc.dynamic().setTranslation(t0.x, t0.y, t0.z)
+        .setRotation({ x: q0.x, y: q0.y, z: q0.z, w: q0.w }).setLinvel(old.linvel().x, old.linvel().y, old.linvel().z).setAngvel(old.angvel())
         .setLinearDamping(0.05).setAngularDamping(0.2);
       const body = this.rapier.createRigidBody(desc);
       this.bodies.set(ev.newPiece, body);
@@ -109,10 +118,11 @@ export class Sim {
     if (this.structure && (this.structure.noHit.has(s.id) || this.structure.rootOf.has(s.id))) desc.setActiveHooks(RAPIER.ActiveHooks.FILTER_CONTACT_PAIRS);
     const col = this.rapier.createCollider(desc, body);
     this.segCol.set(s.id, col); this.colSeg.set(col.handle, s.id);
+    this.colBase.set(s.id, { mid, q: [_q.x, _q.y, _q.z, _q.w], at: mid.slice() });
   }
   dropCollider(id) {
     const col = this.segCol.get(id); if (!col) return;
-    this.colSeg.delete(col.handle); this.segCol.delete(id);
+    this.colSeg.delete(col.handle); this.segCol.delete(id); this.colBase.delete(id);
     this.rapier.removeCollider(col, true);
   }
 
@@ -130,6 +140,26 @@ export class Sim {
     const b = this.bodies.get(pieceId), t = b.translation(), r = b.rotation();
     const v = new THREE.Vector3(wp.x - t.x, wp.y - t.y, wp.z - t.z).applyQuaternion(_q.set(r.x, r.y, r.z, r.w).invert());
     return [v.x, v.y, v.z];
+  }
+
+  // ---- the same, for a point on a particular segment: follows that segment's bend (model/flex.js) ----
+  segToWorld(s, p, target = new THREE.Vector3()) { return this.toWorld(s.piece, frameApply(this.structure.flex.frame(s.id), p), target); }
+  segDirToWorld(s, d, target = new THREE.Vector3()) { return this.dirToWorld(s.piece, frameDir(this.structure.flex.frame(s.id), d), target); }
+  segToLocal(s, wp) { return frameInverse(this.structure.flex.frame(s.id), this.toLocal(s.piece, wp)); }
+
+  /** Move the standing tree's colliders to where its bent wood is (only those that have moved). */
+  syncColliders() {
+    const flex = this.structure.flex;
+    for (const [id, base] of this.colBase) {
+      const fr = flex.frame(id); if (!fr) continue;
+      const m = frameApply(fr, base.mid);
+      if (Math.abs(m[0] - base.at[0]) + Math.abs(m[1] - base.at[1]) + Math.abs(m[2] - base.at[2]) < 0.002) continue;
+      base.at = m;
+      const col = this.segCol.get(id);
+      _q.set(fr.q[0], fr.q[1], fr.q[2], fr.q[3]).multiply(_q2.set(base.q[0], base.q[1], base.q[2], base.q[3]));
+      col.setTranslationWrtParent({ x: m[0], y: m[1], z: m[2] });
+      col.setRotationWrtParent({ x: _q.x, y: _q.y, z: _q.z, w: _q.w });
+    }
   }
 
   /** Apply force f (Vector3, N) for this tick at world point p on a segment's piece. */
@@ -179,6 +209,7 @@ export class Sim {
     this.rope.step(dt);          // rope first: the saw and the fibres both need this tick's rope state
     this.players.pre(dt);
     this.structure.step(dt);
+    if (this.tick % 2 === 0) this.syncColliders();
     this.rapier.step(this.eq, this.hooks);
     this.eq.drainContactForceEvents((e) => this.onContact(e));
     this.players.post(dt);

@@ -67,6 +67,7 @@ synced by different mechanisms (section 2).
 | `src/config.js` | Every tunable number (material strengths, speeds, thresholds) | all |
 | `src/input.js` | Gamepad + keyboard/mouse → one `InputState` | all |
 | `src/model/world.js` | `World`: segments (each with its fibre bundle), pieces, rope; `apply(event)`; `serialize()` | all |
+| `src/model/flex.js` | Elastic bending: per-segment frames from the bundles' stress planes | all |
 | `src/model/treegen.js` | Seeded tree generator → segment list | host |
 | `src/model/fibres.js` | Fibre bundles: layout, severing, static load sharing (pure functions) | all (analysis host only) |
 | `src/sim/sim.js` | Host simulation: Rapier world, fixed step, orchestration, `emit` | host |
@@ -274,6 +275,46 @@ rigging point.
 
 `MOR` is 30 MPa (clear green hardwood is ≈ 50; the difference stands in for
 knots and unions).
+
+### 3.2a Bending
+
+A stiff bundle is not rigid; it is *stiff*. Its fibres are springs that reach
+`MOR` at `FIBRE_YIELD` of stretch, so the stress plane across a bundle is
+also a tilt of its far face relative to its near face:
+
+```
+phi = (s2·u − s1·v) · FIBRE_YIELD / MOR        (rotation vector, radians)
+```
+
+`model/flex.js` hinges every segment at its base by its bundle's `phi` and
+adds the tilts up along the stem, giving each segment a **frame** (a small
+rigid transform in piece-local space) that says where that wood really is.
+A loaded limb droops most at its tip; a partly sawn bundle, with few fibres
+carrying the same moment, tilts visibly at the cut. `phi` chases its target
+like a damped spring (`FLEX_FREQ`, `FLEX_DAMP`), so wood bounces when a
+climber moves or a load comes on or off.
+
+Everything that touches standing wood goes through that frame:
+the drawing (bark, fibres, foliage), the Rapier colliders (moved every other
+tick, only if they have shifted), the climber, rope nodes, the lanyard, the
+saw's probe and planting, and the parent side of a live bundle.
+`sim.segToWorld / segToLocal / segDirToWorld` are the only way sim code
+should place a point on a segment.
+
+`phi` is exactly the angle the live-regime springs below would settle at
+under the same load. So when a bundle goes live, the new body starts in the
+bent pose and its fibres are already carrying what they carried a tick
+earlier: no jolt. Wood beyond that bundle keeps its bend relative to the new
+body and relaxes straight over ~0.3 s (dynamic pieces are not analysed, so
+they have no stress to hold a bend).
+
+Clients compute the same frames from the stress planes already in aux.
+Loads are still computed on the unbent geometry (small-deflection theory):
+bending does not change lever arms.
+
+On the demo tree with the default 4 mm: the big limb's tip sits ≈ 5 cm low
+under its own weight and ≈ 18 cm low with an 85 kg climber far out; at 15 mm
+that becomes ≈ 80 cm. `FIBRE_YIELD` is the springiness slider in the menu.
 
 ### 3.3 Live regime — every fibre is a spring
 

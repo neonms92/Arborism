@@ -126,7 +126,7 @@ function lobbyPad() {
 }
 
 // ---------- main loop ----------
-const hostSource = { pose: (id) => sim.pose(id) };
+const hostSource = { pose: (id) => sim.pose(id), get flex() { return sim.structure.flex; } };
 const HELP = '{move} move / climb   {look} look   {interact} use: spur in, move the lanyard, grab or place rope   {drop} let go of the tree   {jump} jump   ' +
   '{tool} hands / chainsaw / rope   {raise} plant the saw on the wood you are looking at, then {look} pivots the bar and {throttle} presses it in   ' +
   'on the rope tail: {throttle} ease, {raise} haul, {wraps} wraps   {menu} settings   {respawn} respawn';

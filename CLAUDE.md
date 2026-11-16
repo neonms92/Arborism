@@ -58,6 +58,9 @@ branch → `/ (root)`. The game is then at
 - Model geometry is piece-local plain arrays `[x,y,z]`; sim/view use
   `THREE.Vector3` for world-space maths. Rooted (fixed) pieces sit at the
   origin with identity rotation — `structure.js` relies on it.
+- Standing wood bends (DESIGN.md 3.2a). In `sim/`, place any point that is
+  on a segment with `sim.segToWorld / segToLocal / segDirToWorld`, never
+  `toWorld(piece, ...)`. In `view/`, go through `flexNow.frame(seg)`.
 - **Wood is fibres** (DESIGN.md 3). Every segment has a bundle `seg.f`.
   Do not add states or rules for how wood fails (hinge, tear, peel...): if a
   behaviour is missing, it belongs in the fibre force law in

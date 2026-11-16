@@ -20,6 +20,7 @@ import { CFG } from '../config.js';
 import { segAxis, segMass, segCentroidT, segParam, segRadius, lerp3 } from '../model/world.js';
 import { analyse, bundleBasis, layout, gapOf, INTACT, CUT } from '../model/fibres.js';
 import { segDist } from './saw.js';
+import { Flex } from '../model/flex.js';
 
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -33,6 +34,7 @@ export class Structure {
     this.beam = new Map();      // seg id -> {F:[3], M:[3]}  (distal force, moment about origin)
     this.live = new Map();      // distal piece id -> live joint
     this.noHit = new Map();     // seg id -> Set of piece ids it must not collide with (the wood it is still joined to)
+    this.flex = new Flex(sim.world);   // elastic bending of the standing tree
     this.parting = [];          // joints that have let go but whose bodies have not moved apart yet
     this.rootOf = new Map();    // root seg of a live distal piece -> the parent piece (they overlap at the joint)
   }
@@ -60,6 +62,8 @@ export class Structure {
       this.beamPass(piece);
       for (const s of [...w.segsOf(piece.id)]) if (w.segs.has(s.id) && s.piece === piece.id) this.bundleStep(s);
     }
+    // every stiff bundle's stress plane is also a tilt across it: the tree bends (model/flex.js)
+    this.flex.update(dt, (s) => [s.f.s1, s.f.s2]);
   }
 
   // ---- beam analysis: total force and moment carried past each segment's base ----
@@ -125,6 +129,8 @@ export class Structure {
       gap: Float32Array.from({ length: n }, (_, i) => (f.state[i] === CUT ? gapOf(f, i) : 0)),
       p: new Float32Array(n), force: new Float32Array(n), angle: 0, age: 0,
     } : null;
+    const fr = this.flex.frame(s.id);
+    sim.partFrame = fr ? { q: fr.q.slice(), t: fr.t.slice() } : null;      // where this wood is right now, bend included
     sim.emit({ t: 'split', seg: s.id, at, newSeg, newPiece });
     if (!j) return;
     this.live.set(newPiece, j);
@@ -152,7 +158,7 @@ export class Structure {
     this.parting = this.parting.filter(({ id, j }) => {
       const a = w.segs.get(j.rootSeg), b = w.segs.get(j.parentSeg);
       if (a && b && sim.bodies.has(a.piece) && sim.bodies.has(b.piece)) {
-        const d = segDist(sim.toWorld(a.piece, a.a), sim.toWorld(a.piece, a.b), sim.toWorld(b.piece, b.a), sim.toWorld(b.piece, b.b)).d;
+        const d = segDist(sim.segToWorld(a, a.a), sim.segToWorld(a, a.b), sim.segToWorld(b, b.a), sim.segToWorld(b, b.b)).d;
         if (d < Math.max(a.r0, a.r1) + Math.max(b.r0, b.r1) + 0.03) return true;      // still overlapping
       }
       this.unfilter(id, j);
@@ -175,7 +181,9 @@ export class Structure {
     const A = L.dA * R * R, h = L.cs * R;
     const Ft = CFG.MOR * A, Fc = CFG.COMP * A, k = Ft / CFG.FIBRE_YIELD, ks = 0.4 * k, ey = CFG.FIBRE_YIELD, ec = Fc / k;
     // frames: the bundle face on the parent (O, u, v, nrm) and the same face carried by the distal body
-    const Ow = sim.toWorld(j.parent, j.O, _O), nw = sim.dirToWorld(j.parent, j.n, _n), uw = sim.dirToWorld(j.parent, j.u, _u), vw = sim.dirToWorld(j.parent, j.v, _v);
+    // the parent's side of the bundle rides on the (possibly bent) segment it grows from
+    const ps = sim.world.segs.get(j.parentSeg) || { id: -1, piece: j.parent };
+    const Ow = sim.segToWorld(ps, j.O, _O), nw = sim.segDirToWorld(ps, j.n, _n), uw = sim.segDirToWorld(ps, j.u, _u), vw = sim.segDirToWorld(ps, j.v, _v);
     const Ob = sim.toWorld(id, j.O, _Ob), ub = sim.dirToWorld(id, j.u, _ub), vb = sim.dirToWorld(id, j.v, _vb);
     // relative rotation of the distal body, as a rotation vector
     const qp = P.rotation(), qb = B.rotation();

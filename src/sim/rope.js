@@ -13,13 +13,13 @@ export class Rope {
   constructor(sim) { this.sim = sim; this.reset(); }
   reset() { this.L0 = 0; this.T = 0; this.wraps = 2; this.holder = -1; this.prev = 0; this.lastForce = null; this.slack = 0; }
 
-  node(n) { return this.sim.toWorld(this.sim.world.segs.get(n.seg).piece, n.p); }
+  node(n) { return this.sim.segToWorld(this.sim.world.segs.get(n.seg), n.p); }
 
   // ---- placing (rope tool) ----
   target(p, aim) {
     if (!aim || aim.dist > CFG.REACH) return null;
     const sim = this.sim, s = sim.world.segs.get(aim.seg);
-    const loc = sim.toLocal(s.piece, aim.point);
+    const loc = sim.segToLocal(s, aim.point);
     return { seg: s.id, p: loc, fixed: sim.world.pieces.get(s.piece).fixed, point: aim.point };
   }
   prompt(p, aim) {

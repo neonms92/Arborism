@@ -15,13 +15,14 @@
 import * as THREE from 'three';
 import { segAxis, segLen, lanyardLoop } from '../model/world.js';
 import { bundleBasis, layout, CUT } from '../model/fibres.js';
+import { Flex, frameApply } from '../model/flex.js';
 import { CFG, MODE, INJ } from '../config.js';
 
 const SIDES = 7;
 const PLAYER_COLORS = [0xe8a23a, 0x3a9be8, 0xd94f6a, 0x62c462, 0xb07be0, 0xe0d24a];
 const Y = new THREE.Vector3(0, 1, 0);
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _m = new THREE.Matrix4(), _c = new THREE.Color();
-const _q2 = new THREE.Quaternion();
+const _q2 = new THREE.Quaternion(), _mD = new THREE.Matrix4();
 const _bx = new THREE.Vector3(), _by = new THREE.Vector3(), _bz = new THREE.Vector3(), _s = new THREE.Vector3(), _q = new THREE.Quaternion();
 const NEUTRAL = [0.86, 0.69, 0.33], RED = [0.92, 0.08, 0.06], BLUE = [0.08, 0.25, 0.98], GREEN = [0.1, 0.85, 0.2], DEAD = [0.3, 0.22, 0.14];
 
@@ -54,6 +55,7 @@ export class View {
     this.fibreGeo = new THREE.BoxGeometry(1, 1, 1);
     this.ropeMat = new THREE.MeshLambertMaterial({ color: 0xf2e9d0, flatShading: true });
     this.lanyardMat = new THREE.MeshLambertMaterial({ color: 0xffd21a, flatShading: true });
+    this.flex = new Flex(world);   // bending, from the stress planes in aux (clients; the host hands over the sim's own)
     this.pieces = new Map();      // piece id -> {group, bark, leaves, fibres, segStart, ...}
     this.players = new Map();     // player id -> {group, saw, lanyard}
     this.lastAuxTick = -1;
@@ -95,10 +97,17 @@ export class View {
       case 'tree': this.buildPiece(ev.piece); break;
       case 'split': {
         if (!info.moved) break;
-        const old = this.pieces.get(info.oldPiece);
+        const old = this.pieces.get(info.oldPiece), fr = this.flexNow && this.flexNow.frame(ev.seg);
+        this.flex.release(info.moved, fr);
         this.buildPiece(info.oldPiece);
         const np = this.buildPiece(ev.newPiece);
-        if (old) { np.group.position.copy(old.group.position); np.group.quaternion.copy(old.group.quaternion); }
+        if (old) {
+          np.group.position.copy(old.group.position); np.group.quaternion.copy(old.group.quaternion);
+          if (fr) {         // ...bent as its root segment was, until the first snapshot of the new body arrives
+            np.group.position.add(_v.set(fr.t[0], fr.t[1], fr.t[2]).applyQuaternion(old.group.quaternion));
+            np.group.quaternion.multiply(_q.set(fr.q[0], fr.q[1], fr.q[2], fr.q[3]));
+          }
+        }
         break;
       }
       case 'cut': case 'divide': { const s = this.world.segs.get(ev.seg); if (s) this.buildPiece(s.piece); break; }
@@ -126,6 +135,7 @@ export class View {
     }
     const segs = this.world.segsOf(id);
     const pos = [], col = [], lpos = [];
+    const barkSeg = [], leafSeg = [];           // [seg id, first vertex, vertex count] so bending can move each segment's part
     const ico = new THREE.IcosahedronGeometry(1, 0).attributes.position;
     for (const s of segs) {
       const start = pos.length / 3;
@@ -158,8 +168,10 @@ export class View {
       }
       const shade = 0.85 + ((s.id * 37) % 10) / 60;
       for (let i = start; i < pos.length / 3; i++) col.push(0.42 * shade, 0.31 * shade, 0.22 * shade);
+      barkSeg.push(s.id, start, pos.length / 3 - start);
       if (s.leaf > 0) {
         const r = 0.3 + s.leaf * 0.18;
+        leafSeg.push(s.id, lpos.length / 3, ico.count);
         for (let i = 0; i < ico.count; i++) lpos.push(s.b[0] + ico.getX(i) * r, s.b[1] + ico.getY(i) * r * 0.8, s.b[2] + ico.getZ(i) * r);
       }
     }
@@ -172,6 +184,7 @@ export class View {
       mesh.geometry = g;
     };
     set(p.bark, pos, col); set(p.leaves, lpos, null);
+    p.barkBase = Float32Array.from(pos); p.leafBase = Float32Array.from(lpos); p.barkSeg = barkSeg; p.leafSeg = leafSeg; p.bent = false;
     this.buildFibres(p, segs);
     p.bark.visible = CFG.BARK_OPACITY > 0.01; p.leaves.visible = CFG.LEAF_OPACITY > 0.01;
     this.lastAuxTick = -1; this.painted = false;
@@ -214,7 +227,7 @@ export class View {
     for (let i = 0; i < k; i++) mesh.setColorAt(i, _c.setRGB(NEUTRAL[0], NEUTRAL[1], NEUTRAL[2]));
     mesh.instanceMatrix.needsUpdate = true;
     mesh.visible = CFG.SHOW_FIBRES;
-    p.fibres = mesh; p.info = info;
+    p.fibres = mesh; p.info = info; p.fibBase = Float32Array.from(mesh.instanceMatrix.array.subarray(0, k * 16));
     p.group.add(mesh);
   }
 
@@ -254,6 +267,37 @@ export class View {
     }
   }
 
+  /** Move a piece's bark, leaves and fibres to where its bent wood is. flex = a Flex, or null for unbent. */
+  bendPiece(p, flex) {
+    let any = false;
+    const move = (base, seg, attr) => {
+      const out = attr.array;
+      for (let n = 0; n < seg.length; n += 3) {
+        const fr = flex && flex.frame(seg[n]), i0 = seg[n + 1] * 3, i1 = i0 + seg[n + 2] * 3;
+        if (!fr) { for (let i = i0; i < i1; i++) out[i] = base[i]; continue; }
+        any = true;
+        _q.set(fr.q[0], fr.q[1], fr.q[2], fr.q[3]);
+        for (let i = i0; i < i1; i += 3) {
+          _v.set(base[i], base[i + 1], base[i + 2]).applyQuaternion(_q);
+          out[i] = _v.x + fr.t[0]; out[i + 1] = _v.y + fr.t[1]; out[i + 2] = _v.z + fr.t[2];
+        }
+      }
+      attr.needsUpdate = true;
+    };
+    const bp = p.bark.geometry.getAttribute('position'), lp = p.leaves.geometry.getAttribute('position');
+    if (bp) move(p.barkBase, p.barkSeg, bp);
+    if (lp) move(p.leafBase, p.leafSeg, lp);
+    const info = p.info, arr = p.fibres.instanceMatrix.array, base = p.fibBase;
+    let last = null, fr = null;
+    for (let k = 0; k < p.fibres.count; k++) {
+      const s = info[k * 2];
+      if (s !== last) { last = s; fr = flex && flex.frame(s.id); if (fr) { any = true; _mD.compose(_v.set(fr.t[0], fr.t[1], fr.t[2]), _q.set(fr.q[0], fr.q[1], fr.q[2], fr.q[3]), _s.set(1, 1, 1)); } }
+      if (fr) { _m.fromArray(base, k * 16).premultiply(_mD).toArray(arr, k * 16); } else for (let i = k * 16; i < k * 16 + 16; i++) arr[i] = base[i];
+    }
+    p.fibres.instanceMatrix.needsUpdate = true;
+    p.bent = any;
+  }
+
   playerMesh(id) {
     let p = this.players.get(id);
     if (p) return p;
@@ -286,6 +330,15 @@ export class View {
       const pose = src.pose(id);
       if (pose) { p.group.position.set(pose.p.x, pose.p.y, pose.p.z); p.group.quaternion.set(pose.q.x, pose.q.y, pose.q.z, pose.q.w); }
     }
+    // bending: the host hands over the sim's own; a client works it out from the stress planes in aux
+    let flex = src.flex || null;
+    if (!flex && aux) {
+      const at = new Map(); for (let i = 0; i < aux.fs.length; i += 4) at.set(aux.fs[i], i);
+      this.flex.update(Math.min(dt, 0.05), (s) => { const o = at.get(s.id); return o === undefined ? null : [aux.fs[o + 2] * 1e4, aux.fs[o + 3] * 1e4]; });
+      flex = this.flex;
+    }
+    this.flexNow = flex;
+    for (const p of this.pieces.values()) this.bendPiece(p, flex);
     if (aux && CFG.SHOW_FIBRES && aux.tick !== this.lastAuxTick && (CFG.STRESS_COLORS || !this.painted)) { this.lastAuxTick = aux.tick; this.painted = true; this.paintFibres(aux); }
     const seen = new Set();
     let mePos = null;
@@ -325,7 +378,8 @@ export class View {
     const cl = a.m === MODE.CLIMB && a.cl, s = cl ? this.world.segs.get(cl[0]) : null, piece = s ? this.pieces.get(s.piece) : null;
     pm.lanyard.visible = !!piece;
     if (!piece) return;
-    const pts = lanyardLoop(s, cl[1], cl[2], CFG.STANDOFF).map((q) => new THREE.Vector3(q[0], q[1], q[2]).applyQuaternion(piece.group.quaternion).add(piece.group.position));
+    const fr = this.flexNow && this.flexNow.frame(s.id);
+    const pts = lanyardLoop(s, cl[1], cl[2], CFG.STANDOFF).map((q) => { const b = frameApply(fr, q); return new THREE.Vector3(b[0], b[1], b[2]).applyQuaternion(piece.group.quaternion).add(piece.group.position); });
     pm.lanyard.geometry.dispose();
     pm.lanyard.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.3), 20, 0.012, 5);
   }
@@ -333,7 +387,8 @@ export class View {
   nodeWorld(n, out) {
     const s = this.world.segs.get(n.seg), piece = s && this.pieces.get(s.piece);
     if (!piece) return null;
-    return out.set(n.p[0], n.p[1], n.p[2]).applyQuaternion(piece.group.quaternion).add(piece.group.position);
+    const b = frameApply(this.flexNow && this.flexNow.frame(s.id), n.p);
+    return out.set(b[0], b[1], b[2]).applyQuaternion(piece.group.quaternion).add(piece.group.position);
   }
 
   // The rigging line as a real tube: anchor -> block -> device -> tail, sagging where it is slack.
