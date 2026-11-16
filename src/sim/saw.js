@@ -52,17 +52,23 @@ export function sawStep(sim, p, inp, dt, can) {
     for (const e of done.values()) sever(sim, e);
   } else p.prompt = 'The bar is against the wood - {throttle} to cut';
 
-  // ropes and lanyards do not stop a chain
+  // ropes and lanyards do not stop a chain: a moment of contact under throttle and they part
+  let touching = null;
   if (inp.rt > 0.3) {
-    for (const [a, b] of sim.rope.spans()) if (segDist(sw.a0, sw.a1, a, b).d < CFG.ROPE_RADIUS + 0.02) { sim.rope.cut(); break; }
+    for (const [a, b] of sim.rope.spans()) if (segDist(sw.a0, sw.a1, a, b).d < CFG.ROPE_RADIUS + 0.02) { touching = 'rope'; break; }
     for (const q of sim.players.list.values()) {
-      if (q.mode !== MODE.CLIMB) continue;
+      if (touching || q.mode !== MODE.CLIMB) continue;
       const s = sim.world.segs.get(q.cl.seg); if (!s) continue;
       const pts = lanyardLoop(s, q.cl.t, q.cl.side, CFG.STANDOFF);
       for (let i = 0; i + 1 < pts.length; i++) {
-        if (segDist(sw.a0, sw.a1, sim.toWorld(s.piece, pts[i], _p), sim.toWorld(s.piece, pts[i + 1], _q)).d < 0.035) { sim.players.cutLanyard(q, p); break; }
+        if (segDist(sw.a0, sw.a1, sim.toWorld(s.piece, pts[i], _p), sim.toWorld(s.piece, pts[i + 1], _q)).d < 0.03) { touching = q; break; }
       }
     }
+  }
+  sw.ropeT = touching ? (sw.ropeT || 0) + dt : 0;
+  if (touching && sw.ropeT > CFG.ROPE_CUT_TIME) {
+    sw.ropeT = 0;
+    if (touching === 'rope') sim.rope.cut(); else sim.players.cutLanyard(touching, p);
   }
 }
 

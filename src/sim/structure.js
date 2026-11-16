@@ -37,6 +37,16 @@ export class Structure {
     this.rootOf = new Map();    // root seg of a live distal piece -> the parent piece (they overlap at the joint)
   }
 
+  /** Is this piece the standing tree, or still joined to it by fibres (through any number of live bundles)? */
+  isHeld(piece) {
+    for (let n = 0; n < 8; n++) {
+      if (this.sim.world.pieces.get(piece)?.fixed) return true;
+      const j = this.live.get(piece); if (!j) return false;
+      piece = j.parent;
+    }
+    return false;
+  }
+
   onRemove(piece) {
     for (const [id, j] of [...this.live]) if (id === piece || j.parent === piece) this.endJoint(id, j);
   }

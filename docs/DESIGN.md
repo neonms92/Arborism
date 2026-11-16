@@ -27,7 +27,7 @@ Section 9 is the build plan. Read sections 1–3 before touching anything.
                      v
    +------------------------------------------------+
    |  MODEL (everyone)            src/model/        |
-   |  Pure data: segments, pieces, cut sections,    |
+   |  Pure data: segments, their fibre bundles,     |
    |  rope layout. Mutated ONLY by apply(event).    |
    +-----------------+------------------------------+
                      | change notifications
@@ -66,18 +66,18 @@ synced by different mechanisms (section 2).
 | `src/main.js` | Boot, lobby, main loop, wires everything | all |
 | `src/config.js` | Every tunable number (material strengths, speeds, thresholds) | all |
 | `src/input.js` | Gamepad + keyboard/mouse → one `InputState` | all |
-| `src/model/world.js` | `World`: segments, pieces, sections, rope; `apply(event)`; `serialize()` | all |
+| `src/model/world.js` | `World`: segments (each with its fibre bundle), pieces, rope; `apply(event)`; `serialize()` | all |
 | `src/model/treegen.js` | Seeded tree generator → segment list | host |
-| `src/model/section.js` | Cut cross-section: fibre grid, kerfs, stress analysis (pure functions) | all (analysis host only) |
+| `src/model/fibres.js` | Fibre bundles: layout, severing, static load sharing (pure functions) | all (analysis host only) |
 | `src/sim/sim.js` | Host simulation: Rapier world, fixed step, orchestration, `emit` | host |
-| `src/sim/structure.js` | Beam analysis, section failure, splitting pieces, hinge joints | host |
+| `src/sim/structure.js` | Beam pass, stiff bundles (static solve), live bundles (per-fibre springs, implicit solve) | host |
 | `src/sim/players.js` | Player bodies, walking, climbing, lanyard, injury thresholds | host |
-| `src/sim/saw.js` | Aiming and feeding the chainsaw into a section | host |
+| `src/sim/saw.js` | The bar as a rod in the world: what it rests against, severing fibres, cutting ropes | host |
 | `src/sim/rope.js` | Rigging line: tension path, block, friction device | host |
 | `src/net/net.js` | PeerJS transport: host/join, reliable + unreliable channels | all |
 | `src/net/snapshot.js` | Binary snapshot encode/decode, client interpolation | all |
-| `src/view/view.js` | Three.js scene, piece meshes, players, rope, saw, kerfs, camera | all |
-| `src/view/hud.js` | DOM HUD, cross-section diagram, prompts | all |
+| `src/view/view.js` | Three.js scene, bark and per-fibre meshes, players, rope and lanyard tubes, saw, first-person camera | all |
+| `src/view/hud.js` | DOM HUD; turns `{tokens}` in prompts into key or button names for the device last used | all |
 | `vendor/` | three, rapier3d-compat, peerjs — committed, no CDN | all |
 
 Dependency rule: `model` imports nothing from `sim`, `net` or `view`.
@@ -105,17 +105,15 @@ frame(now):
 
 One sim tick (`sim.step`), in this order (order matters; do not shuffle):
 
-1. `players.preStep` — apply inputs: walking velocities, climb motion, tool
-   actions. Emits rope/tool events.
-2. `saw.step` — advance any kerf being cut; emits `kerf` events.
-3. `rope.step` — compute rope tension, apply forces to dynamic bodies,
-   record loads on the rooted tree.
-4. `structure.step` — gather loads (gravity, players, rope, last tick's
-   contact forces), run beam analysis, run section analysis, emit `tear` /
-   `split` / `hinge` / `release` events, create/destroy bodies and joints.
-5. `rapier.step(eventQueue)` — integrate; drain contact-force events into the
-   load list for the next tick.
-6. `players.postStep` — landing/impact detection → injury thresholds.
+1. `rope.step` — rope tension; forces on dynamic bodies, loads on the
+   rooted tree.
+2. `players.pre` — apply inputs: walking, climbing, lanyard, tools. Runs the
+   saw (`saw.js`), which emits `cut` / `divide` events.
+3. `structure.step` — live bundles first (their pull on the standing tree is
+   a load), then the beam pass, then every stiff bundle. Emits `split`.
+4. `rapier.step(eventQueue, hooks)` — integrate; drain contact-force events
+   into the load list for the next tick.
+5. `players.post` — landing/impact detection → injury thresholds.
 
 ### 1.4 Stack
 
@@ -152,10 +150,10 @@ multi-body.
 
 | Kind | Examples | Channel | Rate |
 |---|---|---|---|
-| **Events** (structure) | kerf progress, fibre tear, split, hinge, release, rope tied/untied, piece removed | `rel` | when they happen |
+| **Events** (structure) | fibres severed (`cut`), segment divided, wood parted (`split`), rope tied/untied/cut, piece removed | `rel` | when they happen |
 | **Snapshot** (transforms) | position + rotation of every awake dynamic piece and every player | `fast`, binary | 20 Hz |
-| **Aux** (small continuous state) | per-player mode/tool/injury/lanyard/saw pose; rope rest-length, tension, wraps | `fast`, JSON | 10 Hz |
-| **Input** (client → host) | sticks, triggers, look angles, aim ray, button press counters | `fast`, JSON | 30 Hz |
+| **Aux** (small continuous state) | per-player mode/tool/injury/lanyard position/saw bar endpoints; rope rest-length, tension, wraps; per-bundle stress plane and per-fibre forces of live bundles (for fibre colours) | `fast`, JSON | 10 Hz |
+| **Input** (client → host) | sticks, triggers, look angles, saw swing angles, button press counters | `fast`, JSON | 30 Hz |
 | **Welcome** (host → joining client) | `world.serialize()` + assigned player id + current tick | `rel` | once |
 
 **Clients never simulate.** They have no Rapier world. A client's own avatar
@@ -171,12 +169,14 @@ segment geometry is stored in *piece-local* coordinates. When a limb breaks
 or is cut off, the host emits one event:
 
 ```
-{ t:'split', seg, at, newSeg, newPiece, hinge? }
+{ t:'split', seg, at, newSeg, newPiece }
 ```
 
 `apply` on every machine does the same deterministic thing: optionally split
-segment `seg` at fraction `at` into two segments, then move the whole distal
-subtree into a new piece `newPiece`. **The new piece is created with the
+segment `seg` at fraction `at` into two segments (trimming each fibre to
+where the saw left it), then move the whole distal subtree into a new piece
+`newPiece`. Whether that piece is still held by fibres is the host's
+business; clients only see it move. **The new piece is created with the
 parent piece's transform, so no segment's local coordinates change.** The
 client's view just re-buckets meshes; from then on snapshots carry the new
 piece's transform.
@@ -221,207 +221,199 @@ press and never duplicates one.
 
 ## 3. Physics: the tree
 
-### 3.1 Representation
+### 3.1 Representation — wood is fibres
 
-- A **segment** is a tapered cylinder of wood: `{id, parent, piece, a, b,
-  r0, r1, leafMass}` — endpoints `a→b` in piece-local metres, base and tip
-  radius, extra foliage mass. Children attach at the parent's tip `b`.
-  Segments are 0.4–1.5 m long. A demo tree is 100–200 segments.
-- A **piece** is a rigid body: a set of segments forming one connected
-  subtree. Piece 0 is the rooted tree, a *fixed* Rapier body. Every other
-  piece is a *dynamic* body with one cylinder collider per segment (collider
-  mass set explicitly from segment volume × green density + leaf mass, so
-  Rapier and the analysis agree on weight).
-- The tree is **not** a chain of jointed bodies. Hundreds of jointed bodies
-  are slow, jittery, and Rapier's JS API does not expose usable joint
-  reaction forces. Instead:
+- A **segment** is a tapered length of stem: `{id, parent, piece, a, b, r0,
+  r1, leaf, f}` — endpoints `a→b` in piece-local metres, base and tip radius,
+  foliage mass, and its **fibre bundle** `f`. Children attach at the parent's
+  tip. Segments are 0.4–1 m long.
+- A **bundle** is a square grid of fibres across the stem, clipped to the
+  circle: about one fibre per 3 cm, always an odd number across, from 3×3
+  (9 fibres) on twigs to 17×17 (225) on the trunk. The demo tree is ≈ 2000
+  fibres. Fibres run the length of their segment. Each is `INTACT` or `CUT`,
+  and a cut fibre remembers the axial span the saw removed (`zmin..zmax`).
+  This exists from the first tick, on every segment, cut or not.
+- A **piece** is a rigid body: one connected subtree of segments. Piece 0 is
+  the rooted tree, a *fixed* Rapier body; every other piece is *dynamic*, one
+  cylinder collider per segment, mass set from the wood so Rapier and the
+  fibre model agree on weight.
 
-### 3.2 Load and stress — analytic beam analysis on a rigid tree
+There are no "states" for wood (attached / hinged / free). There is only
+what its fibres are doing. Two regimes compute that; they are the same model
+at two stiffnesses.
 
-Every tick, for each *rooted* piece, the host computes what each
-cross-section is carrying, the way an engineer would:
+### 3.2 Stiff regime — static load sharing
 
-1. Build the **load list** — point forces on segments, in world space:
-   - self-weight of each segment (at its centroid) and its foliage;
-   - each climbing player's weight at their spur point;
-   - rope tension at each node on this piece (a block carries the vector sum
-     of both rope legs — roughly double the load, as in real rigging);
-   - contact forces from last tick's Rapier contact-force events (a falling
-     piece or a player landing on a limb), low-pass filtered (τ ≈ 40 ms).
-2. One reverse pass over the segment array (children before parents)
-   accumulates for each segment the total force `F` and moment `M₀` (about
-   the piece origin) of everything distal to its base. O(segments).
-3. At the base of each segment: moment about the joint
-   `M = M₀ − p × F`; split into bending `M_b` (⊥ axis), torsion `T`
-   (‖ axis), axial `N`. For a round section of radius r:
+While every fibre in a bundle is inside its elastic range, the wood either
+side of it moves as one body, and the fibres share the load the way parallel
+springs between two rigid faces must: the stress varies as a plane across the
+section. Each tick, for every rooted piece:
 
-   ```
-   σ_bend  = 4·|M_b| / (π r³)
-   σ_axial = N / (π r²)
-   τ_tors  = 2·|T| / (π r³)
-   utilisation u = (σ_bend + max(σ_axial,0)) / MOR + (τ_tors / S)²
-   ```
+1. **Load list** — point forces (and moments) on segments: self-weight and
+   foliage; each climber's weight at their spurs (× `CLIMB_BOUNCE` while
+   moving); rope tension at each node (a block carries both legs); filtered
+   contact forces from Rapier (a falling piece, a player landing); and the
+   pull of any *live* bundle further out (3.3).
+2. **Beam pass** — one reverse sweep over the segments accumulates the total
+   force and moment carried past each segment's base. O(segments).
+3. **Bundle solve** (`fibres.analyse`) — at each bundle's weakest plane
+   (`f.at`: the base joint, or wherever it has been sawn) solve for the
+   stress plane `σ(x, y) = c0 + s1·x + s2·y` over the *intact fibres only*,
+   from the three equilibrium equations. This is not an approximation of the
+   fibre model: it is its exact answer when the fibres are stiff.
+   A saw kerf is an 8 mm gap and carries nothing — unless the intact fibres
+   are past compressive yield (`COMP`), in which case they crush, the kerf
+   closes, and severed fibres carry compression too (never tension). That is
+   what clamps a saw bar.
 
-   `MOR` (modulus of rupture) and `S` (shear) live in `config.js`. Clear
-   green hardwood is ≈ 50 MPa; the game uses 30 MPa to stand in for knots,
-   unions and defects. This is per-tick, cheap, and gives a number per
-   segment that the view can show as a colour (the **stress overlay**, the
-   main teaching tool).
+Every fibre therefore has a stress every tick, and the debug view draws it
+(3.5). Numbers on the demo tree: the 19 cm limb carries itself at a few MPa;
+an 85 kg climber far out on 6 cm wood brings the top fibres to roughly half
+of `MOR`; a 55 kg limb snatched on 1.5 m of slack rope puts ≈ 5 kN into the
+rigging point.
 
-Measured on the demo tree (seed 7), so the next person knows what "normal"
-looks like: the 19 cm limb carries itself at u ≈ 0.08. An 85 kg climber
-walking out it raises the worst joint to u ≈ 0.25 at 6 cm diameter and
-u ≈ 0.6 on the last spur-able wood; moving multiplies their weight by
-`CLIMB_BOUNCE` (1.6), which is what tips thin wood over. A 55 kg limb caught
-on a snug rope peaks at ≈ 1.9 kN; the same limb with 1.5 m of slack peaks at
-≈ 5.3 kN, and the block carries up to twice that. Real wood is strong: the
-drama comes from shock loads and thin wood, not from standing on big limbs.
-Nobody scripted any of that.
+`MOR` is 30 MPa (clear green hardwood is ≈ 50; the difference stands in for
+knots and unions).
 
-### 3.3 How wood fails — the section model
+### 3.3 Live regime — every fibre is a spring
 
-Any place where wood can part is a **section**: a cross-section of one
-segment at fraction `at` along it, discretised as a 13×13 grid of **fibre
-cells** inside the circle (~137 cells). Each cell is `INTACT`, `CUT` (a saw
-kerf passed through it) or `TORN` (it broke). Sections are created lazily:
+The moment any fibre's tension passes `MOR`, that bundle goes **live**: the
+wood beyond it becomes its own dynamic body (a `split` event), joined to its
+parent by nothing except the bundle's fibres. Each fibre is then an
+individual element between the two bodies:
 
-- by the saw, where the player cuts (section 4);
-- by overload: when a segment's base utilisation u > 0.8, a section is
-  created at its base with all cells intact.
+```
+force along the grain   f = k · (elongation − permanent set)      k = MOR·A / FIBRE_YIELD
+                        capped at  +MOR·A  (it stretches, taking a set)
+                        capped at  −COMP·A (it crushes, taking a set)
+it snaps when           elongation (incl. bending over its own width) > FIBRE_STRETCH,
+                        or sideways slip > FIBRE_SLIP, or the joint folds past BEND_MAX
+sideways                a shear spring, 0.4·k
+bending                 each fibre resists being bent over its own thickness (k·h²/12,
+                        capped at MOR·A·h/4) — this is all a one-fibre-thick strip has
+severed fibres          bear compression once their gap (kerf, or notch opening) has
+                        closed; wood pushed into wood crushes to fit and never springs back
+snapped fibres          the same, with no gap
+```
 
-So an overloaded uncut limb and a sawn limb fail through **the same code**.
-Each tick, for every section on a rooted piece, `section.analyse()`:
+Nothing else is decided anywhere. What used to be rules are now outcomes:
 
-1. Takes the distal load at the section (`F`, `M` from the beam pass,
-   adjusted to the section's position along the segment).
-2. Computes the *actual* section properties of the remaining wood — area,
-   centroid, second moments `Ixx, Iyy, Ixy` — from the intact cells. A kerf
-   is an 8 mm gap, so it carries nothing while the wood beside it is elastic.
-   Only if the intact wood is past its compressive yield (`COMP`) — it
-   crushes, the kerf closes — do closed kerfs carry compression (never
-   tension, relative stiffness `KERF_CONTACT`), found with a small
-   active-set iteration.
-3. Gets the stress in every cell from the unsymmetric bending formula
-   (derivation in `section.js`).
-4. Applies the failure rules:
-   - **Tear.** Intact cells whose tension exceeds `MOR` tear, most-stressed
-     first, a few per tick. Tearing raises stress on the neighbours, so it
-     either stops (a *crack* — audible/visible warning, the limb holds) or
-     runs. If tension exceeds 3×MOR everything tears at once (a clean snap
-     from a shock load).
-   - **Hinge.** If cells must tear but the remaining intact wood is a thin
-     strip (thickness ≤ 20 % of diameter, at least twice as long as thick),
-     the fibres *bend* instead: the distal subtree becomes a dynamic piece
-     attached to its parent by a Rapier **revolute joint** along the strip's
-     long axis, through the strip's centroid.
-   - **Free.** No intact cells → the distal subtree becomes a free dynamic
-     piece.
-5. For a hinged piece, each tick:
-   - **Closing.** Rotation closes the gap on one side of the hinge. Each
-     `CUT` cell has a gap (kerf width, or the opening between two kerfs —
-     i.e. a notch). The hinge breaks when rotation reaches
-     `θ_close = min over closing-side cells of gap / distance-from-hinge`.
-     A proper open notch gives 45–70°; a single flat kerf gives ~2°.
-   - **Fibre limit.** `θ_fibre = clamp(0.12 / (thickness/diameter), 0.2,
-     1.6)` rad. Thin hinges flex far; thick ones snap early.
-   - **Side load.** Moment about the strip's strong axis, torsion, and
-     tension are checked against the strip's capacity. Side lean or a
-     swinging load beyond it tears the hinge and the piece goes where gravity
-     takes it.
-   - Bending fibres resist with a roughly constant moment: the joint has a
-     velocity-0 motor whose torque is capped at half the moment that was
-     driving the hinge when it formed (never more than 0.6 × the strip's
-     plastic moment σ·L·w²/4). The piece starts over slowly and accelerates
-     as its lean grows; it can never stall on a hinge.
+| What you see | Why the fibres do it |
+|---|---|
+| A limb cracks and sags but holds | top fibres stretched past yield took a set; the rest still carry it |
+| Green-wood break: tears from the top, hangs by the bottom, rips off | fibres snap in order of elongation; the last row only bends |
+| A hinge steers a falling trunk | a strip of fibres is stiff across its length and floppy across its thickness |
+| The hinge lets go as the notch closes | closed notch faces become the pivot; the strip is now far from it and stretches |
+| A thick hinge breaks early, a thin one folds far | elongation = angle × distance from the pivot |
+| Side lean tears a hinge from one end | the fibres at that end reach their stretch limit first |
+| A top-cut limb swings down on a strap | the uncut bottom fibres are a hinge that nothing closes on |
+| A "hanger" | fibres that have not been stretched or folded enough to snap. Cut them. |
 
-What emerges without special cases:
+Stiff fibres between light bodies cannot be integrated explicitly at 60 Hz,
+so a live bundle is solved **implicitly, per bundle, each tick** in the
+6-DOF space of the two bodies' relative motion: assume every fibre is inside
+its limits, solve the 6×6 system for the impulse, clamp the fibres that end
+up outside their limits, repeat until none change (≤ 6 passes). Derivation
+is in `structure.js`. The reaction on a rooted parent goes into its load
+list (smoothed), so a swinging hanger loads the limb it hangs from.
 
-| Player does | Model does | Reads as |
-|---|---|---|
-| Stands too far out on a thin limb | section at base tears from the top, bottom strip hinges, limb swings down and rips off | green-wood break |
-| Top-cuts a limb with no undercut | bottom strip hinges; limb swings down into the trunk (and the climber) before tearing | "should have undercut" |
-| Undercut, then top cut | strip between kerfs; closing side has only a kerf-width gap → releases almost at once, limb drops flat | clean snap cut |
-| Notch + back cut leaving a hinge | revolute about the hinge, opens to the notch angle, then releases | controlled fell |
-| Back cut right through the hinge | no intact cells → free body | no control |
-| Flat cut past the notch apex ("Dutchman") | small-gap cells near the hinge → closes early, hinge breaks early | lost steering |
-| Cuts the compression side | closed kerf picks up compression → clamps the bar | pinched saw |
+While two pieces are joined by a live bundle their colliders overlap at the
+joint (colliders know nothing about notches), so contact between the distal
+piece's root segment and the parent piece, and between the distal piece and
+the stub, is filtered out (`PhysicsHooks`). The filter stays until the last
+fibre has gone *and* the two have moved apart.
 
-Dynamic (already-fallen) pieces are not stress-analysed in the prototype:
-sections on them carry zero load, so bucking a log is a plain cut-through.
-(Task P2-3 adds ground reactions.)
+A bundle that has gone live stays live. Fully severed bundles skip all this:
+the wood is simply free.
+
+Dynamic (already-fallen) pieces are not analysed in the stiff regime yet:
+their bundles carry no load until fully severed, so bucking a log is a plain
+cut-through (task P2-3).
 
 Debris: pieces under 2 kg are removed 10 s after creation.
 
+### 3.4 Segment bookkeeping
+
+- `cut` — fibres `i[]` of a segment severed at axial positions `z[]`. The
+  first cut on a pristine bundle also fixes its weak plane `f.at`.
+- `divide` — a second cut plane more than a stem diameter from the first
+  gets its own bundle: the segment becomes two (same piece), and each severed
+  fibre stays severed on the side its cut is on.
+- `split` — the wood parts at the weak plane: the segment is divided there,
+  every fibre is trimmed to where it was sawn (so the stump shows the notch
+  and the back cut as cut), and the distal subtree becomes a new piece at the
+  parent's transform. Both halves get fresh, intact bundles.
+
+### 3.5 Debug fibre view
+
+On by default (`DEBUG_FIBRES`; Tab / Back toggles): bark hidden, foliage
+ghosted, every fibre drawn as its own unlit box, split in two where sawn.
+
+| Colour | Meaning |
+|---|---|
+| woody yellow | no load |
+| → red | compression, 0 → `COMP` (crushing) |
+| → blue | tension, 0 → `MOR` (breaking) |
+| → green | being bent over in a live bundle |
+| dark brown | snapped |
+
+Stiff bundles are coloured from their stress plane (three numbers per
+segment in aux); live bundles fibre by fibre. `COLOR_GAMMA` lifts small
+loads into view.
+
 ---
 
-## 4. The chainsaw cut
+## 4. The chainsaw
 
-### 4.1 What a cut is
+### 4.1 The bar is a rod in the world
 
-A **kerf** belongs to a section and is four numbers:
+There is no "cut" object and no cutting mode with its own coordinates. The
+saw is a 0.5 m rod (`BAR_LEN`). Raising it (hold right mouse / LT) holds it
+`SAW_HOLD` in front of the eyes — so looking up and down before raising sets
+its height — pointing level and straight ahead. While it is raised the view
+holds still and the look controls swing the bar about the hands instead:
+left/right ±90°, up/down ±90°, with one screen-width of mouse travel equal
+to half a turn. Walking and climbing still work, so the bar can also be
+carried through the wood.
 
-```
-{ phi,    // direction the saw enters from, as an angle in the section plane
-  tilt,   // slope of the cut plane relative to the cross-section (0 = square)
-  z0,     // axial offset of the entry line from the section (metres)
-  depth } // how far the bar has advanced into the wood (metres)
-```
+### 4.2 Wood stops it; throttle severs what it rests on
 
-The bar lies across the stem, perpendicular to the stem axis and to the
-entry direction, and advances inward. In the section's 2-D coordinates a
-kerf removes every cell whose inward distance `x = R − c·e(phi)` is
-`≤ depth`. Each cut cell records the axial height the kerf passed at:
-`z = z0 + x·tan(tilt)`, keeping the min and max over all kerfs that hit it.
-`gap = zMax − zMin + KERF_WIDTH`. Two kerfs entering from the same side at
-different tilts therefore leave cells with a wedge-shaped gap between them:
-**a notch is not a special object, it is two kerfs.**
+Each tick the bar tries to follow the hands (at most `BAR_SPEED`). `probe()`
+finds every fibre the bar would touch at its next position. If there are
+none, it moves. If there are, it stays where it is, resting on them, and with
+throttle those fibres accumulate cutting time; after `CUT_TIME` at full
+throttle they are severed at the point of contact (`cut` event) and the bar
+can advance into the kerf it just made. A fibre that is already severed there
+does not stop the bar; nor does the empty space inside a notch.
 
-A new cut within one stem-diameter (axially) of an existing section joins
-that section; otherwise it starts a new one.
+So a cut is whatever surface the bar was swept through, fibre by fibre, as
+fast as the chain can clear them. Hands that get more than `SAW_YANK` away
+from a blocked bar pull it free.
 
-`kerf` events carry these numbers; clients run the same `applyKerf` and get
-the same cell grid (for the cross-section HUD and the visible kerf mesh).
-Depth is re-sent at ≤10 Hz while cutting.
+### 4.3 Why placement and angle matter
 
-### 4.2 What placement and angle change
+Nothing special is coded for any kind of cut. Because each severed fibre
+remembers *where* it was cut:
 
-Everything in the table in 3.3 follows from *which cells are gone and what
-gap they left*:
+- two cuts that meet (a flat one and a sloping one) leave fibres with a wide
+  removed span — an open notch that a hinging trunk can rotate into;
+- a single kerf is an 8 mm gap that closes almost at once;
+- which side is cut decides whether the remaining fibres are the ones in
+  tension (they fail early and the limb tears) or compression (they crush
+  and the kerf grabs the bar);
+- how many fibres are left, and in what shape, is the hinge.
 
-- **Entry side (`phi`)** decides whether you are cutting tension wood (the
-  kerf opens, cuts freely, the piece will go early) or compression wood (the
-  kerf closes on the bar).
-- **Notch angle (`tilt` of the second face cut)** sets `θ_close`: how far the
-  hinge steers before it lets go.
-- **Notch direction** sets the hinge axis, and the piece falls perpendicular
-  to the hinge — unless side load exceeds the strip's strength.
-- **Back-cut depth** sets hinge thickness: too thick and the tree will not
-  commit (or needs a pull line — a ground-crew job); too thin and it tears
-  under side lean; zero and there is no steering at all.
-- **Back-cut height (`z0`)** relative to the notch apex changes the gap on
-  the closing side behind the hinge.
+### 4.4 Pinch
 
-### 4.3 Pinch
+In a stiff bundle whose kerf has closed (3.2 step 3), the compression carried
+by the severed fibres the bar is lying between clamps it: above
+`PINCH_STUCK` the bar will not cut. It can still be backed out. (A bar that
+stays trapped in the tree is task P2-2.)
 
-A kerf is an 8 mm gap; it does not touch the bar while the wood beside it is
-elastic. When the remaining wood is loaded past its compressive yield
-(`COMP`) it crushes, the kerf closes, and the closed cells start carrying
-compression (3.3 step 2). The compressive force carried by the kerf being
-cut clamps the bar: feed rate is multiplied by `1 − F/PINCH_STUCK`; at
-`F ≥ PINCH_STUCK` the bar is stuck and stops cutting until the load changes
-(someone pulls a rope, or the wood fails). In practice: an undercut pinches
-if taken much past a third; a back cut on a back-leaning or side-leaning tree
-pinches as the hinge gets thin; cuts on the tension side never pinch.
-In the prototype a stuck saw can be abandoned by releasing precision mode (it
-returns to hand); task P2-2 makes it stay in the tree.
+### 4.5 Ropes and lanyards
 
-### 4.4 Feedback
-
-Whenever the player is in precision mode on a section, the HUD shows the
-**cross-section diagram**: the cell grid coloured by state and stress
-(intact wood by tension-red / compression-blue, cut cells dark, torn cells
-splintered, the hinge strip outlined, the saw's entry direction marked).
-This is the "read and learn" surface; treat it as a first-class feature.
+A running chain parts any rope it touches for `ROPE_CUT_TIME`: the rigging
+line, or a climber's lanyard — including your own, in which case you fall.
 
 ---
 
@@ -474,9 +466,11 @@ the shock goes into the rigging point — which section 3 may then break.
 
 ### 5.3 The lanyard
 
-The climbing lanyard is logical, not simulated: it is a flag on the climbing
-player plus rules (section 6.2). A climbing line / belay (later) reuses the
-tension path with a player body as the end node.
+The lanyard is logical, not simulated: being on spurs and being lanyarded are
+the same state (section 6.2). It is *drawn* as a loop round the stem
+(`world.lanyardLoop`) and that same loop is what a saw can cut. A climbing
+line / belay (later) reuses the tension path with a player body as the end
+node.
 
 ---
 
@@ -491,22 +485,31 @@ Each player is one Rapier capsule with rotation locked.
   it, side direction)` in that segment's piece frame, standing off the bark.
   Stick Y moves along the stem, stick X moves around it. At a segment end the
   player continues onto the child most aligned with where they are looking.
-  The player's weight is a load on the tree at the spur point.
-- **fall** — dynamic body, no control, until it lands.
+  The player's weight is a force on whatever wood the spurs are in.
 - **rope** — on the friction device tail (ground mode, movement locked).
+
+A player who is not climbing is always a plain dynamic body, so "falling" is
+not a mode: it is the ground mode with nothing underfoot.
+
+The view is first person: the camera is `EYE` above the body centre.
 
 ### 6.2 Spurs and lanyard rules
 
-- Spurs need a stem of radius ≥ 3 cm (`SPUR_MIN_R`). Moving on spurs
-  multiplies the climber's weight on the wood by `CLIMB_BOUNCE`.
-- **Lanyard on** (clipped round the stem): both hands free → the saw can be
-  used. The lanyard cannot pass a union (a joint where another branch longer
-  than 0.3 m still attaches): the player must unclip, step past, re-clip.
-  Cutting a limb flush removes the obstruction.
-- **Lanyard off**: can move freely, cannot run the saw, and falls if struck
-  or if the wood they are on breaks away.
-- If the wood the player is lanyarded to becomes a falling piece, they ride
-  it down, and take whatever it hits.
+- **Spurring in** (interact at a stem with hands) puts the lanyard round the
+  stem. Climbing *is* being lanyarded; there is no unclipped climbing.
+- **Letting go** (B / C) drops the lanyard. The player falls from wherever
+  they are.
+- The lanyard cannot slide past a union (a joint where another branch longer
+  than `STUB_LEN` still attaches). To get past, look at the stem you want —
+  the trunk above, or the limb — and **interact with hands: the lanyard is
+  thrown round that stem** and the player moves to it. (A real climber throws
+  a second lanyard, clips it, and unclips the first; this is that, in one
+  press.) Cutting a limb flush also removes the obstruction.
+- Spurs need a stem of radius ≥ 3 cm (`SPUR_MIN_R`).
+- If the wood the lanyard is on cracks but is still held by fibres, the
+  climber stays on it and can keep moving. If it comes free, they ride it
+  down and take whatever it hits — unless they let go first.
+- A saw cuts lanyards (4.5).
 
 ### 6.3 No HP — thresholds and consequences
 
@@ -516,7 +519,7 @@ kinematic climber: contact force × dt / body mass).
 | Δv | State | Consequence |
 |---|---|---|
 | < 4 m/s | ok | — |
-| 4–7 | `shaken` | 2 s stagger, drops off spurs if unclipped |
+| 4–7 | `shaken` | 2 s stagger |
 | 7–11 | `hurt` | limps, cannot climb, for the rest of the job |
 | > 11 | `down` | incapacitated → job failure (prototype: respawn key) |
 
@@ -527,33 +530,30 @@ gripping hands, saw pinch release, cutting your own lanyard.
 
 ## 7. Controls
 
-Standard-mapping gamepad (the Deck presents one when the browser is launched
-through Steam — see Risks). Keyboard/mouse in brackets.
+Vertical look is **inverted** (`INVERT_Y`): pushing the mouse or stick
+forward looks down. The same applies to swinging the saw.
 
-| Control | Ground | Climbing | Precision cutting (hold LT) | On the rope tail |
-|---|---|---|---|---|
-| Left stick [WASD] | move | Y: along stem, X: around stem | Y: slide bar along stem, X: rotate entry side | — |
-| Right stick [mouse] | look | look | X: look, Y: tilt the bar [also Z / X keys] | look |
-| RT [LMB] | — | — | throttle = feed | ease grip (let it run) |
-| LT [RMB] | precision mode (with saw) | precision mode (with saw) | — | haul in |
-| A [Space] | jump | — | — | — |
-| X [E] | interact: spur in / grab rope tail / place rope | interact | — | let go (ties off) |
-| Y [F] | — | clip / unclip lanyard | — | — |
-| B [C] | — | step off / let go | — | — |
-| LB / RB [Q / R, 1-3] | previous / next tool | same | — | — |
-| D-pad ↑↓ [arrows / wheel] | — | — | — | add / remove a wrap |
-| Back [Tab] | stress overlay | same | same | same |
-| Start [Enter] | respawn (prototype) | | | |
+The HUD and lobby name controls for whichever device was touched last
+(`Input.device`); host-side prompts use `{tokens}` (`hud.js`).
 
-Precision cutting is deliberately a *mode*: pressing LT while looking at wood
-within reach freezes the player, snaps the bar to the bark where they are
-looking, and re-purposes the sticks for millimetre work. The bar's entry
-line is drawn on the bark and the cross-section diagram appears. RT is
-analog: a light squeeze feeds slowly. Releasing LT withdraws the bar and
-leaves the kerf.
+| Action | Keyboard / mouse | Gamepad (standard mapping) |
+|---|---|---|
+| Move; climb along / around the stem | WASD | left stick |
+| Look | mouse (click to capture) | right stick |
+| Use: spur in, move the lanyard, grab the rope tail, place rope | E | X |
+| Let go of the tree (fall) | C | B |
+| Jump | Space | A |
+| Tool: hands / chainsaw / rigging rope | Q, R | LB, RB |
+| Raise the saw (hold); the look controls then swing the bar | right mouse | LT |
+| Run the chain | left mouse | RT |
+| On the rope tail: ease grip / haul in / wraps | left mouse / right mouse / ↑ ↓ | RT / LT / D-pad ↑ ↓ |
+| Fibre view ↔ bark | Tab | Back |
+| Respawn (prototype) | Enter | Start |
 
-Tools: hands, chainsaw, rigging rope. With the rope tool, X on a stem sets
-the block first, then X on another stem ties the end; X on the knot unties.
+Y is unused.
+
+Tools: with the rope tool, *use* on a stem hangs the block first, then *use*
+on another stem ties the end; *use* on the knot unties.
 
 ---
 
@@ -577,13 +577,13 @@ the block first, then X on another stem ties the end; X on the knot unties.
    Prototype: the HUD warns. Fix (task P2-8): drive `sim.step` from a Web
    Worker timer when hidden.
 4. **Steam Deck performance.** Budget at 60 Hz: sim ≤ 4 ms, render ≤ 8 ms.
-   - Sim: analysis is O(segments) plus ~137 cells per *active* section;
-     negligible. Rapier cost is dominated by dynamic pieces with many
-     cylinder colliders in contact. Mitigations: debris removal, sleeping,
-     and (if needed) dropping colliders for twigs under 2 cm on dynamic
-     pieces.
-   - Render: one merged geometry per piece (one draw call each), instanced
-     foliage, one 1024² shadow map, pixel ratio capped at 1.
+   - Sim: the stiff solve touches every fibre of the rooted tree each tick
+     (≈ 2000) and costs ≈ 0.1 ms on the dev machine; a live bundle is one
+     6×6 solve over ≤ 225 fibres. The saw probe is per-fibre only near the
+     bar. Rapier cost is dominated by dynamic pieces with many cylinder
+     colliders in contact. Mitigations: debris removal, sleeping.
+   - Render: per piece, one merged bark geometry and one instanced mesh of
+     fibre boxes (debug view); one 1024² shadow map; pixel ratio capped at 1.
    - WASM is single-threaded; that is fine at this scale.
 5. **Steam Deck input.** In Desktop Mode the Deck's controls are mapped to
    mouse/keyboard and the Gamepad API sees nothing. The browser must be added
@@ -592,13 +592,20 @@ the block first, then X on another stem ties the end; X on the knot unties.
 6. **Latency on the client's own avatar.** No prediction, so a client feels
    their ping in movement (not in looking). Fine on good links for a slow
    game; if it is not, add prediction for ground walking only (task P2-9).
-7. **Explicit rope spring stability.** Light loads on short stiff ropes can
+7. **Live-bundle solver.** Each live bundle is solved on its own; a chain
+   of several live bundles in a row (a hanger hanging from a cracked limb)
+   is only loosely coupled and could chatter. Loads fed back to the tree are
+   smoothed for that reason. If it misbehaves, raise `FIBRE_YIELD` (softer
+   fibres) before touching the solver.
+8. **Explicit rope spring stability.** Light loads on short stiff ropes can
    oscillate; stiffness is clamped by load mass. If rope jitter shows up,
    lower `K_CAP` before changing the model.
-8. **Hinge release overlap.** A hinged piece has contacts with its parent
-   disabled; on release it may overlap the stump and get pushed out. Reads as
-   the butt kicking, which real butts do, but watch for explosions.
-9. **Cheating/trust.** None. The host is trusted. Friends-only game.
+9. **Joint overlap.** Pieces joined by a live bundle do not collide at the
+   joint, and do not start to until they have moved apart, so a butt can
+   pass through its own stump.
+10. **Fibre count.** ≈ 2000 fibre instances for one tree is nothing; a site
+    with ten trees needs the debug view limited to nearby trees.
+11. **Cheating/trust.** None. The host is trusted. Friends-only game.
 
 ---
 
@@ -619,9 +626,9 @@ should **not** need to redesign anything. Rules for every task:
 
 | ID | Task | Where | Done when |
 |---|---|---|---|
-| P2-1 | **Tune on a real Deck.** Play each prototype step; adjust only `config.js` (`MOR`, feed speed, thresholds, rope μ). Record changes. | `config.js` | A top-cut swings, a snap cut drops, a notched trunk falls on line. |
-| P2-2 | **Stuck saw, cut ropes.** A pinched saw stays in the kerf as a prop until load changes. A kerf whose plane sweeps a rope span cuts the rope (and a lanyard: the player falls). | `saw.js`, `rope.js` | Both demonstrable. |
-| P2-3 | **Loads on fallen pieces.** For dynamic pieces, build the load list from gravity + contact-force events and run the same beam/section analysis, so logs pinch when bucked and limbs snap on landing. | `structure.js` | Bucking a log supported at both ends pinches a top cut. |
+| P2-1 | **Tune on a real Deck.** Play each prototype step; adjust only `config.js` (`MOR`, `COMP`, `FIBRE_*`, `CUT_TIME`, thresholds, rope μ). Record changes. | `config.js` | A top-cut swings, a snap cut drops, a notched trunk falls on line. |
+| P2-2 | **Stuck saw.** A pinched bar stays in the kerf as a prop until the load changes, instead of backing out freely. Pinch for live bundles (contact force on the fibres the bar lies between). (Cutting ropes and lanyards is done.) | `saw.js` | Demonstrable. |
+| P2-3 | **Loads on fallen pieces.** For dynamic pieces, build the load list from gravity + contact-force events and run the same beam pass and bundle solve, so logs pinch when bucked and limbs snap on landing. | `structure.js` | Bucking a log supported at both ends pinches a top cut. |
 | P2-4 | **Climbing line.** A second tension path: anchor in the tree, end node on the player body. Lets a climber hang, descend, and be caught. Reuses `rope.js`; player gets a `hang` mode. | `rope.js`, `players.js` | Unclipped fall is arrested; shock feeds Δv. |
 | P2-5 | **Multiple ropes; natural-crotch node.** Generalise the single rigging line to a list. Add a node type with fixed μ and wrap angle from span geometry. | `rope.js`, `world.js` | Two lines at once; crotch-rigged load is harder to lower. |
 | P2-6 | **Pull line.** A rope whose tail node is a walking player: tension pulls the player and the tree. Used to commit a back-leaning fell. | `rope.js`, `players.js` | Ground player pulls a hinged trunk over. |
@@ -636,12 +643,12 @@ should **not** need to redesign anything. Rules for every task:
 |---|---|---|
 | P3-1 | Site props: house, fence, car, lines as fixed bodies with damage thresholds on contact force | contact-force events → thresholds, same as players |
 | P3-2 | Second and third tree species: generator presets, per-species `MOR`/density | `treegen.js` params, `config.js` materials |
-| P3-3 | Dead/defective wood: per-segment strength factor | multiply `MOR` per segment in `structure.js` |
+| P3-3 | Dead/defective wood: per-fibre strength (rot pockets, included bark) | a strength array on the bundle, used in `analyse` and `liveStep` |
 | P3-4 | Job clock: daylight, fuel, saw wear, wages | new `src/sim/job.js`; state in aux |
 | P3-5 | Procedural sites, slopes | `World` already takes any segment list; ground becomes a heightfield collider |
 | P3-6 | Bidding, economy, hiring, vehicles, skid steer, neighbours, weather (wind = distributed load on foliage in the load list) | out of prototype scope |
 
 ### Not planned, on purpose
 
-Automated tests; a build step; a server; soft-body ropes; a jointed
-multi-body tree; client-side simulation.
+Automated tests; a build step; a server; soft-body ropes; a tree that is
+live (per-fibre springs) everywhere all the time; client-side simulation.

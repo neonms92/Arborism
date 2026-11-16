@@ -44,7 +44,7 @@ export class View {
 
     this.barkMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
     this.leafMat = new THREE.MeshLambertMaterial({ color: 0x3f7d3a, flatShading: true, transparent: true });
-    this.fibreMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    this.fibreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });   // unlit: the colour IS the information
     this.fibreGeo = new THREE.BoxGeometry(1, 1, 1);
     this.ropeMat = new THREE.MeshLambertMaterial({ color: 0xf2e9d0, flatShading: true });
     this.lanyardMat = new THREE.MeshLambertMaterial({ color: 0xffd21a, flatShading: true });
@@ -164,7 +164,7 @@ export class View {
     if (p.fibres) { p.group.remove(p.fibres); p.fibres.dispose(); }
     let cap = 0; for (const s of segs) cap += s.f.n + s.f.ncut;
     const mesh = new THREE.InstancedMesh(this.fibreGeo, this.fibreMat, Math.max(1, cap));
-    mesh.castShadow = true; mesh.frustumCulled = false;
+    mesh.frustumCulled = false;
     const info = [];              // per instance: [seg, fibre index]
     let k = 0;
     for (const s of segs) {
@@ -181,7 +181,7 @@ export class View {
       };
       for (let i = 0; i < f.n; i++) {
         const lo = f.lo ? f.lo[i] : 0, hi = f.hi ? f.hi[i] : L;
-        if (f.state[i] === CUT) { part(i, lo, f.zmin[i] - CFG.KERF_WIDTH / 2); part(i, f.zmax[i] + CFG.KERF_WIDTH / 2, hi); }
+        if (f.state[i] === CUT) { part(i, lo, f.zmin[i] - 0.008); part(i, f.zmax[i] + 0.008, hi); }   // gap drawn a little wide so a kerf reads
         else part(i, lo, hi);
       }
     }
@@ -222,7 +222,8 @@ export class View {
           r += (to[0] - r) * a; gg += (to[1] - gg) * a; b += (to[2] - b) * a;
           if (bend > 0) { r += (GREEN[0] - r) * bend; gg += (GREEN[1] - gg) * bend; b += (GREEN[2] - b) * bend; }
         }
-        arr[k * 3] = r; arr[k * 3 + 1] = gg; arr[k * 3 + 2] = b;
+        const sh = 0.9 + ((i * 7 + s.id * 3) % 5) * 0.035;      // slight per-fibre shade so neighbours can be told apart
+        arr[k * 3] = r * sh; arr[k * 3 + 1] = gg * sh; arr[k * 3 + 2] = b * sh;
       }
       mesh.instanceColor.needsUpdate = true;
     }
@@ -239,9 +240,9 @@ export class View {
     body.castShadow = true;
     group.add(body, helmet);
     const saw = new THREE.Group();
-    const eng = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.2, 0.16), new THREE.MeshLambertMaterial({ color: 0xe05a1a, flatShading: true }));
+    const eng = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.13, 0.1), new THREE.MeshLambertMaterial({ color: 0xe05a1a, flatShading: true }));
     const bar = new THREE.Mesh(new THREE.BoxGeometry(CFG.BAR_LEN, 0.07, 0.012), new THREE.MeshLambertMaterial({ color: 0xbbbbbb }));
-    eng.position.x = -0.13; bar.position.x = CFG.BAR_LEN / 2; saw.add(eng, bar); saw.visible = false;
+    eng.position.set(-0.1, -0.03, 0); bar.position.x = CFG.BAR_LEN / 2; saw.add(eng, bar); saw.visible = false;
     const lanyard = new THREE.Mesh(new THREE.BufferGeometry(), this.lanyardMat);
     lanyard.frustumCulled = false; lanyard.visible = false;
     this.scene.add(group, saw, lanyard);

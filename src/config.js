@@ -49,6 +49,7 @@ export const CFG = {
   ROPE_EA: 200e3,          // N (stiffness * length)
   ROPE_BREAK: 25e3,        // N
   ROPE_RADIUS: 0.02,       // m, drawn (and cut) thickness
+  ROPE_CUT_TIME: 0.15,     // s of a running chain on a rope or lanyard before it parts
   ROPE_KCAP: 0.1,          // k <= KCAP * m / dt^2 (explicit-spring stability)
   ROPE_DAMP: 0.5,          // damping ratio
   ROPE_MU: 0.15,           // friction per radian on the device

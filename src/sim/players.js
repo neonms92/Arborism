@@ -207,7 +207,7 @@ export class Players {
     if (!s) { this.toGround(p); return; }
     const fixed = w.pieces.get(s.piece).fixed;
     // wood that has cracked but is still held by fibres can be climbed on; wood that has come free is a ride
-    const held = fixed || sim.structure.live.has(s.piece);
+    const held = sim.structure.isHeld(s.piece);
     if (!held && !p.ride) p.ride = { max: 0, still: 0, prev: null };
     if (held) p.ride = null;
     // letting go of the lanyard is letting go of the tree
@@ -275,7 +275,12 @@ export class Players {
     if (held) {
       // the climber's weight goes into whatever wood the spurs are in; moving bounces it
       const dyn = control && (inp.mx || inp.my) ? CFG.CLIMB_BOUNCE : 1;
-      sim.applyForce(s.id, sim.toWorld(s.piece, c, _b), _c.set(0, -CFG.P_MASS * CFG.GRAVITY * dyn, 0));
+      // The climber is a force here, not a mass. So that their weight cannot drive light wood down faster
+      // than they could fall themselves, it fades out as the wood under them accelerates downward.
+      const vy = (pos.y - (cl.py ?? pos.y)) / dt, ay = (vy - (cl.vy ?? vy)) / dt;
+      cl.py = pos.y; cl.vy = vy; cl.ad = (cl.ad || 0) + 0.1 * (-ay - (cl.ad || 0));
+      const share = fixed ? 1 : Math.max(0, Math.min(1, 1 - cl.ad / CFG.GRAVITY));
+      sim.applyForce(s.id, sim.toWorld(s.piece, c, _b), _c.set(0, -CFG.P_MASS * CFG.GRAVITY * dyn * share, 0));
       p.prompt = p.prompt || '{move}: climb   {drop}: let go of the tree';
     } else {
       // riding a falling piece because we are lanyarded to it
