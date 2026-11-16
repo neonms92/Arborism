@@ -159,3 +159,37 @@ for the device it last saw input from.
 **D29 — Kickoff branch was renamed to `main` on GitHub.** Later pushes to
 the session branch `ccr-7d8cc9c2-99719w` recreated it as a separate branch.
 It needs merging into `main` (or Pages pointing at it) to go live.
+
+## Second round of owner feedback (saw handling, menu, bark)
+
+**D30 — The saw plants, pivots and presses; D21's free rod and D22 are
+superseded.** As specified by the owner. Choices made inside that:
+the bar plants *across* the stem with the feed pointing at its heart (a
+square cut is the default from any stance); the planted point is the middle
+of the bar's leading edge; left/right pivots in the plane of the cut and
+up/down tilts that plane (so a notch's sloping cut is "plant higher, tilt
+down, press"); the chain runs only while pressing. The bar is still a rod
+for collision purposes: it severs whatever fibres it is pushed against.
+
+**D31 — Cutting speed is an area rate (`CUT_RATE`), not a time per fibre.**
+A fixed time per fibre made oblique cuts (one fibre touched at a time)
+crawl and square cuts (a whole row at once) fly. Sharing a fixed
+cross-section per second between the fibres under the bar makes cutting
+time proportional to wood removed, whatever the angle.
+
+**D32 — Bark is generated from the fibres.** Asked how bark could show cut
+damage: any bark mesh that is authored separately will drift from the
+fibres. So each bark panel is owned by the outermost fibre behind it and is
+drawn only where that fibre still exists. Options not taken: decals (do not
+show depth or missing wood), boolean-cutting a cylinder (expensive and still
+a second source of truth).
+
+**D33 — Fibre boxes were mirrored, not rotated.** The fibre instances were
+built from the basis (u, axis, v), which is left-handed, so the "rotation"
+extracted from it was wrong for every stem that was not near-vertical; the
+physics was right and the picture was not. Now (v, axis, u). Lesson recorded
+in the code: check handedness before `setFromRotationMatrix`.
+
+**D34 — Tab is the settings menu; the fibre/bark toggle became a slider.**
+Menu rows write straight into `CFG` and persist in localStorage, so there is
+one place for tunables (config.js) and one line per exposed variable.

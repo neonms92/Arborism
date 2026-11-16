@@ -16,6 +16,13 @@
   #toasts div { margin: 2px auto; background: rgba(0,0,0,.45); display: table; padding: 3px 12px; border-radius: 4px; }
   #cross { top: 50%; left: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: #fff; opacity: .8; }
   #keys { left: 10px; bottom: 8px; font-size: 12px; opacity: .8; }
+  #menu { position: fixed; top: 0; right: 0; bottom: 0; width: min(96vw, 560px); overflow-y: auto; display: none;
+          background: rgba(18,24,16,.93); padding: 14px 18px; box-sizing: border-box; font-size: 13.5px; }
+  #menu h2 { margin: 0 0 4px; } #menu h3 { margin: 16px 0 6px; color: #e8a23a; font-size: 14px; } #menu p { opacity: .7; margin: 0 0 6px; }
+  #menu .row { display: grid; grid-template-columns: 1fr 150px 74px; gap: 10px; align-items: center; padding: 3px 0; }
+  #menu input[type=number] { width: 70px; font: inherit; padding: 3px 4px; border-radius: 4px; border: 0; }
+  #menu input[type=checkbox] { justify-self: start; width: 18px; height: 18px; }
+  #menu button { margin: 18px 0 30px; font: inherit; padding: 8px 12px; border-radius: 6px; border: 0; cursor: pointer; }
   #lobby { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(20,28,18,.92); }
   #lobby .box { width: min(92vw, 460px); text-align: center; }
   #lobby h1 { font-size: 40px; margin: 0 0 4px; letter-spacing: 2px; }
@@ -39,6 +46,7 @@
 <div id="prompt" class="hud"></div>
 <div id="rope" class="hud"></div>
 <div id="keys" class="hud"></div>
+<div id="menu"></div>
 <div id="lobby"><div class="box">
   <h1>ARBORISM</h1>
   <p>co-op tree work &middot; physics prototype</p>

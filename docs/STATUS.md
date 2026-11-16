@@ -1,6 +1,7 @@
 # Status
 
-Last updated after the fibre / saw / lanyard / first-person rework.
+Last updated after the second round of owner feedback (plant-and-pivot saw,
+Tab menu, bark built from fibres, fibre drawing fix).
 Keep this file current.
 
 ## How things were checked
@@ -16,12 +17,15 @@ yet swung the saw with a real mouse.
 
 | Area | State |
 |---|---|
-| Page | Loads with a clean console; starts in first person with the fibre debug view on. |
-| Fibres everywhere | Every segment has a bundle (≈ 2000 fibres on the demo tree), solved every tick, drawn and coloured per fibre: yellow → red (compression), → blue (tension), → green (bending in a live bundle), dark (snapped). Tab / Back switches to bark. |
+| Page | Loads with a clean console; starts in first person with fibres drawn and bark hidden. |
+| Fibres everywhere | Every segment has a bundle (≈ 2000 fibres on the demo tree), solved every tick, drawn and coloured per fibre: yellow → red (compression), → blue (tension), → green (bending in a live bundle), dark (snapped). |
 | Overload | A 400 kg test load far out a limb: bundle goes live, limb bends ~0.25 rad on stretched fibres, the next bundle in goes, it comes free; climber rides it down at free-fall speed and is hurt. |
 | Limb cuts (direct fibre severing) | Top cut only: bottom fibres hold as a strap and the limb swings. Undercut then top cut: parts clean. |
 | Felling (direct fibre severing) | Notch toward the lean + back cut: tips over on an 11-fibre hinge over ~2.5 s, fibres snap progressively, comes free, lands along the notch line. Back cut against the lean: kerf closes (pinch), tree stands. Straight through: free, slides off toward the lean. |
-| Free-form saw (through input) | Raise, throttle, sweep with the swing angles: bar rests on wood, severs the fibres it touches after `CUT_TIME`, advances. Cuts the rigging rope and lanyards (including the user's own → fall). |
+| Saw (through input) | Plant on the wood looked at (bar across the stem, feed toward its heart); press feeds it in and severs fibres at `CUT_RATE`; pivoting swings the bar in the cut and tilts the cut plane. A square cut pressed and pivoted through the trunk took ≈ 15 s and the tree came down. Plants on a rope when looking at one and cuts it; cuts lanyards. |
+| Fibre drawing | Fixed: fibres were drawn mis-rotated on every stem that was not near-vertical (crown looked disconnected). They now sit exactly where the physics has them. |
+| Bark | Built from the fibres: a kerf is a slot, a notch is a missing wedge with pale wood inside. `Bark visibility` in the menu blends bark over fibres. |
+| Tab menu | Sliders + number boxes for sensitivity, inverted look, bark/foliage/fibre display, fibre strengths, cutting rate, climber and rope values. Changes apply live and persist across reloads. |
 | Lanyard (through input) | Spur in = lanyard on. Stops at unions. Hands + interact on another stem moves it there. Let go = fall. |
 | Rigging | Block, tie-off, friction device as before. 55 kg limb with 1 m slack peaks ≈ 5.3 kN, is caught, and lowers when the tail is eased. Rope is a 3-D tube. |
 | Network | Host, client and a late joiner agree on fibres cut, pieces, live bundles and rope. Tested against a **local** PeerJS server only. |
@@ -34,15 +38,22 @@ software GL.
 
 ## What is rough
 
-- **Saw feel is a guess.** Sweep sensitivity (half a turn per screen width),
-  `CUT_TIME`, `BAR_SPEED`, where the hands hold it (`SAW_HOLD`) — all untried
-  by a person. The bar is a rod and cuts in any direction it is pushed
-  (DECISIONS D21); there is no roll.
-- The saw's pinch only works on stiff bundles. A bar in a *live* bundle's
-  kerf is never clamped. A pinched bar can simply be backed out.
-- The scripted felling and limb tests sever fibres directly in a plane; the
-  free-form saw has been verified to cut, but nobody has made a real notch
-  with it yet. It may turn out to be fiddly to line two cuts up.
+- **Saw feel is still a guess.** Nobody has used it with a real mouse. The
+  pivot directions (which way left/right and up/down turn the bar) were
+  chosen by reasoning, not by feel. Sensitivity and cutting rate are in the
+  Tab menu.
+- A notch has not been made by hand yet. The scripted felling and limb tests
+  still sever fibres directly in a plane.
+- The bar is 0.5 m and the trunk is 0.52 m across, so one press does not
+  cross the trunk: pivot, or come at it from both sides.
+- The saw's pinch only works on stiff bundles, and a pinched bar can simply
+  be lifted off.
+- The menu cannot be driven with a gamepad (touch or mouse only). On the
+  Deck use the touchscreen.
+- Menu changes to wood strength apply to the standing tree immediately:
+  dropping `Tension strength` far enough makes limbs let go on the spot.
+- Bark and fibres are both flat-shaded boxes and panels; where bark is
+  semi-transparent it does not sort perfectly against foliage.
 - The hinge on the demo trunk breaks at ≈ 0.4 rad of lean, before a 50° notch
   closes. `FIBRE_STRETCH` sets this. The notch-closing path (closed faces
   becoming the pivot) is in and stable but has only been seen with the
@@ -53,7 +64,7 @@ software GL.
 - Pieces joined (or just un-joined) by a live bundle do not collide at the
   joint, so a butt can sink through its stump.
 - Fibre colours are faint at everyday loads (a healthy tree is at a few
-  percent of its strength). `COLOR_GAMMA` lifts them; lower it for more.
+  percent of its strength). "Load colour contrast" in the menu lifts them.
 - First person: the camera can clip into the trunk when pressed against it;
   the player's own body is not drawn; foliage is ghosted in the debug view
   and opaque in bark view.
@@ -65,9 +76,8 @@ software GL.
 - Host tab hidden = game paused for everyone (task P2-8).
 - **Unverified against the public PeerJS server** (blocked in the dev
   sandbox). See DECISIONS D11.
-- **Branches:** the kickoff branch was renamed to `main` on GitHub. This
-  rework is on `ccr-7d8cc9c2-99719w` and is not on `main` until merged
-  (D29). Pages must point at whichever branch should be live.
+- **Branches:** work is pushed to `ccr-7d8cc9c2-99719w`; `main` gets it when
+  the owner merges (the previous round was merged as PR #1).
 
 ## Known broken / not built
 
@@ -77,16 +87,17 @@ software GL.
 - A trapped saw does not stay in the tree (task P2-2).
 - One rigging line; no climbing line; no natural-crotch rigging.
 - Injury `DOWN` is a toast and a tipped-over capsule; Start / Enter respawns.
-- No sound. No settings screen (inverted look and the debug view are config
-  flags).
+- No sound.
 
 ## Next task
 
 **P2-1 in DESIGN.md section 9: play it and tune `config.js`.** First things
 to try with a real mouse and a real gamepad:
 
-1. Is swinging the saw comfortable, and can a notch be made with it?
+1. Is planting and pivoting the saw comfortable, do the pivot directions
+   feel right, and can a notch be made with it?
 2. Does a notched trunk go where the notch points? Adjust `FIBRE_STRETCH`.
-3. Are the fibre colours readable at normal loads? Adjust `COLOR_GAMMA`.
+3. Are the fibre colours readable at normal loads? Adjust the contrast
+   slider.
 
 Then Phase 3 in order: P2-2, P2-3, P2-4, …

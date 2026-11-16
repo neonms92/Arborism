@@ -140,10 +140,10 @@ export class Players {
     const aim = control ? sim.aim(p) : null;
     p.prompt = '';
 
-    // chainsaw: raised with {raise}, swung with the look controls, usable while moving
+    // chainsaw: {raise} plants it on the wood looked at; look controls pivot it, {throttle} presses it in
     const canSaw = control && p.tool === TOOL.SAW && p.mode !== MODE.ROPE && !p.ride;
-    sawStep(sim, p, inp, dt, canSaw);
-    if (canSaw && !p.saw.on) p.prompt = '{raise}: bring the saw up';
+    sawStep(sim, p, inp, dt, canSaw, aim);
+    if (canSaw && !p.saw.on && !p.prompt) p.prompt = 'Look at wood, then {raise} to plant the bar on it';
 
     if (p.mode === MODE.ROPE) {
       p.prompt = '{throttle}: ease   {raise}: haul   {wraps}: wraps   {interact}: let go (ties off)';
@@ -319,7 +319,7 @@ export class Players {
       out.push({
         id: p.id, m: p.mode, tool: p.tool, inj: p.inj, yaw: +p.input.yaw.toFixed(2), pr: p.prompt,
         cl: p.cl ? [p.cl.seg, +p.cl.t.toFixed(3), p.cl.side.map((x) => +x.toFixed(3))] : 0,
-        saw: s.on ? [...s.a0.toArray(), ...s.a1.toArray(), s.stuck ? 1 : 0, s.cutting ? 1 : 0].map((x) => +x.toFixed(3)) : 0,
+        saw: s.on ? [...s.A.toArray(), ...s.b.toArray(), ...s.f.toArray(), s.stuck ? 1 : 0, s.cutting ? 1 : 0].map((x) => +x.toFixed(3)) : 0,
       });
     }
     return out;

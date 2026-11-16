@@ -12,7 +12,7 @@ const NAMES = {
   interact: ['E', 'X'], drop: ['C', 'B'], jump: ['Space', 'A'],
   raise: ['Right mouse', 'LT'], throttle: ['Left mouse', 'RT'],
   tool: ['Q / R', 'LB / RB'], wraps: ['Up / Down arrows', 'D-pad up / down'],
-  fibres: ['Tab', 'Back'], respawn: ['Enter', 'Start'],
+  menu: ['Tab', 'Back'], respawn: ['Enter', 'Start'],
 };
 export function describe(text, device) {
   const k = device === 'pad' ? 1 : 0;
@@ -41,7 +41,7 @@ export class Hud {
     if (a) s += `  |  ${TOOL_NAME[a.tool]}  |  ${a.m === MODE.CLIMB ? 'on spurs, lanyard on' : a.m === MODE.ROPE ? 'on the rope' : 'on the ground'}  |  ${INJ_NAME[a.inj]}`;
     this.status.textContent = s;
     this.prompt.textContent = a ? describe(a.pr, device) : '';
-    this.keys.textContent = describe('{move} move   {look} look   {tool} tool   {interact} use   {drop} let go   {fibres} fibres / bark   {respawn} respawn', device);
+    this.keys.textContent = describe('{move} move   {look} look   {tool} tool   {interact} use   {drop} let go   {menu} settings   {respawn} respawn', device);
 
     const r = aux && aux.rope;
     if (r && this.world.rope.state === 2) {

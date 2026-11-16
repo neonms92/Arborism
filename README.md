@@ -35,10 +35,10 @@ Vertical look is inverted (forward looks down).
 | Let go of the tree (you fall) | C | B |
 | Jump | Space | A |
 | Tool: hands / chainsaw / rigging rope | Q, R | LB, RB |
-| Raise the saw (hold) — looking now swings the bar | right mouse | LT |
-| Run the chain | left mouse | RT |
+| Plant the saw on the wood you are looking at (hold) — looking now pivots the bar | right mouse | LT |
+| Press the bar forward (chain runs) | left mouse | RT |
 | On the rope tail: ease grip / haul in / wraps | left / right mouse / arrows | RT / LT / D-pad up-down |
-| Fibre view / bark | Tab | Back |
+| Settings menu (sensitivity, bark visibility, fibre strengths...) | Tab | Back |
 | Respawn (prototype) | Enter | Start |
 
 ### Things to try
@@ -48,13 +48,16 @@ Vertical look is inverted (forward looks down).
 - Spur up the trunk (use, at the base, with hands out). You are on a lanyard
   the whole time. It will not slide past a branch union: look at the stem
   beyond it and use again to throw the lanyard there. Letting go drops you.
-- Chainsaw: look where you want the saw, hold raise, then sweep the bar into
-  the wood with the look controls while running the chain. It rests on the
-  wood and works through it fibre by fibre. You can walk or climb with it.
-  It will cut ropes, and your own lanyard.
+- Chainsaw: look at the wood and hold plant. The bar lands across the stem,
+  square to it. Press to push it straight in; the look controls pivot it
+  about where it sits (left/right swings it, up/down tilts the cut). It works
+  through the wood fibre by fibre. It will cut ropes, and your own lanyard.
+- Tab opens a menu of sliders. Turn "Bark visibility" up to see the tree with
+  bark on: cuts show as real slots and notches in it.
 - Cut a limb from the top only, then try an undercut first.
-- Fell the trunk: a notch on the side it leans toward (a level cut and a
-  sloping cut that meets it), then a back cut that leaves a strip of fibres.
+- Fell the trunk: a notch on the side it leans toward (a level cut, then
+  plant higher and tilt down for a sloping cut that meets it), then a back
+  cut from the other side that leaves a strip of fibres.
 - Rigging (two players): climber hangs the block high (rope tool, use), ties
   the rope to a limb (use), cuts the limb. Ground player takes the tail at
   the red device on the trunk (use), sets wraps, and eases off to lower it.

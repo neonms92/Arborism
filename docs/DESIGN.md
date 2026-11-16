@@ -344,10 +344,13 @@ Debris: pieces under 2 kg are removed 10 s after creation.
   and the back cut as cut), and the distal subtree becomes a new piece at the
   parent's transform. Both halves get fresh, intact bundles.
 
-### 3.5 Debug fibre view
+### 3.5 Drawing wood: fibres and bark
 
-On by default (`DEBUG_FIBRES`; Tab / Back toggles): bark hidden, foliage
-ghosted, every fibre drawn as its own unlit box, split in two where sawn.
+Both are built from the bundles, so neither can disagree with the physics.
+
+**Fibres** — every fibre is its own unlit box, converging with the stem's
+taper exactly as the physics has it, split in two where sawn.
+With `STRESS_COLORS`:
 
 | Colour | Meaning |
 |---|---|
@@ -361,34 +364,56 @@ Stiff bundles are coloured from their stress plane (three numbers per
 segment in aux); live bundles fibre by fibre. `COLOR_GAMMA` lifts small
 loads into view.
 
+**Bark** — a skin of panels just outside the bundle's outline. Each panel is
+owned by the outermost fibre behind it and is drawn only where that fibre
+still exists. A kerf is therefore a slot in the bark, a notch is a missing
+wedge with pale wood inside, and a stump's bark ends where its fibres end.
+There are no end caps: the fibre ends are the cut face.
+
+`BARK_OPACITY` (0 = fibres only, 1 = solid bark) blends the two; it and the
+other view switches are in the Tab menu (section 7).
+
 ---
 
 ## 4. The chainsaw
 
-### 4.1 The bar is a rod in the world
+### 4.1 Plant, pivot, press
 
 There is no "cut" object and no cutting mode with its own coordinates. The
-saw is a 0.5 m rod (`BAR_LEN`). Raising it (hold right mouse / LT) holds it
-`SAW_HOLD` in front of the eyes — so looking up and down before raising sets
-its height — pointing level and straight ahead. While it is raised the view
-holds still and the look controls swing the bar about the hands instead:
-left/right ±90°, up/down ±90°, with one screen-width of mouse travel equal
-to half a turn. Walking and climbing still work, so the bar can also be
-carried through the wood.
+saw is a 0.5 m bar (`BAR_LEN`) with a planted point `A` at the middle of its
+leading edge, a bar direction `b` and a feed direction `f`.
 
-### 4.2 Wood stops it; throttle severs what it rests on
+- **Plant** (hold right mouse / LT while looking at wood within
+  `SAW_REACH`): `A` goes on the bark where the player is looking, the bar
+  lies across the stem and square to it, and the feed points at the heart of
+  the stem. So the default, from any stance, is a square cut. (Looking at a
+  rope or a lanyard plants the bar across that instead.)
+- **Pivot** (the look controls, while planted; the view holds still):
+  left/right swings the bar about `A` in the plane of the cut; up/down tilts
+  that plane about the bar — the slope of a notch's top cut. `SAW_SENS` is
+  the angle per screen-width of mouse travel.
+- **Press** (left mouse / RT): the bar moves forward along `f` from wherever
+  it is, and `A` goes with it. The chain runs while this is held.
 
-Each tick the bar tries to follow the hands (at most `BAR_SPEED`). `probe()`
-finds every fibre the bar would touch at its next position. If there are
-none, it moves. If there are, it stays where it is, resting on them, and with
-throttle those fibres accumulate cutting time; after `CUT_TIME` at full
-throttle they are severed at the point of contact (`cut` event) and the bar
-can advance into the kerf it just made. A fibre that is already severed there
-does not stop the bar; nor does the empty space inside a notch.
+Releasing plant lifts the saw off; the next plant starts fresh. The planted
+point stays in the wood, not in the player's hands, so walking or climbing a
+little does not disturb the cut; walking away lifts it off.
 
-So a cut is whatever surface the bar was swept through, fibre by fibre, as
-fast as the chain can clear them. Hands that get more than `SAW_YANK` away
-from a blocked bar pull it free.
+### 4.2 Wood stops it; the chain works through what it rests on
+
+Each tick the bar tries to pivot and to advance. `probe()` finds every fibre
+it would touch at the new position. If there are none, it moves. If there
+are, it stays where it is, resting on them, and — while pressed — the chain
+clears wood at `CUT_RATE` (cross-section per second), shared between the
+fibres it is on. A fibre is severed at the point of contact (`cut` event)
+when its share is done; then the bar can move into the kerf it just made. A
+single twig fibre goes at once; a full row across the trunk takes a while.
+A fibre that is already severed there does not stop the bar; nor does the
+empty space inside a notch.
+
+So a cut is whatever surface the bar was pressed and pivoted through, fibre
+by fibre. Pivoting into wood without pressing does nothing: the bar just
+rests there.
 
 ### 4.3 Why placement and angle matter
 
@@ -407,7 +432,7 @@ remembers *where* it was cut:
 
 In a stiff bundle whose kerf has closed (3.2 step 3), the compression carried
 by the severed fibres the bar is lying between clamps it: above
-`PINCH_STUCK` the bar will not cut. It can still be backed out. (A bar that
+`PINCH_STUCK` the bar will not cut. It can still be lifted off. (A bar that
 stays trapped in the tree is task P2-2.)
 
 ### 4.5 Ropes and lanyards
@@ -531,7 +556,7 @@ gripping hands, saw pinch release, cutting your own lanyard.
 ## 7. Controls
 
 Vertical look is **inverted** (`INVERT_Y`): pushing the mouse or stick
-forward looks down. The same applies to swinging the saw.
+forward looks down. The same applies to tilting the saw.
 
 The HUD and lobby name controls for whichever device was touched last
 (`Input.device`); host-side prompts use `{tokens}` (`hud.js`).
@@ -544,13 +569,21 @@ The HUD and lobby name controls for whichever device was touched last
 | Let go of the tree (fall) | C | B |
 | Jump | Space | A |
 | Tool: hands / chainsaw / rigging rope | Q, R | LB, RB |
-| Raise the saw (hold); the look controls then swing the bar | right mouse | LT |
-| Run the chain | left mouse | RT |
+| Plant the saw on the wood looked at (hold); the look controls then pivot the bar | right mouse | LT |
+| Press the bar forward (chain runs) | left mouse | RT |
 | On the rope tail: ease grip / haul in / wraps | left mouse / right mouse / ↑ ↓ | RT / LT / D-pad ↑ ↓ |
-| Fibre view ↔ bark | Tab | Back |
+| Settings menu | Tab | Back |
 | Respawn (prototype) | Enter | Start |
 
 Y is unused.
+
+**The Tab menu** (`src/view/menu.js`) has a slider and a number box for
+every variable worth iterating on: chainsaw and look sensitivity, inverted
+look, bark and foliage visibility, fibre drawing and colouring, fibre
+strengths and stretch limits, cutting rate, climber mass, rope friction.
+Each row edits one key of `CFG` in place and is remembered in localStorage.
+Wood, saw, climber and rope values only act on the host. Adding a variable
+is one line in `ROWS`.
 
 Tools: with the rope tool, *use* on a stem hangs the block first, then *use*
 on another stem ties the end; *use* on the knot unties.
@@ -626,7 +659,7 @@ should **not** need to redesign anything. Rules for every task:
 
 | ID | Task | Where | Done when |
 |---|---|---|---|
-| P2-1 | **Tune on a real Deck.** Play each prototype step; adjust only `config.js` (`MOR`, `COMP`, `FIBRE_*`, `CUT_TIME`, thresholds, rope μ). Record changes. | `config.js` | A top-cut swings, a snap cut drops, a notched trunk falls on line. |
+| P2-1 | **Tune on a real Deck.** Play each prototype step; adjust with the Tab menu, then copy the values into `config.js` (`MOR`, `COMP`, `FIBRE_*`, `CUT_RATE`, thresholds, rope μ). Record changes. | `config.js` | A top-cut swings, a snap cut drops, a notched trunk falls on line. |
 | P2-2 | **Stuck saw.** A pinched bar stays in the kerf as a prop until the load changes, instead of backing out freely. Pinch for live bundles (contact force on the fibres the bar lies between). (Cutting ropes and lanyards is done.) | `saw.js` | Demonstrable. |
 | P2-3 | **Loads on fallen pieces.** For dynamic pieces, build the load list from gravity + contact-force events and run the same beam pass and bundle solve, so logs pinch when bucked and limbs snap on landing. | `structure.js` | Bucking a log supported at both ends pinches a top cut. |
 | P2-4 | **Climbing line.** A second tension path: anchor in the tree, end node on the player body. Lets a climber hang, descend, and be caught. Reuses `rope.js`; player gets a `hang` mode. | `rope.js`, `players.js` | Unclipped fall is arrested; shock feeds Δv. |
