@@ -26,7 +26,8 @@ npx peerjs --port 9000             # local PeerServer
 # tab 2: http://localhost:8123/?join=TEST&signal=localhost:9000
 ```
 
-Console handle for poking at state: `arb.sim`, `arb.world`, `arb.aux`.
+Console handle for poking at state: `arb.sim`, `arb.world`, `arb.aux`,
+`arb.CFG` (live-editable tunables).
 
 ## Deploy
 
@@ -53,6 +54,16 @@ branch → `/ (root)`. The game is then at
 - Model geometry is piece-local plain arrays `[x,y,z]`; sim/view use
   `THREE.Vector3` for world-space maths. Rooted (fixed) pieces sit at the
   origin with identity rotation — `structure.js` relies on it.
+- **Wood is fibres** (DESIGN.md 3). Every segment has a bundle `seg.f`.
+  Do not add states or rules for how wood fails (hinge, tear, peel...): if a
+  behaviour is missing, it belongs in the fibre force law in
+  `structure.liveStep` or in `fibres.analyse`. Read DECISIONS D19 before
+  touching the live solver.
+- Host-side prompt and toast text uses `{tokens}` for controls
+  (`{interact}`, `{throttle}`...); `hud.js` maps them per input device.
+  Never write a key or button name in `sim/`.
+- Rapier getters that return vectors or matrices may hand back a reused
+  buffer: read the numbers out before calling Rapier again.
 - No HP anywhere. Harm is a delta-v threshold crossing → injury state
   (`players.impact`).
 - No automated test suite (owner's choice). Before committing: load

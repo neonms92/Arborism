@@ -9,6 +9,9 @@ export const CFG = {
   FULL_EVERY: 60,          // ticks between full (all bodies) snapshots
   INTERP_DELAY: 0.1,       // s, client render delay
   INPUT_HZ: 30,
+  INVERT_Y: true,          // push forward / mouse forward looks down
+  DEBUG_FIBRES: true,      // start with bark hidden and every fibre drawn (Tab / Back toggles)
+  EYE: 0.65,               // m, eye height above the body centre
   PEER_PREFIX: 'arborism-',
 
   // --- wood (green hardwood) ---
@@ -16,35 +19,37 @@ export const CFG = {
   MOR: 30e6,               // Pa, modulus of rupture (tension failure in bending)
   SHEAR: 8e6,              // Pa
   GRAVITY: 9.81,
-  OVERLOAD_WATCH: 0.8,     // utilisation above which a section is created at a joint
-  SNAP_FACTOR: 3,          // tension > this * MOR tears the whole section at once
-  TEAR_FRACTION: 0.05,     // fraction of cells that may tear per tick
   CONTACT_TAU: 0.04,       // s, low-pass on contact-force loads
   CONTACT_MIN: 150,        // N, contact-force event threshold
   DEBRIS_MASS: 2,          // kg, pieces lighter than this are removed...
   DEBRIS_LIFE: 10,         // ...this many seconds after creation
 
-  // --- section (cut cross-section) ---
-  GRID: 17,                // cells across the diameter
+  // --- fibres (every segment is a bundle of them) ---
+  FIBRE_PITCH: 0.03,       // m, target fibre width; a segment gets round(diameter / pitch) fibres across
+  GRID_MAX: 17,            // most fibres across a diameter
   KERF_WIDTH: 0.008,       // m
   COMP: 12e6,              // Pa, compressive yield: above this the wood crushes and kerfs close
-  KERF_CONTACT: 0.5,       // relative stiffness of a closed kerf in compression
-  HINGE_MAX_THICK: 0.22,   // strip thickness / diameter below which wood hinges
-  HINGE_MIN_ASPECT: 2,     // strip length / thickness
-  FIBRE_K: 0.12,           // theta_fibre = FIBRE_K / (thickness/diameter)
-  FIBRE_MIN: 0.2, FIBRE_MAX: 1.6,   // rad
-  HINGE_RESIST: 0.5,       // hinge resisting moment as a fraction of the moment driving it when it formed
+  KERF_CONTACT: 0.5,       // relative stiffness of a closed kerf in compression (static analysis)
+  FIBRE_YIELD: 0.0015,     // m, elongation at which a fibre reaches MOR (sets its stiffness)
+  FIBRE_STRETCH: 0.02,     // m, elongation at which a fibre snaps (it stretches plastically in between)
+  FIBRE_SLIP: 0.03,        // m, sideways slip at which a fibre shears off
+  FIBRE_DAMP: 0.01,        // s, stiffness-proportional damping of a live bundle
+  BEND_MAX: 1.6,           // rad, no fibre survives being folded further than this
+  COLOR_GAMMA: 0.6,        // debug fibre colours: (stress / limit) ^ gamma
 
   // --- chainsaw ---
-  FEED: 0.05,              // m/s at full throttle
+  BAR_LEN: 0.5,            // m
+  CUT_TIME: 0.35,          // s of full throttle to sever the fibres the bar is resting on
+  BAR_SPEED: 1.2,          // m/s, how fast the bar follows the hands when nothing is in the way
   PINCH_STUCK: 3000,       // N of kerf compression that stops the bar
-  SAW_REACH: 2.4,          // m from chest to cut point
-  SAW_MIN_R: 0.015,
-  TILT_MAX: 1.2,           // rad
+  SAW_HOLD: 0.45,          // m in front of the eyes that the hands hold the saw
+  SAW_YANK: 0.9,           // m: if the hands get this far from a blocked bar it pulls free
 
   // --- rope ---
   ROPE_EA: 200e3,          // N (stiffness * length)
   ROPE_BREAK: 25e3,        // N
+  ROPE_RADIUS: 0.02,       // m, drawn (and cut) thickness
+  ROPE_CUT_TIME: 0.15,     // s of a running chain on a rope or lanyard before it parts
   ROPE_KCAP: 0.1,          // k <= KCAP * m / dt^2 (explicit-spring stability)
   ROPE_DAMP: 0.5,          // damping ratio
   ROPE_MU: 0.15,           // friction per radian on the device

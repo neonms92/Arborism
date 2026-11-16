@@ -40,6 +40,19 @@ export class Sim {
     const g = RAPIER.ColliderDesc.cuboid(200, 0.5, 200).setTranslation(0, -0.5, 0).setFriction(0.9);
     this.rapier.createCollider(g);
 
+    // wood still joined by a live fibre bundle must not also collide across that joint
+    const noHit = (c1, c2) => {
+      const s1 = this.colSeg.get(c1), s2 = this.colSeg.get(c2);
+      if (s1 === undefined || s2 === undefined) return false;
+      const a = this.world.segs.get(s1), b = this.world.segs.get(s2), nh = this.structure.noHit;
+      if (!a || !b) return false;
+      const ro = this.structure.rootOf;
+      return !!(nh.get(s1)?.has(b.piece) || nh.get(s2)?.has(a.piece) || ro.get(s1) === b.piece || ro.get(s2) === a.piece);
+    };
+    this.hooks = {
+      filterContactPair: (c1, c2) => (noHit(c1, c2) ? null : RAPIER.SolverFlags.COMPUTE_IMPULSE),
+      filterIntersectionPair: () => true,
+    };
     world.on((ev, info) => this.onEvent(ev, info));
     this.players = new Players(this);
     this.rope = new Rope(this);
@@ -57,6 +70,11 @@ export class Sim {
       const body = this.rapier.createRigidBody(RAPIER.RigidBodyDesc.fixed());
       this.bodies.set(ev.piece, body);
       for (const s of this.world.segsOf(ev.piece)) this.addCollider(s, body);
+    } else if (ev.t === 'divide') {
+      const s = this.world.segs.get(ev.seg), body = this.bodies.get(s.piece);
+      this.dropCollider(ev.seg); this.addCollider(s, body);
+      this.addCollider(this.world.segs.get(ev.newSeg), body);
+      this.players.onDivide(ev);
     } else if (ev.t === 'split') {
       if (!info.moved) return;
       const old = this.bodies.get(info.oldPiece);
@@ -88,6 +106,7 @@ export class Sim {
       .setTranslation(mid[0], mid[1], mid[2]).setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w })
       .setMass(segMass(s) + s.leaf).setFriction(0.8).setRestitution(0.05)
       .setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(CFG.CONTACT_MIN);
+    if (this.structure && (this.structure.noHit.has(s.id) || this.structure.rootOf.has(s.id))) desc.setActiveHooks(RAPIER.ActiveHooks.FILTER_CONTACT_PAIRS);
     const col = this.rapier.createCollider(desc, body);
     this.segCol.set(s.id, col); this.colSeg.set(col.handle, s.id);
   }
@@ -121,19 +140,23 @@ export class Sim {
     else this.bodies.get(s.piece).applyImpulseAtPoint({ x: f.x * CFG.TICK, y: f.y * CFG.TICK, z: f.z * CFG.TICK }, p, true);
   }
 
-  /** What a player's camera ray hits on a tree: {seg, point:Vector3, dist} or null. */
+  /** A player's eyes and where they are looking (authoritative: from the host's own copy of the body). */
+  eye(p) {
+    const c = p.body.translation(), cp = Math.cos(p.input.pitch);
+    return {
+      o: new THREE.Vector3(c.x, c.y + CFG.EYE, c.z),
+      d: new THREE.Vector3(-Math.sin(p.input.yaw) * cp, Math.sin(p.input.pitch), -Math.cos(p.input.yaw) * cp),
+    };
+  }
+  /** What a player is looking at on a tree: {seg, point:Vector3, dist} or null. */
   aim(p) {
-    const o = p.input.o, d = p.input.d, c = p.body.translation();
-    const skip = Math.max(0, (c.x - o[0]) * d[0] + (c.y - o[1]) * d[1] + (c.z - o[2]) * d[2] - 0.4);
-    const ox = o[0] + d[0] * skip, oy = o[1] + d[1] * skip, oz = o[2] + d[2] * skip;
-    const hit = this.rapier.castRay(new RAPIER.Ray({ x: ox, y: oy, z: oz }, { x: d[0], y: d[1], z: d[2] }),
-      12, true, undefined, undefined, undefined, p.body);
+    const { o, d } = this.eye(p);
+    const hit = this.rapier.castRay(new RAPIER.Ray(o, d), 8, true, undefined, undefined, undefined, p.body);
     if (!hit) return null;
     const seg = this.colSeg.get(hit.collider.handle);
     if (seg === undefined) return null;
     const t = hit.timeOfImpact;
-    const point = new THREE.Vector3(ox + d[0] * t, oy + d[1] * t, oz + d[2] * t);
-    return { seg, point, dist: point.distanceTo(_v.set(c.x, c.y + 0.3, c.z)) };
+    return { seg, point: o.clone().addScaledVector(d, t), dist: t };
   }
 
   // ---- the tick ----
@@ -153,10 +176,10 @@ export class Sim {
     for (const seg of this.contactRaw.keys()) if (!this.contactF.has(seg)) this.contactF.set(seg, [0, 0, 0]);
     this.contactRaw.clear();
 
+    this.rope.step(dt);          // rope first: the saw and the fibres both need this tick's rope state
     this.players.pre(dt);
-    this.rope.step(dt);
     this.structure.step(dt);
-    this.rapier.step(this.eq);
+    this.rapier.step(this.eq, this.hooks);
     this.eq.drainContactForceEvents((e) => this.onContact(e));
     this.players.post(dt);
 
@@ -183,7 +206,7 @@ export class Sim {
 
   sweepDebris() {
     for (const [id, t0] of [...this.born]) {
-      if (this.tick - t0 < CFG.DEBRIS_LIFE * 60 || this.structure.hinges.has(id)) continue;
+      if (this.tick - t0 < CFG.DEBRIS_LIFE * 60 || this.structure.live.has(id)) continue;
       const body = this.bodies.get(id);
       if (body && body.mass() < CFG.DEBRIS_MASS) this.emit({ t: 'rmpiece', piece: id });
       else this.born.delete(id);
@@ -204,11 +227,6 @@ export class Sim {
     return b ? { p: b.translation(), q: b.rotation() } : null;
   }
   aux() {
-    const util = [];
-    for (const [id, u] of this.structure.util) if (u > 0.03) util.push(id, Math.min(255, Math.round(u * 100)));
-    return {
-      t: 'aux', tick: this.tick, pl: this.players.aux(), rope: this.rope.aux(), util,
-      watch: this.structure.watchAux(),
-    };
+    return { t: 'aux', tick: this.tick, pl: this.players.aux(), rope: this.rope.aux(), ...this.structure.aux() };
   }
 }

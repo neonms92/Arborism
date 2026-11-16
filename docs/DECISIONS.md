@@ -88,3 +88,74 @@ making big wood fragile.
 **D16 — The demo tree leans 6–8°.** A balanced tree cannot be felled without
 wedges or a pull line, neither of which exists yet. The lean gives felling a
 right and a wrong direction today.
+
+## Rework requested by the owner (fibres, saw, lanyard, first person)
+
+**D17 — Wood is fibres from the first tick; D2 and D4 are superseded.**
+The owner asked for fibre-based loading everywhere instead of discrete
+attached / hinged / free states. Every segment now carries a fibre bundle.
+The Rapier revolute "hinge" and its closing-angle and tear rules are gone.
+
+**D18 — Stiff until a fibre yields, then live.** A tree that is per-fibre
+springs everywhere, all the time, would need ~60 coupled stiff bodies; that
+is the jitter D2 was avoiding. But parallel elastic fibres between rigid
+faces have an exact static answer (the stress plane), so an intact bundle is
+solved statically, and only a bundle with a fibre past its elastic limit
+becomes a pair of bodies joined by individual fibre springs. Same fibres,
+same numbers, two solvers. The switch happens once per bundle and is not a
+behaviour change the player can see.
+
+**D19 — Live bundles are solved implicitly with an active set.** First
+attempt applied capped (plastic) fibre forces for a whole tick and kicked
+pieces away; second let pre-existing penetration at kerf faces spring back
+and launched a felled trunk. Fixes that are now load-bearing: (a) solve the
+6-DOF system assuming fibres are in range, clamp, re-solve; (b) a fibre found
+beyond its elastic range takes a permanent set *before* the solve; (c) wood
+pushed into wood crushes to fit and only resists further closing. Do not
+remove these without re-running a notch-and-back-cut fell.
+
+**D20 — Fibres are elastic-plastic, not brittle.** Brittle fibres (snap at
+MOR) make every hinge fail after ~2° because the real mechanism — fibres
+bending and pulling out over a long length — is below the model's scale. A
+plastic plateau with a stretch limit (`FIBRE_STRETCH`) reproduces it: thin
+strips fold far, thick ones break early.
+
+**D21 — The saw is a free rod; a cut has no parameters.** The owner asked
+for mouse-swung, moveable cutting and per-fibre severing. The old kerf
+(`phi, tilt, z0, depth`) is gone; fibres record where they were cut. The bar
+is a rod, not a plate: it cuts in whatever direction it is pushed. A real
+bar only cuts in its own plane; enforcing that would need a roll control and
+was judged not worth a button yet.
+
+**D22 — Raised saw is level and straight ahead by default,** regardless of
+where the player is looking; looking up/down before raising sets its height.
+Level cuts are the common case and should need no adjustment. The swing
+angles reset when the saw is lowered.
+
+**D23 — One grid of fibres per ~3 cm, capped at 17 across.** Fine enough
+that a hinge on the trunk is 1–3 fibres thick; coarse enough that a limb is
+5–7 across. `FIBRE_PITCH` / `GRID_MAX` trade resolution for cost.
+
+**D24 — Cuts more than a diameter apart divide the segment.** One bundle
+per segment means all its cuts would otherwise act in one plane. `divide`
+gives each cut plane its own bundle.
+
+**D25 — Lanyard: always on while climbing; interact re-throws it.** As
+specified by the owner. Union blocking is kept (it is what makes re-throwing
+necessary). The lanyard may only be thrown to rooted wood.
+
+**D26 — The cross-section HUD diagram was removed.** The 3-D fibre view
+shows the same information in place. Colours follow the owner's spec: red
+compression, blue tension, green bending (the old diagram had red/blue the
+other way round).
+
+**D27 — Inverted vertical look is the default** (`INVERT_Y`), and applies to
+swinging the saw too. There is no settings screen yet; it is a config flag.
+
+**D28 — Prompts carry `{tokens}`, not key names.** The host does not know
+what device each client is holding. Each client's HUD substitutes the name
+for the device it last saw input from.
+
+**D29 — Kickoff branch was renamed to `main` on GitHub.** Later pushes to
+the session branch `ccr-7d8cc9c2-99719w` recreated it as a separate branch.
+It needs merging into `main` (or Pages pointing at it) to go live.

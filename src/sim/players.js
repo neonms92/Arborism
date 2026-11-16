@@ -1,15 +1,17 @@
-// Players on the host: bodies, walking, spur climbing + lanyard rules,
+// Players on the host: bodies, walking, spur climbing on a lanyard,
 // interaction, injury thresholds. See docs/DESIGN.md section 6.
+// Prompts use {tokens} that each client's HUD turns into the right key or button name.
 
 import * as THREE from 'three';
 import { CFG, INJ, TOOL, MODE } from '../config.js';
-import { segLen, segAxis, segRadius, segParam, lerp3 } from '../model/world.js';
+import { segLen, segAxis, segRadius, segParam, lerp3, perp } from '../model/world.js';
 import { sawStep, sawOff } from './saw.js';
 
-const COUNTERS = ['jump', 'interact', 'lanyard', 'drop', 'toolNext', 'toolPrev', 'wrapUp', 'wrapDn', 'respawn'];
+const COUNTERS = ['jump', 'interact', 'drop', 'toolNext', 'toolPrev', 'wrapUp', 'wrapDn', 'respawn'];
 export function blankInput() {
   const c = {}; for (const k of COUNTERS) c[k] = 0;
-  return { mx: 0, my: 0, ty: 0, yaw: 0, pitch: 0, rt: 0, lt: 0, o: [0, 2, 5], d: [0, 0, -1], c };
+  // sy, sp: how far the saw is swung from straight-ahead-and-level (rad)
+  return { mx: 0, my: 0, yaw: 0, pitch: 0, sy: 0, sp: 0, rt: 0, lt: 0, c };
 }
 const UP = new THREE.Vector3(0, 1, 0);
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
@@ -58,7 +60,7 @@ export class Players {
       this.sim.toast(lvl === INJ.DOWN ? `Player ${p.id} is DOWN (${dv.toFixed(1)} m/s impact) - job failed` : `Player ${p.id} is hurt (${dv.toFixed(1)} m/s impact)`);
     }
     sawOff(this.sim, p);
-    if (p.mode === MODE.CLIMB && (!p.lan || lvl >= INJ.HURT)) this.toGround(p);
+    if (p.mode === MODE.CLIMB && lvl >= INJ.HURT) this.toGround(p);
     if (p.mode === MODE.ROPE) this.leaveRope(p);
   }
   onContact(pid, force) {
@@ -78,28 +80,33 @@ export class Players {
     p.mode = MODE.GROUND; p.cl = null; p.lan = false; p.ride = null;
     p.col.setSensor(false);
   }
+  /** On spurs with the lanyard round segment segId. Climbing and being lanyarded are the same thing. */
   toClimb(p, segId, t, side) {
     p.body.setBodyType(this.sim.R.RigidBodyType.KinematicPositionBased, true);
-    p.mode = MODE.CLIMB; p.cl = { seg: segId, t, side }; p.lan = false; p.ride = null;
+    p.mode = MODE.CLIMB; p.cl = { seg: segId, t, side }; p.lan = true; p.ride = null;
+    p.col.setSensor(false);
+  }
+  cutLanyard(p, by) {
+    this.sim.toast(by === p ? 'You cut your own lanyard' : `Player ${by.id} cut player ${p.id}'s lanyard`);
+    this.toGround(p);
+  }
+  onDivide(ev) {
+    for (const p of this.list.values()) {
+      if (!p.cl || p.cl.seg !== ev.seg) continue;
+      if (p.cl.t > ev.at) { p.cl.seg = ev.newSeg; p.cl.t = (p.cl.t - ev.at) / (1 - ev.at); } else p.cl.t /= ev.at;
+    }
   }
   leaveRope(p) { if (this.sim.rope.holder === p.id) this.sim.rope.holder = -1; p.mode = MODE.GROUND; }
 
   onSplit(ev, info) {
     for (const p of this.list.values()) {
-      if (p.saw.on && (p.saw.seg === ev.seg || info.moved.includes(p.saw.seg))) sawOff(this.sim, p);
       if (!p.cl) continue;
       if (p.cl.seg === ev.seg && ev.at > 0) {
         if (p.cl.t > ev.at) { p.cl.seg = ev.newSeg; p.cl.t = (p.cl.t - ev.at) / (1 - ev.at); }
         else p.cl.t = p.cl.t / ev.at;
       }
-      // the wood this climber is on just became a moving piece
-      if (info.moved.includes(p.cl.seg) && !p.ride) {
-        if (p.lan) { p.ride = { max: 0, still: 0, prev: null }; p.col.setSensor(true); }   // tied to it: ride it (no self-collision)
-        else {
-          const v = this.sim.bodies.get(ev.newPiece).velocityAtPoint(p.body.translation());
-          this.toGround(p, v); this.sim.toast('The wood you were on broke away and you were not tied in', p.id);
-        }
-      }
+      // the wood this climber is lanyarded to just became a moving piece: stay with it (and do not collide with it)
+      if (info.moved.includes(p.cl.seg)) p.col.setSensor(true);
     }
   }
 
@@ -133,13 +140,13 @@ export class Players {
     const aim = control ? sim.aim(p) : null;
     p.prompt = '';
 
-    // chainsaw (precision mode)
-    const canSaw = control && p.tool === TOOL.SAW && (p.mode === MODE.GROUND ? p.grounded : (p.mode === MODE.CLIMB && p.lan && !p.ride));
-    if (p.tool === TOOL.SAW && p.mode === MODE.CLIMB && !p.lan && inp.lt > 0.3) this.say(p, 'Clip your lanyard (Y) before running the saw');
-    sawStep(sim, p, inp, dt, aim, canSaw);
+    // chainsaw: raised with {raise}, swung with the look controls, usable while moving
+    const canSaw = control && p.tool === TOOL.SAW && p.mode !== MODE.ROPE && !p.ride;
+    sawStep(sim, p, inp, dt, canSaw);
+    if (canSaw && !p.saw.on) p.prompt = '{raise}: bring the saw up';
 
     if (p.mode === MODE.ROPE) {
-      p.prompt = 'RT ease  LT haul  D-pad wraps  X let go (ties off)';
+      p.prompt = '{throttle}: ease   {raise}: haul   {wraps}: wraps   {interact}: let go (ties off)';
       sim.rope.operate(p, inp, pressed, dt);
       if (pressed.interact || !control) this.leaveRope(p);
       p.body.setLinvel({ x: 0, y: p.body.linvel().y, z: 0 }, true);
@@ -156,7 +163,7 @@ export class Players {
     const hit = sim.rapier.castRay(new sim.R.Ray(t, { x: 0, y: -1, z: 0 }), CFG.P_HALF + CFG.P_RADIUS + 0.12, true,
       undefined, undefined, undefined, body);
     p.grounded = !!hit;
-    if (!control || p.saw.on) { if (p.grounded) body.setLinvel({ x: v.x * 0.8, y: v.y, z: v.z * 0.8 }, true); return; }
+    if (!control) { if (p.grounded) body.setLinvel({ x: v.x * 0.8, y: v.y, z: v.z * 0.8 }, true); return; }
     const speed = CFG.WALK * (p.inj >= INJ.HURT ? 0.45 : 1);
     const sy = Math.sin(inp.yaw), cy = Math.cos(inp.yaw);
     // yaw 0 looks toward -Z; forward = (-sin, 0, -cos), right = (cos, 0, -sin)
@@ -172,14 +179,14 @@ export class Players {
       if (pressed.interact) rope.place(p, aim);
       if (pressed.drop) rope.clear(p);
     } else if (nearDev && rope.holder < 0) {
-      p.prompt = 'X: take the rope tail';
+      p.prompt = '{interact}: take the rope tail';
       if (pressed.interact) { p.mode = MODE.ROPE; rope.holder = p.id; }
     } else if (aim && aim.dist < CFG.REACH && p.tool === TOOL.HANDS) {
       const s = sim.world.segs.get(aim.seg), piece = sim.world.pieces.get(s.piece);
       if (piece.fixed && p.inj < INJ.HURT) {
         const loc = sim.toLocal(s.piece, aim.point), tt = Math.min(1, Math.max(0, segParam(s, loc)));
         if (segRadius(s, tt) >= CFG.SPUR_MIN_R) {
-          p.prompt = 'X: spur in and climb';
+          p.prompt = '{interact}: spur in and throw the lanyard round';
           if (pressed.interact) {
             const ax = segAxis(s), c = lerp3(s.a, s.b, tt);
             // side = from the stem toward the player, perpendicular to the stem
@@ -199,16 +206,29 @@ export class Players {
     let s = w.segs.get(cl.seg);
     if (!s) { this.toGround(p); return; }
     const fixed = w.pieces.get(s.piece).fixed;
-    if (pressed.lanyard && control && !p.ride) {
-      p.lan = !p.lan; if (!p.lan) sawOff(sim, p);
-    }
-    if (pressed.drop && control && !p.saw.on) { this.toGround(p); return; }
+    // wood that has cracked but is still held by fibres can be climbed on; wood that has come free is a ride
+    const held = sim.structure.isHeld(s.piece);
+    if (!held && !p.ride) p.ride = { max: 0, still: 0, prev: null };
+    if (held) p.ride = null;
+    // letting go of the lanyard is letting go of the tree
+    if (pressed.drop && control) { const v = fixed ? null : sim.bodies.get(s.piece).velocityAtPoint(p.body.translation()); this.toGround(p, v); return; }
     if (control && p.tool === TOOL.ROPE) {
       p.prompt = sim.rope.prompt(p, aim);
       if (pressed.interact) sim.rope.place(p, aim);
+    } else if (control && p.tool === TOOL.HANDS && !p.ride && aim && aim.dist < CFG.REACH) {
+      // throw the lanyard round another stem within reach: the way past a union
+      const s2 = w.segs.get(aim.seg), loc = sim.toLocal(s2.piece, aim.point), t2 = Math.min(1, Math.max(0, segParam(s2, loc)));
+      if (w.pieces.get(s2.piece).fixed && segRadius(s2, t2) >= CFG.SPUR_MIN_R && (s2.id !== s.id || Math.abs(t2 - cl.t) * segLen(s) > 0.3)) {
+        p.prompt = '{interact}: move the lanyard here';
+        if (pressed.interact) {
+          const c = lerp3(s2.a, s2.b, t2), pl = sim.toLocal(s2.piece, p.body.translation());
+          cl.seg = s2.id; cl.t = t2; cl.side = perp([pl[0] - c[0], pl[1] - c[1], pl[2] - c[2]], segAxis(s2));
+          s = s2;
+        }
+      }
     }
 
-    if (control && !p.saw.on && !p.ride) {
+    if (control && !p.ride) {
       let ax = segAxis(s), L = segLen(s);
       const axW = sim.dirToWorld(s.piece, ax, _a);
       const look = _b.set(-Math.sin(inp.yaw), 0, -Math.cos(inp.yaw));
@@ -224,7 +244,7 @@ export class Players {
         const kids = w.kids(s.id).filter((k) => w.segs.get(k).r0 >= CFG.SPUR_MIN_R);
         const real = w.kids(s.id).filter((k) => w.isRealBranch(k)).length;
         if (!kids.length) t = 1;
-        else if (p.lan && real >= 2) { t = 1; this.say(p, 'Lanyard is stopped by the union - unclip (Y) to pass'); }
+        else if (real >= 2) { t = 1; this.say(p, 'The lanyard stops at the union. Look at the stem you want and {interact} (hands) to move it'); }
         else {
           const want = _c.set(-Math.sin(inp.yaw) * Math.cos(inp.pitch), Math.sin(inp.pitch), -Math.cos(inp.yaw) * Math.cos(inp.pitch)).multiplyScalar(0.9).add(axW);
           let best = kids[0], bd = -Infinity;
@@ -241,7 +261,7 @@ export class Players {
           if (sim.toWorld(s.piece, s.a, _b).y < 0.6) { this.toGround(p); return; }
         } else {
           const real = w.kids(s.parent).filter((k) => w.isRealBranch(k)).length;
-          if (p.lan && real >= 2) { t = 0; this.say(p, 'Lanyard is stopped by the union - unclip (Y) to pass'); }
+          if (real >= 2) { t = 0; this.say(p, 'The lanyard stops at the union. Look at the stem you want and {interact} (hands) to move it'); }
           else { s = w.segs.get(s.parent); cl.seg = s.id; t = 0.99; cl.side = perp(cl.side, segAxis(s)); }
         }
       }
@@ -252,11 +272,16 @@ export class Players {
     const c = lerp3(s.a, s.b, cl.t), d = segRadius(s, cl.t) + CFG.STANDOFF;
     const pos = sim.toWorld(s.piece, [c[0] + cl.side[0] * d, c[1] + cl.side[1] * d, c[2] + cl.side[2] * d], _a);
     p.body.setNextKinematicTranslation(pos);
-    if (fixed) {
-      // moving bounces the limb: a simple dynamic factor on the climber's weight
-      const dyn = control && !p.saw.on && (inp.mx || inp.my) ? CFG.CLIMB_BOUNCE : 1;
-      sim.loads.push({ seg: s.id, p: c, f: [0, -CFG.P_MASS * CFG.GRAVITY * dyn, 0] });
-      p.prompt = p.prompt || (p.lan ? 'Y: unclip lanyard' : 'Y: clip lanyard   B: step off');
+    if (held) {
+      // the climber's weight goes into whatever wood the spurs are in; moving bounces it
+      const dyn = control && (inp.mx || inp.my) ? CFG.CLIMB_BOUNCE : 1;
+      // The climber is a force here, not a mass. So that their weight cannot drive light wood down faster
+      // than they could fall themselves, it fades out as the wood under them accelerates downward.
+      const vy = (pos.y - (cl.py ?? pos.y)) / dt, ay = (vy - (cl.vy ?? vy)) / dt;
+      cl.py = pos.y; cl.vy = vy; cl.ad = (cl.ad || 0) + 0.1 * (-ay - (cl.ad || 0));
+      const share = fixed ? 1 : Math.max(0, Math.min(1, 1 - cl.ad / CFG.GRAVITY));
+      sim.applyForce(s.id, sim.toWorld(s.piece, c, _b), _c.set(0, -CFG.P_MASS * CFG.GRAVITY * dyn * share, 0));
+      p.prompt = p.prompt || '{move}: climb   {drop}: let go of the tree';
     } else {
       // riding a falling piece because we are lanyarded to it
       const rd = p.ride;
@@ -272,7 +297,7 @@ export class Players {
         }
       }
       rd.prev = pos.clone();
-      p.prompt = 'Tied to a falling piece!';
+      p.prompt = 'Lanyarded to a falling piece!   {drop}: let go';
     }
   }
 
@@ -292,21 +317,15 @@ export class Players {
     for (const p of this.list.values()) {
       const s = p.saw;
       out.push({
-        id: p.id, m: p.mode, tool: p.tool, inj: p.inj, lan: p.lan ? 1 : 0, yaw: +p.input.yaw.toFixed(2), pr: p.prompt,
-        saw: s.on ? [s.seg, s.at, s.z0, s.phi, s.tilt, s.depth, s.stuck ? 1 : 0, s.sec, Math.round(s.pinch || 0), s.R] : 0,
+        id: p.id, m: p.mode, tool: p.tool, inj: p.inj, yaw: +p.input.yaw.toFixed(2), pr: p.prompt,
+        cl: p.cl ? [p.cl.seg, +p.cl.t.toFixed(3), p.cl.side.map((x) => +x.toFixed(3))] : 0,
+        saw: s.on ? [...s.a0.toArray(), ...s.a1.toArray(), s.stuck ? 1 : 0, s.cutting ? 1 : 0].map((x) => +x.toFixed(3)) : 0,
       });
     }
     return out;
   }
 }
 
-/** Unit vector perpendicular to unit axis ax, as close as possible to v. */
-function perp(v, ax) {
-  const d = v[0] * ax[0] + v[1] * ax[1] + v[2] * ax[2];
-  let o = [v[0] - ax[0] * d, v[1] - ax[1] * d, v[2] - ax[2] * d], l = Math.hypot(o[0], o[1], o[2]);
-  if (l < 1e-4) { o = Math.abs(ax[1]) < 0.9 ? [ax[2], 0, -ax[0]] : [1, 0, 0]; l = Math.hypot(o[0], o[1], o[2]); }
-  return [o[0] / l, o[1] / l, o[2] / l];
-}
 function rotateAbout(v, ax, ang) {
   const c = Math.cos(ang), s = Math.sin(ang), d = v[0] * ax[0] + v[1] * ax[1] + v[2] * ax[2];
   const cr = [ax[1] * v[2] - ax[2] * v[1], ax[2] * v[0] - ax[0] * v[2], ax[0] * v[1] - ax[1] * v[0]];

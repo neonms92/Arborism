@@ -10,12 +10,12 @@
   canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   .hud { position: fixed; pointer-events: none; text-shadow: 0 1px 2px #000; }
   #status { top: 8px; left: 10px; font-size: 13px; }
-  #prompt { bottom: 46px; left: 0; right: 0; text-align: center; font-size: 18px; font-weight: 600; }
-  #rope { bottom: 14px; left: 0; right: 0; text-align: center; font-size: 15px; display: none; color: #ffe9a8; }
+  #prompt { bottom: 58px; left: 0; right: 0; text-align: center; font-size: 18px; font-weight: 600; }
+  #rope { bottom: 30px; left: 0; right: 0; text-align: center; font-size: 15px; display: none; color: #ffe9a8; }
   #toasts { top: 40px; left: 0; right: 0; text-align: center; font-size: 17px; }
   #toasts div { margin: 2px auto; background: rgba(0,0,0,.45); display: table; padding: 3px 12px; border-radius: 4px; }
   #cross { top: 50%; left: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: #fff; opacity: .8; }
-  #section { right: 12px; bottom: 12px; width: 240px; height: 240px; display: none; border-radius: 6px; }
+  #keys { left: 10px; bottom: 8px; font-size: 12px; opacity: .8; }
   #lobby { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(20,28,18,.92); }
   #lobby .box { width: min(92vw, 460px); text-align: center; }
   #lobby h1 { font-size: 40px; margin: 0 0 4px; letter-spacing: 2px; }
@@ -38,19 +38,14 @@
 <div id="cross" class="hud"></div>
 <div id="prompt" class="hud"></div>
 <div id="rope" class="hud"></div>
-<canvas id="section" class="hud" width="240" height="240"></canvas>
+<div id="keys" class="hud"></div>
 <div id="lobby"><div class="box">
   <h1>ARBORISM</h1>
   <p>co-op tree work &middot; physics prototype</p>
-  <div><button id="bHost">Host (A)</button> <button id="bSolo">Solo (Y)</button></div>
-  <div><input id="code" maxlength="5" placeholder="CODE" autocomplete="off"> <button id="bJoin">Join (X)</button></div>
+  <div><button id="bHost">Host</button> <button id="bSolo">Solo</button></div>
+  <div><input id="code" maxlength="5" placeholder="CODE" autocomplete="off"> <button id="bJoin">Join</button></div>
   <div id="msg"></div>
-  <div id="help">
-    <b>Gamepad</b>: L-stick move/climb &middot; R-stick look &middot; X interact &middot; Y lanyard &middot; B step off &middot; A jump &middot; LB/RB tool &middot;
-    LT precision cut, RT throttle &middot; D-pad wraps &middot; Back stress view &middot; Start respawn<br>
-    <b>Keyboard</b>: WASD &middot; mouse (click to capture) &middot; E interact &middot; F lanyard &middot; C step off &middot; Space &middot; Q/R tool &middot;
-    RMB precision, LMB throttle, Z/X tilt &middot; arrows wraps &middot; Tab stress view &middot; Enter respawn
-  </div>
+  <div id="help"></div>
 </div></div>
 <script src="./vendor/peerjs/peerjs.min.js"></script>
 <script type="module" src="./src/main.js"></script>

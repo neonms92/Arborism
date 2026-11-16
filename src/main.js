@@ -1,10 +1,10 @@
 // Boot, lobby, main loop. The only file that knows about every module.
 // See docs/DESIGN.md 1.3.
 
-import { CFG } from './config.js';
+import { CFG, TOOL } from './config.js';
 import { World } from './model/world.js';
 import { View } from './view/view.js';
-import { Hud } from './view/hud.js';
+import { Hud, describe } from './view/hud.js';
 import { Input } from './input.js';
 import { Net } from './net/net.js';
 import { encodeSnapshot, Interp } from './net/snapshot.js';
@@ -66,7 +66,8 @@ function wireHost() {
   net.onClientData = (key, c, d) => {
     if (typeof d !== 'string' || c.pid < 0) return;
     let m; try { m = JSON.parse(d); } catch { return; }
-    if (m.t === 'in' && m.i && m.i.c && Array.isArray(m.i.o) && Array.isArray(m.i.d)) sim.players.setInput(c.pid, m.i);
+    const i = m.i;
+    if (m.t === 'in' && i && i.c && ['mx', 'my', 'yaw', 'pitch', 'sy', 'sp', 'rt', 'lt'].every((k) => Number.isFinite(i[k]))) sim.players.setInput(c.pid, i);
   };
 }
 
@@ -123,20 +124,27 @@ function lobbyPad() {
 
 // ---------- main loop ----------
 const hostSource = { pose: (id) => sim.pose(id) };
-const stressOf = (secId) => {
-  if (sim) { const s = world.sections.get(secId); return s ? Array.from(s.stress, (v) => v / CFG.MOR * 100) : null; }
-  return aux && aux.watch ? aux.watch[secId] : null;
-};
+const HELP = '{move} move / climb   {look} look   {interact} use: spur in, move the lanyard, grab or place rope   {drop} let go of the tree   {jump} jump   ' +
+  '{tool} hands / chainsaw / rope   {raise} raise the saw, then {look} swings the bar and {throttle} runs the chain   ' +
+  'on the rope tail: {throttle} ease, {raise} haul, {wraps} wraps   {fibres} fibres / bark   {respawn} respawn';
+let helpDevice = '';
 
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
-  if (!input.active) { lobbyPad(); view.update(dt, { pose: () => null }, null, -1, input.state); return; }
+  if (!input.active) {
+    lobbyPad(); input.poll(dt);
+    if (helpDevice !== input.device) { helpDevice = input.device; $('help').textContent = (helpDevice === 'pad' ? 'Controller: ' : 'Keyboard and mouse: ') + describe(HELP, helpDevice);
+      const pad = helpDevice === 'pad';
+      $('bHost').textContent = pad ? 'Host (A)' : 'Host'; $('bSolo').textContent = pad ? 'Solo (Y)' : 'Solo'; $('bJoin').textContent = pad ? 'Join (X)' : 'Join';
+    }
+    view.update(dt, { pose: () => null }, null, -1, input.state); return;
+  }
 
   const mine = aux && aux.pl.find((p) => p.id === me);
-  input.precise = !!(mine && mine.saw);
+  input.sawOut = !!(mine && mine.tool === TOOL.SAW);
   const inp = input.poll(dt);
-  if (input.overlayToggled) { input.overlayToggled = false; view.setOverlay(!view.overlay); }
+  if (input.fibresToggled) { input.fibresToggled = false; view.setDebug(!view.debug); }
 
   if (sim) {
     sim.players.setInput(me, inp);
@@ -159,14 +167,9 @@ function frame(now) {
     if (inputTimer >= 1 / CFG.INPUT_HZ) { inputTimer = 0; net.sendFast({ t: 'in', i: inp }); }
   }
 
-  if (aux && view.overlay && (!sim || sim.tick % 6 === 0)) {
-    view.util.clear();
-    for (let i = 0; i < aux.util.length; i += 2) view.util.set(aux.util[i], aux.util[i + 1] / 100);
-    view.paintUtil();
-  }
   view.update(dt, sim ? hostSource : interp, aux, me, inp);
   const info = role === 'solo' ? 'solo' : role === 'host' ? `HOST  room ${room}  (${net.clients.size} joined)` : `joined ${room}`;
-  hud.update(dt, aux, me, info, stressOf);
+  hud.update(dt, aux, me, info, input.device);
 }
 requestAnimationFrame(frame);
 
