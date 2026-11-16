@@ -35,7 +35,10 @@ export const CFG = {
   KERF_WIDTH: 0.008,       // m
   COMP: 12e6,              // Pa, compressive yield: above this the wood crushes and kerfs close
   KERF_CONTACT: 0.5,       // relative stiffness of a closed kerf in compression (static analysis)
-  FIBRE_YIELD: 0.0015,     // m, elongation at which a fibre reaches MOR (sets its stiffness)
+  FIBRE_YIELD: 0.004,      // m, stretch at which a fibre reaches MOR. This is the wood's springiness: it sets
+                           // how far a loaded limb bends (model/flex.js) and how stiff a live bundle is.
+  FLEX_FREQ: 9,            // rad/s, how fast bending follows a change of load (the bounce)
+  FLEX_DAMP: 0.35,         // damping ratio of that bounce (1 = no bounce)
   FIBRE_STRETCH: 0.02,     // m, elongation at which a fibre snaps (it stretches plastically in between)
   FIBRE_SLIP: 0.03,        // m, sideways slip at which a fibre shears off
   FIBRE_DAMP: 0.01,        // s, stiffness-proportional damping of a live bundle

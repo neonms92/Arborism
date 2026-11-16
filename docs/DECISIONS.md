@@ -193,3 +193,20 @@ in the code: check handedness before `setFromRotationMatrix`.
 **D34 — Tab is the settings menu; the fibre/bark toggle became a slider.**
 Menu rows write straight into `CFG` and persist in localStorage, so there is
 one place for tunables (config.js) and one line per exposed variable.
+
+## Third round: bending
+
+**D35 — Standing wood bends elastically; D2's "no physical flex" is over.**
+The owner found fibres "too stiff, or no bending at all" — correct: until a
+fibre yielded, the tree was one rigid body. Rather than make the whole tree
+live (D18's reasons still hold), the stress plane each stiff bundle already
+has is turned into a tilt across that bundle and accumulated along the stem
+(`model/flex.js`). The stiffness is the live regime's own (`FIBRE_YIELD`),
+so the two regimes agree and going live is continuous.
+Costs accepted: loads are computed on the unbent shape; the bounce is a
+damped spring on each joint's angle, not real inertia; a piece that has just
+parted relaxes its inner bend by a fade, not by physics.
+
+**D36 — Default `FIBRE_YIELD` raised from 1.5 mm to 4 mm.** At 1.5 mm a limb
+at breaking load had moved a few centimetres. 4 mm gives a visible droop
+under a climber. It also softens live bundles, which the solver likes.

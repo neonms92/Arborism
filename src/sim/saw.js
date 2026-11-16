@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { CFG, MODE } from '../config.js';
 import { segLen, segAxis, segParam, lerp3, lanyardLoop } from '../model/world.js';
 import { bundleBasis, layout, INTACT, CUT } from '../model/fibres.js';
+import { frameInverse } from '../model/flex.js';
 
 const _h = new THREE.Vector3(), _d = new THREE.Vector3(), _d0 = new THREE.Vector3(), _d1 = new THREE.Vector3();
 const _c0 = new THREE.Vector3(), _c1 = new THREE.Vector3(), _p = new THREE.Vector3(), _q = new THREE.Vector3();
@@ -27,9 +28,9 @@ export function sawStep(sim, p, inp, dt, can, aim) {
     const { d } = sim.eye(p);
     let A = null, f = null, b = null;
     if (aim && aim.dist <= CFG.SAW_REACH) {
-      const s = sim.world.segs.get(aim.seg), ax = sim.dirToWorld(s.piece, segAxis(s), new THREE.Vector3());
-      const loc = sim.toLocal(s.piece, aim.point), t = Math.min(1, Math.max(0, segParam(s, loc)));
-      f = sim.toWorld(s.piece, lerp3(s.a, s.b, t), new THREE.Vector3()).sub(aim.point);
+      const s = sim.world.segs.get(aim.seg), ax = sim.segDirToWorld(s, segAxis(s), new THREE.Vector3());
+      const loc = sim.segToLocal(s, aim.point), t = Math.min(1, Math.max(0, segParam(s, loc)));
+      f = sim.segToWorld(s, lerp3(s.a, s.b, t), new THREE.Vector3()).sub(aim.point);
       f.addScaledVector(ax, -f.dot(ax));                                            // feed: from the bark toward the heart
       if (f.lengthSq() > 1e-8) { f.normalize(); b = new THREE.Vector3().crossVectors(ax, f).normalize(); A = aim.point.clone().addScaledVector(f, -0.02); }
     }
@@ -118,7 +119,7 @@ function ropeSpans(sim) {
   for (const q of sim.players.list.values()) {
     if (q.mode !== MODE.CLIMB) continue;
     const s = sim.world.segs.get(q.cl.seg); if (!s) continue;
-    const pts = lanyardLoop(s, q.cl.t, q.cl.side, CFG.STANDOFF).map((x) => sim.toWorld(s.piece, x));
+    const pts = lanyardLoop(s, q.cl.t, q.cl.side, CFG.STANDOFF).map((x) => sim.segToWorld(s, x));
     for (let i = 0; i + 1 < pts.length; i++) out.push([pts[i], pts[i + 1], q]);
   }
   return out;
@@ -156,8 +157,10 @@ function probe(sim, c0, c1) {
   for (const [id, j] of sim.structure.live) { liveAt.set(j.rootSeg, [id, j, true]); if (w.segs.get(j.parentSeg)?.id !== undefined && j.rootSeg !== j.parentSeg) liveAt.set(j.parentSeg, [id, j, false]); }
   const loc = new Map();             // piece id -> bar in that piece's frame
   for (const s of w.segs.values()) {
-    let lc = loc.get(s.piece);
-    if (!lc) { lc = [sim.toLocal(s.piece, c0), sim.toLocal(s.piece, c1)]; loc.set(s.piece, lc); }
+    // the bar in this segment's own (unbent) coordinates
+    const pl = loc.get(s.piece) || [sim.toLocal(s.piece, c0), sim.toLocal(s.piece, c1)];
+    loc.set(s.piece, pl);
+    const fr = sim.structure.flex.frame(s.id), lc = fr ? [frameInverse(fr, pl[0]), frameInverse(fr, pl[1])] : pl;
     const rmax = Math.max(s.r0, s.r1);
     if (segDistA(lc[0], lc[1], s.a, s.b).d > rmax + 0.02) continue;
     const f = s.f, L = segLen(s), Ly = layout(f.N), ax = segAxis(s), { u, v } = bundleBasis(ax);

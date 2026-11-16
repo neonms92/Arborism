@@ -1,7 +1,6 @@
 # Status
 
-Last updated after the second round of owner feedback (plant-and-pivot saw,
-Tab menu, bark built from fibres, fibre drawing fix).
+Last updated after adding elastic bending (third round of owner feedback).
 Keep this file current.
 
 ## How things were checked
@@ -19,6 +18,7 @@ yet swung the saw with a real mouse.
 |---|---|
 | Page | Loads with a clean console; starts in first person with fibres drawn and bark hidden. |
 | Fibres everywhere | Every segment has a bundle (≈ 2000 fibres on the demo tree), solved every tick, drawn and coloured per fibre: yellow → red (compression), → blue (tension), → green (bending in a live bundle), dark (snapped). |
+| Bending | Standing wood flexes with the load its fibres carry. Demo limb tip: ≈ 5 cm low at rest, ≈ 18 cm with an 85 kg climber far out, ≈ 80 cm with springiness set to 15 mm. Climber, colliders, ropes, saw and drawing all follow the bent wood; clients compute the same bend from aux. Going live starts from the bent pose (no jump). |
 | Overload | A 400 kg test load far out a limb: bundle goes live, limb bends ~0.25 rad on stretched fibres, the next bundle in goes, it comes free; climber rides it down at free-fall speed and is hurt. |
 | Limb cuts (direct fibre severing) | Top cut only: bottom fibres hold as a strap and the limb swings. Undercut then top cut: parts clean. |
 | Felling (direct fibre severing) | Notch toward the lean + back cut: tips over on an 11-fibre hinge over ~2.5 s, fibres snap progressively, comes free, lands along the notch line. Back cut against the lean: kerf closes (pinch), tree stands. Straight through: free, slides off toward the lean. |
@@ -38,6 +38,11 @@ software GL.
 
 ## What is rough
 
+- **Bending is quasi-static.** The bend follows the load through a damped
+  spring per joint (bounce speed and damping are in the menu); it is not
+  inertia, so a limb does not keep swaying like a real one, and there is no
+  wind. Loads are computed on the unbent shape. Fallen pieces do not bend.
+- Sawing into bent wood has only been checked for errors, not for feel.
 - **Saw feel is still a guess.** Nobody has used it with a real mouse. The
   pivot directions (which way left/right and up/down turn the bar) were
   chosen by reasoning, not by feel. Sensitivity and cutting rate are in the
