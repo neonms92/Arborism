@@ -10,7 +10,12 @@ export const CFG = {
   INTERP_DELAY: 0.1,       // s, client render delay
   INPUT_HZ: 30,
   INVERT_Y: true,          // push forward / mouse forward looks down
-  DEBUG_FIBRES: true,      // start with bark hidden and every fibre drawn (Tab / Back toggles)
+  LOOK_SENS: 0.0025,       // rad of look per pixel of mouse travel
+  // --- view (all in the Tab menu) ---
+  BARK_OPACITY: 0,         // 0 = bark hidden, 1 = solid bark
+  SHOW_FIBRES: true,       // draw every fibre
+  STRESS_COLORS: true,     // colour fibres by load (off: plain wood)
+  LEAF_OPACITY: 0.25,
   EYE: 0.65,               // m, eye height above the body centre
   PEER_PREFIX: 'arborism-',
 
@@ -39,11 +44,11 @@ export const CFG = {
 
   // --- chainsaw ---
   BAR_LEN: 0.5,            // m
-  CUT_TIME: 0.35,          // s of full throttle to sever the fibres the bar is resting on
-  BAR_SPEED: 1.2,          // m/s, how fast the bar follows the hands when nothing is in the way
+  CUT_RATE: 0.012,         // m^2 of wood cross-section the chain clears per second at full throttle
+  SAW_FEED: 0.3,           // m/s the bar moves forward under full throttle when nothing is in the way
+  SAW_REACH: 2.0,          // m from the eyes to where the bar can be planted
+  SAW_SENS: Math.PI,       // rad the bar pivots per screen-width of mouse travel
   PINCH_STUCK: 3000,       // N of kerf compression that stops the bar
-  SAW_HOLD: 0.45,          // m in front of the eyes that the hands hold the saw
-  SAW_YANK: 0.9,           // m: if the hands get this far from a blocked bar it pulls free
 
   // --- rope ---
   ROPE_EA: 200e3,          // N (stiffness * length)

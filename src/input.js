@@ -9,7 +9,6 @@ import { blankInput } from './sim/players.js';
 
 const DEAD = 0.18;
 const dz = (v) => (Math.abs(v) < DEAD ? 0 : (v - Math.sign(v) * DEAD) / (1 - DEAD));
-const INV = CFG.INVERT_Y ? 1 : -1;     // inverted: pushing the mouse or stick forward looks (and swings the saw) down
 
 // standard gamepad button index -> counter name
 const PAD = { 0: 'jump', 1: 'drop', 2: 'interact', 4: 'toolPrev', 5: 'toolNext', 12: 'wrapUp', 13: 'wrapDn', 9: 'respawn' };
@@ -20,23 +19,26 @@ export class Input {
     this.state = blankInput();
     this.keys = new Set(); this.mouse = { l: false, r: false, dx: 0, dy: 0 };
     this.padPrev = [];
-    this.fibresToggled = false;
+    this.menuToggled = false;
+    this.menuOpen = false;      // set by main: the settings menu has the mouse and keyboard
     this.sawOut = false;        // set by main: the local player is holding the chainsaw
     this.active = false;        // set by main: game running (not in lobby)
     this.device = 'kb';
     window.addEventListener('keydown', (e) => {
       this.device = 'kb';
       if (!this.active || e.repeat) return;
+      if (e.code !== 'Tab' && this.menuOpen) return;
       this.keys.add(e.code);
       if (KEYS[e.code]) this.state.c[KEYS[e.code]]++;
-      if (e.code === 'Tab') { this.fibresToggled = true; e.preventDefault(); }
+      if (e.code === 'Tab') { this.menuToggled = true; e.preventDefault(); this.keys.clear(); return; }
+      if (this.menuOpen) return;
       if (e.code === 'Space') e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
     canvas.addEventListener('mousedown', (e) => {
       this.device = 'kb';
-      if (!this.active) return;
+      if (!this.active || this.menuOpen) return;
       if (document.pointerLockElement !== canvas) { canvas.requestPointerLock?.(); return; }
       if (e.button === 0) this.mouse.l = true; if (e.button === 2) this.mouse.r = true;
     });
@@ -65,22 +67,24 @@ export class Input {
         if (b.pressed && !this.padPrev[i]) {
           this.device = 'pad';
           if (PAD[i]) s.c[PAD[i]]++;
-          if (i === 8) this.fibresToggled = true;
+          if (i === 8) this.menuToggled = true;
         }
         this.padPrev[i] = b.pressed;
       });
     }
-    // dYaw: + turns left. dPitch: + tilts up. Mouse forward / stick forward is negative dy / ly.
-    const perScreen = Math.PI / Math.max(600, window.innerWidth);
+    // Yaw: + turns left. Pitch: + tilts up. Mouse forward / stick forward is negative dy / ly;
+    // inverted look means that looks (and tilts the saw) down.
+    const inv = CFG.INVERT_Y ? 1 : -1;
     if (this.sawOut && lt > 0.3) {
-      // saw raised: the view holds still and the same controls swing the bar instead.
-      // Mouse: half a turn across one screen width.
-      s.sy = clamp(s.sy - lx * 1.8 * dt - this.mouse.dx * perScreen, -Math.PI / 2, Math.PI / 2);
-      s.sp = clamp(s.sp + INV * (ly * 1.8 * dt + this.mouse.dy * perScreen), -Math.PI / 2, Math.PI / 2);
+      // saw planted: the view holds still and the same controls pivot the bar instead.
+      // The host only uses how much these change, so they are free-running angles.
+      const perPx = CFG.SAW_SENS / Math.max(600, window.innerWidth);
+      s.sy += -lx * CFG.SAW_SENS * 0.5 * dt - this.mouse.dx * perPx;
+      s.sp += inv * (ly * CFG.SAW_SENS * 0.5 * dt + this.mouse.dy * perPx);
     } else {
       s.sy = s.sp = 0;
-      s.yaw -= lx * 2.6 * dt + this.mouse.dx * 0.0025;
-      s.pitch = clamp(s.pitch + INV * (ly * 2.0 * dt + this.mouse.dy * 0.0025), -1.5, 1.5);
+      s.yaw -= lx * 2.6 * dt + this.mouse.dx * CFG.LOOK_SENS;
+      s.pitch = clamp(s.pitch + inv * (ly * 2.0 * dt + this.mouse.dy * CFG.LOOK_SENS), -1.5, 1.5);
     }
     this.mouse.dx = this.mouse.dy = 0;
     s.mx = clamp(mx, -1, 1); s.my = clamp(my, -1, 1);

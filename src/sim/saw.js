@@ -1,12 +1,13 @@
-// Chainsaw. The bar is a rod in the world, held in front of the player's eyes
-// and swung with the mouse / right stick. Wood stops it: the bar rests against
-// the fibres in its way, and throttle severs those fibres after CUT_TIME. Then
-// it moves on. There is no "cut" object - only fibres that have been severed,
+// Chainsaw. Raising it plants the bar on the wood being looked at, lying
+// across the stem. The look controls pivot it about that planted point;
+// throttle presses it forward, carrying the point with it. Wood stops the bar:
+// it rests against the fibres in its way and the chain works through them at
+// CUT_RATE. There is no "cut" object - only fibres that have been severed,
 // each remembering where. Host only. See docs/DESIGN.md 4.
 
 import * as THREE from 'three';
 import { CFG, MODE } from '../config.js';
-import { segLen, segAxis, lanyardLoop } from '../model/world.js';
+import { segLen, segAxis, segParam, lerp3, lanyardLoop } from '../model/world.js';
 import { bundleBasis, layout, INTACT, CUT } from '../model/fibres.js';
 
 const _h = new THREE.Vector3(), _d = new THREE.Vector3(), _d0 = new THREE.Vector3(), _d1 = new THREE.Vector3();
@@ -14,62 +15,113 @@ const _c0 = new THREE.Vector3(), _c1 = new THREE.Vector3(), _p = new THREE.Vecto
 
 export function sawOff(sim, p) { p.saw = { on: false }; }
 
-export function sawStep(sim, p, inp, dt, can) {
+function rotate(v, ax, ang) { return v.applyAxisAngle(ax, ang); }
+
+export function sawStep(sim, p, inp, dt, can, aim) {
   let sw = p.saw;
   if (!can || inp.lt < 0.3) { if (sw.on) sawOff(sim, p); return; }
+  const { o } = sim.eye(p);
 
-  // where the hands want the bar: level by default, swung by (sy, sp) about the hands
-  const { o, d } = sim.eye(p);
-  const H = _h.copy(o).addScaledVector(d, CFG.SAW_HOLD); H.y -= 0.2;
-  const Y = inp.yaw + inp.sy, P = inp.sp, cp = Math.cos(P);
-  _d.set(-Math.sin(Y) * cp, Math.sin(P), -Math.cos(Y) * cp);
-  const D0 = _d0.copy(H), D1 = _d1.copy(H).addScaledVector(_d, CFG.BAR_LEN);
-  if (!sw.on) sw = p.saw = { on: true, a0: D0.clone(), a1: D1.clone(), stuck: false, cutting: false, prog: new Map() };
+  if (!sw.on) {
+    // Plant the bar on the wood being looked at: lying across the stem, square to it, ready to feed straight in.
+    const { d } = sim.eye(p);
+    let A = null, f = null, b = null;
+    if (aim && aim.dist <= CFG.SAW_REACH) {
+      const s = sim.world.segs.get(aim.seg), ax = sim.dirToWorld(s.piece, segAxis(s), new THREE.Vector3());
+      const loc = sim.toLocal(s.piece, aim.point), t = Math.min(1, Math.max(0, segParam(s, loc)));
+      f = sim.toWorld(s.piece, lerp3(s.a, s.b, t), new THREE.Vector3()).sub(aim.point);
+      f.addScaledVector(ax, -f.dot(ax));                                            // feed: from the bark toward the heart
+      if (f.lengthSq() > 1e-8) { f.normalize(); b = new THREE.Vector3().crossVectors(ax, f).normalize(); A = aim.point.clone().addScaledVector(f, -0.02); }
+    }
+    if (!A) {
+      // no wood there: a rope or lanyard being looked at will do (bar across it, feeding away from the eye)
+      const end = o.clone().addScaledVector(d, CFG.SAW_REACH);
+      for (const [p0, p1] of ropeSpans(sim)) {
+        const r = segDist(o, end, p0, p1);
+        if (r.d < 0.1 && r.s > 0.1) {
+          f = d.clone(); b = new THREE.Vector3().crossVectors(_p.copy(p1).sub(p0).normalize(), f);
+          if (b.lengthSq() < 1e-4) continue;
+          b.normalize(); f.crossVectors(b, _p).normalize(); if (f.dot(d) < 0) f.negate();
+          A = p0.clone().lerp(p1, r.t).addScaledVector(f, -0.06); break;
+        }
+      }
+    }
+    if (!A) { p.prompt = 'Look at wood (or a rope) within reach, then {raise} to plant the bar on it'; return; }
+    if (b.x * Math.cos(inp.yaw) - b.z * Math.sin(inp.yaw) > 0) b.negate();          // powerhead on the player's right
+    sw = p.saw = { on: true, A, b, f, sy: inp.sy, sp: inp.sp, stuck: false, cutting: false, prog: new Map(), ropeT: 0 };
+  }
+  if (sw.A.distanceTo(o) > CFG.SAW_REACH + 0.7) { sawOff(sim, p); return; }      // walked away from it
 
-  // the bar follows the hands, a short step per tick, unless wood is in the way
-  const far = Math.max(D0.distanceTo(sw.a0), D1.distanceTo(sw.a1));
-  if (far > CFG.SAW_YANK) { sw.a0.copy(D0); sw.a1.copy(D1); sw.prog.clear(); return; }     // pulled clear
-  const k = Math.min(1, CFG.BAR_SPEED * dt / (far || 1));
-  const c0 = _c0.copy(sw.a0).lerp(D0, k), c1 = _c1.copy(sw.a1).lerp(D1, k);
-  const res = probe(sim, c0, c1);
-  sw.stuck = res.pinch > CFG.PINCH_STUCK;
+  const half = CFG.BAR_LEN / 2, run = inp.rt > 0.05;
+  const blockers = [];
+  let pinch = 0;
+  // 1. pivot about the planted point: swing in the plane of the cut, and tilt that plane
+  let dy = inp.sy - sw.sy, dp = inp.sp - sw.sp;
+  sw.sy = inp.sy; sw.sp = inp.sp;
+  const lim = 0.02 / half; dy = Math.max(-lim, Math.min(lim, dy)); dp = Math.max(-lim, Math.min(lim, dp));
+  if (dy || dp) {
+    const n = _d.crossVectors(sw.b, sw.f), up = n.y >= 0 ? 1 : -1;
+    const b2 = rotate(_d0.copy(sw.b), n, dy * up), f2 = rotate(_d1.copy(sw.f), n, dy * up);
+    rotate(f2, b2, dp * up);
+    const res = probe(sim, _c0.copy(sw.A).addScaledVector(b2, -half), _c1.copy(sw.A).addScaledVector(b2, half));
+    if (!res.block.length) { sw.b.copy(b2).normalize(); sw.f.copy(f2).addScaledVector(sw.b, -f2.dot(sw.b)).normalize(); }
+    else blockers.push(...res.block);
+    pinch = res.pinch;
+  }
+  // 2. throttle presses the bar forward from wherever it is; the planted point goes with it
+  if (run) {
+    const A2 = _h.copy(sw.A).addScaledVector(sw.f, CFG.SAW_FEED * inp.rt * dt);
+    const res = probe(sim, _c0.copy(A2).addScaledVector(sw.b, -half), _c1.copy(A2).addScaledVector(sw.b, half));
+    if (!res.block.length) sw.A.copy(A2); else blockers.push(...res.block);
+    pinch = Math.max(pinch, res.pinch);
+  }
+  sw.stuck = pinch > CFG.PINCH_STUCK;
   sw.cutting = false;
-  p.prompt = '{throttle}: run the chain   {look}: swing the bar   {move}: move';
-  if (!res.block.length) { sw.a0.copy(c0); sw.a1.copy(c1); sw.prog.clear(); }
-  else if (sw.stuck) p.prompt = 'BAR PINCHED - the kerf has closed on it. Back it out.';
-  else if (inp.rt > 0.05) {
+  p.prompt = '{look}: pivot the bar   {throttle}: press it forward   release {raise} to lift it off';
+  if (sw.stuck) p.prompt = 'BAR PINCHED - the kerf has closed on it';
+  else if (run && blockers.length) {
+    // the chain works through whatever the bar is being pushed against
     sw.cutting = true;
-    const prog = new Map(), done = new Map();
-    for (const b of res.block) {
-      const key = b.seg * 1024 + b.i + (b.live ? 0.5 : 0);
-      const v = (sw.prog.get(key) || 0) + inp.rt * dt / CFG.CUT_TIME;
-      if (v < 1) { prog.set(key, v); continue; }
+    // The chain clears wood at CUT_RATE (cross-section per second), shared between the fibres it is on:
+    // one twig fibre goes at once, a full row across the trunk takes a while.
+    const prog = new Map(), done = new Map(), uniq = new Map();
+    for (const b of blockers) uniq.set(b.seg * 1024 + b.i + (b.live ? 0.5 : 0), b);
+    let area = 0; for (const b of uniq.values()) area += b.A;
+    const inc = inp.rt * dt * CFG.CUT_RATE / area;
+    for (const [key, b] of uniq) {
+      const v = (sw.prog.get(key) || 0) + inc;
+      prog.set(key, v);
+      if (v < 1) continue;
+      prog.delete(key);
       const g = b.live ? 'L' + b.live : b.seg;
       let e = done.get(g); if (!e) done.set(g, e = { b, i: [], z: [] });
       e.i.push(b.i); e.z.push(+b.z.toFixed(4));
     }
     sw.prog = prog;
     for (const e of done.values()) sever(sim, e);
-  } else p.prompt = 'The bar is against the wood - {throttle} to cut';
+  } else if (!blockers.length) sw.prog.clear();
 
   // ropes and lanyards do not stop a chain: a moment of contact under throttle and they part
+  const a0 = _c0.copy(sw.A).addScaledVector(sw.b, -half), a1 = _c1.copy(sw.A).addScaledVector(sw.b, half);
   let touching = null;
-  if (inp.rt > 0.3) {
-    for (const [a, b] of sim.rope.spans()) if (segDist(sw.a0, sw.a1, a, b).d < CFG.ROPE_RADIUS + 0.02) { touching = 'rope'; break; }
-    for (const q of sim.players.list.values()) {
-      if (touching || q.mode !== MODE.CLIMB) continue;
-      const s = sim.world.segs.get(q.cl.seg); if (!s) continue;
-      const pts = lanyardLoop(s, q.cl.t, q.cl.side, CFG.STANDOFF);
-      for (let i = 0; i + 1 < pts.length; i++) {
-        if (segDist(sw.a0, sw.a1, sim.toWorld(s.piece, pts[i], _p), sim.toWorld(s.piece, pts[i + 1], _q)).d < 0.03) { touching = q; break; }
-      }
-    }
-  }
-  sw.ropeT = touching ? (sw.ropeT || 0) + dt : 0;
+  if (inp.rt > 0.3) for (const [p0, p1, who] of ropeSpans(sim)) if (segDist(a0, a1, p0, p1).d < CFG.ROPE_RADIUS + 0.02) { touching = who; break; }
+  sw.ropeT = touching ? sw.ropeT + dt : 0;
   if (touching && sw.ropeT > CFG.ROPE_CUT_TIME) {
     sw.ropeT = 0;
     if (touching === 'rope') sim.rope.cut(); else sim.players.cutLanyard(touching, p);
   }
+}
+
+/** Every straight run of rope in the world: [from, to, 'rope' | the climber whose lanyard it is]. */
+function ropeSpans(sim) {
+  const out = sim.rope.spans().map(([a, b]) => [a, b, 'rope']);
+  for (const q of sim.players.list.values()) {
+    if (q.mode !== MODE.CLIMB) continue;
+    const s = sim.world.segs.get(q.cl.seg); if (!s) continue;
+    const pts = lanyardLoop(s, q.cl.t, q.cl.side, CFG.STANDOFF).map((x) => sim.toWorld(s.piece, x));
+    for (let i = 0; i + 1 < pts.length; i++) out.push([pts[i], pts[i + 1], q]);
+  }
+  return out;
 }
 
 function sever(sim, e) {
@@ -111,7 +163,7 @@ function probe(sim, c0, c1) {
     const f = s.f, L = segLen(s), Ly = layout(f.N), ax = segAxis(s), { u, v } = bundleBasis(ax);
     const lv = liveAt.get(s.id);
     const liveSameAxis = lv && (lv[2] || Math.abs(ax[0] * lv[1].n[0] + ax[1] * lv[1].n[1] + ax[2] * lv[1].n[2]) > 0.99);
-    const zone = Math.max(0.05, 0.6 * s.r0);
+    const zone = Math.max(0.05, 0.6 * s.r0), fa = Ly.dA * s.r0 * s.r0;
     for (let i = 0; i < f.n; i++) {
       const X = Ly.X[i], Y = Ly.Y[i];
       const p0 = [s.a[0] + (u[0] * X + v[0] * Y) * s.r0, s.a[1] + (u[1] * X + v[1] * Y) * s.r0, s.a[2] + (u[2] * X + v[2] * Y) * s.r0];
@@ -127,10 +179,10 @@ function probe(sim, c0, c1) {
       }
       // the last fibres of a live bundle are cut where the two bodies meet
       if (liveSameAxis && (lv[2] ? z < zone : z > L - zone)) {
-        if (lv[1].st[i] === 0) block.push({ seg: s.id, i, z, live: lv[0] });
+        if (lv[1].st[i] === 0) block.push({ seg: s.id, i, z, A: fa, live: lv[0] });
         continue;
       }
-      block.push({ seg: s.id, i, z });
+      block.push({ seg: s.id, i, z, A: fa });
     }
   }
   return { block, pinch };

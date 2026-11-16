@@ -2,10 +2,15 @@
 // transform source (the sim on the host, the interpolator on clients).
 // No game rules in here. See docs/DESIGN.md 1.1.
 //
-// Debug fibre view (default on, CFG.DEBUG_FIBRES): bark hidden, every fibre of
-// every segment drawn as its own box and coloured by what it is carrying:
-//   woody yellow = no load, red = compression (to crushing), blue = tension
-//   (to breaking), green = being bent over in a live bundle, dark = snapped.
+// Wood is drawn twice, both from the fibre bundles:
+//  * fibres - one box per fibre (two where the saw has parted it), coloured by
+//    load when CFG.STRESS_COLORS: woody yellow = none, red = compression (to
+//    crushing), blue = tension (to breaking), green = being bent over in a
+//    live bundle, dark = snapped;
+//  * bark - a skin of panels, each owned by the outermost fibre behind it and
+//    drawn only where that fibre still is. So a kerf is a slot in the bark, a
+//    notch is a missing wedge, and a stump ends where its fibres end.
+// CFG.BARK_OPACITY blends between them (the Tab menu).
 
 import * as THREE from 'three';
 import { segAxis, segLen, lanyardLoop } from '../model/world.js';
@@ -16,6 +21,7 @@ const SIDES = 7;
 const PLAYER_COLORS = [0xe8a23a, 0x3a9be8, 0xd94f6a, 0x62c462, 0xb07be0, 0xe0d24a];
 const Y = new THREE.Vector3(0, 1, 0);
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _m = new THREE.Matrix4(), _c = new THREE.Color();
+const _q2 = new THREE.Quaternion();
 const _bx = new THREE.Vector3(), _by = new THREE.Vector3(), _bz = new THREE.Vector3(), _s = new THREE.Vector3(), _q = new THREE.Quaternion();
 const NEUTRAL = [0.86, 0.69, 0.33], RED = [0.92, 0.08, 0.06], BLUE = [0.08, 0.25, 0.98], GREEN = [0.1, 0.85, 0.2], DEAD = [0.3, 0.22, 0.14];
 
@@ -42,7 +48,7 @@ export class View {
       new THREE.MeshLambertMaterial({ color: 0x5d8a48 }));
     ground.receiveShadow = true; this.scene.add(ground);
 
-    this.barkMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+    this.barkMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, side: THREE.DoubleSide });
     this.leafMat = new THREE.MeshLambertMaterial({ color: 0x3f7d3a, flatShading: true, transparent: true });
     this.fibreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });   // unlit: the colour IS the information
     this.fibreGeo = new THREE.BoxGeometry(1, 1, 1);
@@ -50,7 +56,6 @@ export class View {
     this.lanyardMat = new THREE.MeshLambertMaterial({ color: 0xffd21a, flatShading: true });
     this.pieces = new Map();      // piece id -> {group, bark, leaves, fibres, segStart, ...}
     this.players = new Map();     // player id -> {group, saw, lanyard}
-    this.debug = CFG.DEBUG_FIBRES;
     this.lastAuxTick = -1;
 
     this.ropeMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat);
@@ -62,7 +67,7 @@ export class View {
 
     world.on((ev, info) => this.onEvent(ev, info));
     window.addEventListener('resize', () => this.resize()); this.resize();
-    this.setDebug(this.debug);
+    this.applySettings();
   }
 
   resize() {
@@ -71,11 +76,13 @@ export class View {
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
   }
 
-  setDebug(on) {
-    this.debug = on;
-    this.leafMat.opacity = on ? 0.25 : 1; this.leafMat.depthWrite = !on;
-    for (const p of this.pieces.values()) { p.bark.visible = !on; p.fibres.visible = on; }
-    this.lastAuxTick = -1;
+  /** Re-read the view settings in CFG (called at start and whenever the menu changes one). */
+  applySettings() {
+    const bo = CFG.BARK_OPACITY;
+    this.barkMat.opacity = bo; this.barkMat.depthWrite = bo > 0.95;
+    this.leafMat.opacity = CFG.LEAF_OPACITY; this.leafMat.depthWrite = CFG.LEAF_OPACITY > 0.95;
+    for (const p of this.pieces.values()) { p.bark.visible = bo > 0.01; p.leaves.visible = CFG.LEAF_OPACITY > 0.01; p.fibres.visible = CFG.SHOW_FIBRES; }
+    this.lastAuxTick = -1; this.painted = false;
   }
 
   // ---- model -> meshes ----
@@ -122,20 +129,32 @@ export class View {
     const ico = new THREE.IcosahedronGeometry(1, 0).attributes.position;
     for (const s of segs) {
       const start = pos.length / 3;
-      const ax = segAxis(s), { u, v } = bundleBasis(ax);
-      const ring = (c, r) => {
-        const out = [];
-        for (let i = 0; i < SIDES; i++) {
-          const a = i / SIDES * Math.PI * 2, cx = Math.cos(a) * r, sy = Math.sin(a) * r;
-          out.push([c[0] + u[0] * cx + v[0] * sy, c[1] + u[1] * cx + v[1] * sy, c[2] + u[2] * cx + v[2] * sy]);
-        }
-        return out;
+      const ax = segAxis(s), { u, v } = bundleBasis(ax), L = segLen(s), f = s.f, Ly = layout(f.N);
+      // Bark panels. Each is owned by the outermost fibre behind it and covers only what is left of that fibre.
+      const sides = Math.max(SIDES, Math.min(20, f.N + 3));
+      // how far the bundle's (blocky) outline reaches in direction ang, in radii: the bark sits just outside it
+      const reach = (ang) => {
+        const c = Math.cos(ang), sn = Math.sin(ang), pad = Ly.cs / 2 * (Math.abs(c) + Math.abs(sn));
+        let m = 0; for (let i = 0; i < f.n; i++) { const d = Ly.X[i] * c + Ly.Y[i] * sn; if (d > m) m = d; }
+        return (m + pad) * 1.03;
       };
-      const ra = ring(s.a, s.r0), rb = ring(s.b, s.r1);
-      for (let i = 0; i < SIDES; i++) {
-        const j = (i + 1) % SIDES;
-        pos.push(...ra[i], ...ra[j], ...rb[j], ...ra[i], ...rb[j], ...rb[i]);
-        pos.push(...s.a, ...ra[j], ...ra[i], ...s.b, ...rb[i], ...rb[j]);     // caps
+      const reachAt = []; for (let k = 0; k <= sides; k++) reachAt.push(reach(k / sides * Math.PI * 2));
+      const at = (k, z) => {
+        const ang = k / sides * Math.PI * 2;
+        const r = (s.r0 + (s.r1 - s.r0) * Math.min(1, Math.max(0, z / L))) * reachAt[k], cx = Math.cos(ang) * r, sy = Math.sin(ang) * r;
+        return [s.a[0] + ax[0] * z + u[0] * cx + v[0] * sy, s.a[1] + ax[1] * z + u[1] * cx + v[1] * sy, s.a[2] + ax[2] * z + u[2] * cx + v[2] * sy];
+      };
+      for (let k = 0; k < sides; k++) {
+        const a0 = k / sides * Math.PI * 2, a1 = (k + 1) / sides * Math.PI * 2, am = (a0 + a1) / 2, cm = Math.cos(am), sm = Math.sin(am);
+        let own = 0, best = -Infinity;
+        for (let i = 0; i < f.n; i++) { const d = Ly.X[i] * cm + Ly.Y[i] * sm; if (d > best) { best = d; own = i; } }
+        const lo = f.lo ? f.lo[own] : 0, hi = f.hi ? f.hi[own] : L;
+        const spans = f.state[own] === CUT ? [[lo, f.zmin[own] - 0.008], [f.zmax[own] + 0.008, hi]] : [[lo, hi]];
+        for (const [z0, z1] of spans) {
+          if (z1 - z0 < 0.004) continue;
+          const p00 = at(k, z0), p10 = at(k + 1, z0), p01 = at(k, z1), p11 = at(k + 1, z1);
+          pos.push(...p00, ...p10, ...p11, ...p00, ...p11, ...p01);
+        }
       }
       const shade = 0.85 + ((s.id * 37) % 10) / 60;
       for (let i = start; i < pos.length / 3; i++) col.push(0.42 * shade, 0.31 * shade, 0.22 * shade);
@@ -154,8 +173,8 @@ export class View {
     };
     set(p.bark, pos, col); set(p.leaves, lpos, null);
     this.buildFibres(p, segs);
-    p.bark.visible = !this.debug;
-    this.lastAuxTick = -1;
+    p.bark.visible = CFG.BARK_OPACITY > 0.01; p.leaves.visible = CFG.LEAF_OPACITY > 0.01;
+    this.lastAuxTick = -1; this.painted = false;
     return p;
   }
 
@@ -169,14 +188,20 @@ export class View {
     let k = 0;
     for (const s of segs) {
       const f = s.f, Ly = layout(f.N), L = segLen(s), ax = segAxis(s), { u, v } = bundleBasis(ax);
-      _bx.set(u[0], u[1], u[2]); _by.set(ax[0], ax[1], ax[2]); _bz.set(v[0], v[1], v[2]);
+      // box Y runs along the grain. (v, axis, u) is right-handed; (u, axis, v) is a mirror and is NOT a rotation.
+      _bx.set(v[0], v[1], v[2]); _by.set(ax[0], ax[1], ax[2]); _bz.set(u[0], u[1], u[2]);
       _m.makeBasis(_bx, _by, _bz); _q.setFromRotationMatrix(_m);
       const part = (i, z0, z1) => {
         if (z1 - z0 < 0.004) return;
         const zm = (z0 + z1) / 2, R = s.r0 + (s.r1 - s.r0) * Math.min(1, Math.max(0, zm / L)), h = 2 * R / f.N * 0.82;
         const x = Ly.X[i] * R, y = Ly.Y[i] * R;
         _v.set(s.a[0] + ax[0] * zm + u[0] * x + v[0] * y, s.a[1] + ax[1] * zm + u[1] * x + v[1] * y, s.a[2] + ax[2] * zm + u[2] * x + v[2] * y);
-        mesh.setMatrixAt(k, _m.compose(_v, _q, _s.set(h, z1 - z0, h)));
+        // fibres converge with the stem's taper, exactly as the physics has them (base at X*r0, tip at X*r1)
+        const k2 = (s.r1 - s.r0) / L, ox = Ly.X[i] * k2, oy = Ly.Y[i] * k2;
+        _w.set(ax[0] + u[0] * ox + v[0] * oy, ax[1] + u[1] * ox + v[1] * oy, ax[2] + u[2] * ox + v[2] * oy);
+        const stretch = _w.length(); _w.multiplyScalar(1 / stretch);
+        _q2.setFromUnitVectors(_by, _w).multiply(_q);
+        mesh.setMatrixAt(k, _m.compose(_v, _q2, _s.set(h, (z1 - z0) * stretch, h)));
         info.push(s, i); k++;
       };
       for (let i = 0; i < f.n; i++) {
@@ -188,7 +213,7 @@ export class View {
     mesh.count = k;
     for (let i = 0; i < k; i++) mesh.setColorAt(i, _c.setRGB(NEUTRAL[0], NEUTRAL[1], NEUTRAL[2]));
     mesh.instanceMatrix.needsUpdate = true;
-    mesh.visible = this.debug;
+    mesh.visible = CFG.SHOW_FIBRES;
     p.fibres = mesh; p.info = info;
     p.group.add(mesh);
   }
@@ -198,14 +223,14 @@ export class View {
     const fs = new Map(), live = new Map();
     for (let i = 0; i < aux.fs.length; i += 4) fs.set(aux.fs[i], i);
     for (const l of aux.live) { live.set(l.seg, l); live.set(l.stub, l); }
-    const g = CFG.COLOR_GAMMA, cm = CFG.COMP / CFG.MOR;
+    const g = CFG.COLOR_GAMMA, cm = CFG.COMP / CFG.MOR, stress = CFG.STRESS_COLORS;
     for (const p of this.pieces.values()) {
       const info = p.info, mesh = p.fibres, arr = mesh.instanceColor.array;
       for (let k = 0; k < mesh.count; k++) {
         const s = info[k * 2], i = info[k * 2 + 1], f = s.f;
         let t = 0, bend = 0, dead = false;          // t = stress as a fraction of the limit: + tension, - compression
         const lv = live.get(s.id);
-        if (lv && lv.f.length === f.n) {
+        if (!stress) { /* plain wood */ } else if (lv && lv.f.length === f.n) {
           if (lv.f[i] === -128) dead = true; else { t = lv.f[i] / 100; if (t < 0) t /= cm; bend = Math.min(1, lv.a / 0.6); }
         } else if (f.state[i] !== CUT) {
           const o = fs.get(s.id);
@@ -241,8 +266,9 @@ export class View {
     group.add(body, helmet);
     const saw = new THREE.Group();
     const eng = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.13, 0.1), new THREE.MeshLambertMaterial({ color: 0xe05a1a, flatShading: true }));
-    const bar = new THREE.Mesh(new THREE.BoxGeometry(CFG.BAR_LEN, 0.07, 0.012), new THREE.MeshLambertMaterial({ color: 0xbbbbbb }));
-    eng.position.set(-0.1, -0.03, 0); bar.position.x = CFG.BAR_LEN / 2; saw.add(eng, bar); saw.visible = false;
+    // the planted point is the middle of the bar's leading edge; the powerhead hangs off the -X end
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(CFG.BAR_LEN, 0.012, 0.07), new THREE.MeshLambertMaterial({ color: 0xbbbbbb }));
+    bar.position.z = -0.035; eng.position.set(-CFG.BAR_LEN / 2 - 0.1, 0, -0.06); saw.add(eng, bar); saw.visible = false;
     const lanyard = new THREE.Mesh(new THREE.BufferGeometry(), this.lanyardMat);
     lanyard.frustumCulled = false; lanyard.visible = false;
     this.scene.add(group, saw, lanyard);
@@ -260,7 +286,7 @@ export class View {
       const pose = src.pose(id);
       if (pose) { p.group.position.set(pose.p.x, pose.p.y, pose.p.z); p.group.quaternion.set(pose.q.x, pose.q.y, pose.q.z, pose.q.w); }
     }
-    if (aux && this.debug && aux.tick !== this.lastAuxTick) { this.lastAuxTick = aux.tick; this.paintFibres(aux); }
+    if (aux && CFG.SHOW_FIBRES && aux.tick !== this.lastAuxTick && (CFG.STRESS_COLORS || !this.painted)) { this.lastAuxTick = aux.tick; this.painted = true; this.paintFibres(aux); }
     const seen = new Set();
     let mePos = null;
     if (aux) for (const a of aux.pl) {
@@ -285,16 +311,14 @@ export class View {
   }
 
   poseSaw(pm, a) {
-    const sw = a.saw;
+    const sw = a.saw;                 // [planted point (3), bar direction (3), feed direction (3), stuck, cutting]
     pm.saw.visible = !!sw;
     if (!sw) return;
-    _v.set(sw[0], sw[1], sw[2]); _w.set(sw[3] - sw[0], sw[4] - sw[1], sw[5] - sw[2]).normalize();
-    // bar frame: X along the bar, flat faces left and right (blade upright)
-    _bz.crossVectors(_w, Y); if (_bz.lengthSq() < 1e-6) _bz.set(1, 0, 0); _bz.normalize();
-    _by.crossVectors(_bz, _w);
+    // saw frame: X along the bar, Z = feed direction (the cutting edge leads), Y = normal of the cut
+    _w.set(sw[3], sw[4], sw[5]); _bz.set(sw[6], sw[7], sw[8]); _by.crossVectors(_bz, _w).normalize();
     pm.saw.quaternion.setFromRotationMatrix(_m.makeBasis(_w, _by, _bz));
-    pm.saw.position.copy(_v);
-    pm.bar.material.color.setHex(sw[6] ? 0xff3030 : sw[7] ? 0xfff0a0 : 0xbbbbbb);
+    pm.saw.position.set(sw[0], sw[1], sw[2]);
+    pm.bar.material.color.setHex(sw[9] ? 0xff3030 : sw[10] ? 0xfff0a0 : 0xbbbbbb);
   }
 
   poseLanyard(pm, a) {

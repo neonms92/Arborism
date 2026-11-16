@@ -5,6 +5,7 @@ import { CFG, TOOL } from './config.js';
 import { World } from './model/world.js';
 import { View } from './view/view.js';
 import { Hud, describe } from './view/hud.js';
+import { Menu } from './view/menu.js';
 import { Input } from './input.js';
 import { Net } from './net/net.js';
 import { encodeSnapshot, Interp } from './net/snapshot.js';
@@ -13,7 +14,9 @@ const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
 
 const world = new World();
-const view = new View($('game'), world);
+let view = null;
+const menu = new Menu(() => view && view.applySettings());     // also loads saved settings into CFG, before anything reads them
+view = new View($('game'), world);
 const hud = new Hud(world);
 const input = new Input($('game'));
 const net = new Net();
@@ -125,8 +128,8 @@ function lobbyPad() {
 // ---------- main loop ----------
 const hostSource = { pose: (id) => sim.pose(id) };
 const HELP = '{move} move / climb   {look} look   {interact} use: spur in, move the lanyard, grab or place rope   {drop} let go of the tree   {jump} jump   ' +
-  '{tool} hands / chainsaw / rope   {raise} raise the saw, then {look} swings the bar and {throttle} runs the chain   ' +
-  'on the rope tail: {throttle} ease, {raise} haul, {wraps} wraps   {fibres} fibres / bark   {respawn} respawn';
+  '{tool} hands / chainsaw / rope   {raise} plant the saw on the wood you are looking at, then {look} pivots the bar and {throttle} presses it in   ' +
+  'on the rope tail: {throttle} ease, {raise} haul, {wraps} wraps   {menu} settings   {respawn} respawn';
 let helpDevice = '';
 
 function frame(now) {
@@ -143,8 +146,9 @@ function frame(now) {
 
   const mine = aux && aux.pl.find((p) => p.id === me);
   input.sawOut = !!(mine && mine.tool === TOOL.SAW);
+  if (menu.open) { input.mouse.l = input.mouse.r = false; }
   const inp = input.poll(dt);
-  if (input.fibresToggled) { input.fibresToggled = false; view.setDebug(!view.debug); }
+  if (input.menuToggled) { input.menuToggled = false; menu.toggle(); input.menuOpen = menu.open; }
 
   if (sim) {
     sim.players.setInput(me, inp);
@@ -180,4 +184,4 @@ document.addEventListener('visibilitychange', () => {
 if (room) localStorage.setItem('arb-room', room);
 
 // handy for poking at things from the console
-window.arb = { CFG, world, view, net, get sim() { return sim; }, get aux() { return aux; }, get me() { return me; }, input };
+window.arb = { CFG, world, view, menu, net, get sim() { return sim; }, get aux() { return aux; }, get me() { return me; }, input };

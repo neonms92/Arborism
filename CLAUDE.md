@@ -50,7 +50,11 @@ branch → `/ (root)`. The game is then at
   moves is a **transform** in the snapshot. Small continuous values go in
   **aux**. Adding a feature usually means: one new event type in
   `world.apply`, host logic in `sim/`, drawing in `view/`.
-- Every tunable number goes in `src/config.js`, SI units.
+- Every tunable number goes in `src/config.js`, SI units. To let the owner
+  iterate on one in game, add a line to `ROWS` in `src/view/menu.js` (the
+  Tab menu); code must read `CFG.X` at use, not copy it at load.
+- Bark and fibres are both drawn from `seg.f` (DESIGN.md 3.5). Never add
+  wood geometry that is not derived from the bundles.
 - Model geometry is piece-local plain arrays `[x,y,z]`; sim/view use
   `THREE.Vector3` for world-space maths. Rooted (fixed) pieces sit at the
   origin with identity rotation — `structure.js` relies on it.
