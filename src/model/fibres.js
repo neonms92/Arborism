@@ -54,7 +54,7 @@ export function makeBundle(N) {
     zmax: new Float32Array(n),
     lo: null, hi: null,                 // per-fibre drawn extent (m) once a split has trimmed them; null = whole segment
     // host-only scratch from analyse():
-    act: new Uint8Array(n), c0: 0, s1: 0, s2: 0, maxT: 0, closed: false,
+    act: new Uint8Array(n), sgn: null, e0: 0, e1: 0, e2: 0, maxT: 0, minC: 0, closed: false,
   };
 }
 
@@ -70,80 +70,88 @@ export function cutFibres(b, idx, z) {
 }
 
 /**
- * Static load sharing between the fibres of a bundle (host only). This is the
- * exact solution for parallel elastic fibres between two rigid faces -- plane
- * sections stay plane -- so it IS the fibre model in its stiff limit.
+ * Static load sharing between the fibres of a bundle (host only).
  *
- * Loads are those the DISTAL part applies at the bundle centre:
- *   Nax = F . a  (positive = pulling the distal part away = tension)
- *   Mu, Mv = M . u, M . v  (N m)
- * Result: stress(x, y) = b.c0 + b.s1 x + b.s2 y  (Pa, tension positive, x y in
- * metres) for intact fibres; b.maxT / b.minC at the extreme fibre edges.
- * Equilibrium:  sum(s dA) = Nax ;  sum(s y dA) = Mu ;  -sum(s x dA) = Mv.
+ * Every fibre changes length in proportion to the force on it: it stretches
+ * by TENS_STRAIN of its length at MOR, and shortens by COMP_STRAIN of its
+ * length at COMP. The two faces the fibres run between stay flat, so the
+ * fibres' strains lie on a plane:
  *
- * Pass 1: intact fibres alone carry the load (a kerf is an 8 mm gap).
- * Pass 2: only if a fibre is past compressive yield (it crushes, the kerf
- * closes): severed fibres whose kerf is a plain saw cut also carry
- * compression, at relative stiffness KERF_CONTACT, never tension.
- * b.act[i] marks those; they are what clamps a saw bar.
+ *     strain(x, y) = b.e0 + b.e1 x + b.e2 y        (x, y in metres, + = stretched)
+ *
+ * and that plane is found from equilibrium with the load the DISTAL wood
+ * applies at the bundle centre:
+ *   Nax = F . a  (positive = pulling the distal part away),  Mu, Mv = M . u, M . v
+ *   sum(E eps dA) = Nax ;  sum(E eps y dA) = Mu ;  -sum(E eps x dA) = Mv
+ * where E is each fibre's own stiffness: MOR/TENS_STRAIN if it is stretched,
+ * COMP/COMP_STRAIN if it is squeezed (found by iteration, since which is which
+ * depends on the answer). Severed fibres carry nothing and have no say in the
+ * plane -- unless the wood beside the kerf is being crushed, in which case the
+ * kerf has closed and its faces carry compression too (b.act marks those;
+ * they are what clamps a saw bar).
+ *
+ * b.maxT / b.minC: worst tension / compression stress at a fibre's edge (Pa).
+ * The plane is also the bend: see model/flex.js.
  */
 export function analyse(b, R, Nax, Mu, Mv) {
-  const L = layout(b.N), n = L.n, X = L.X, Y = L.Y, dA = L.dA * R * R, KC = CFG.KERF_CONTACT;
+  const L = layout(b.N), n = L.n, X = L.X, Y = L.Y, dA = L.dA * R * R;
+  const Et = CFG.MOR / CFG.TENS_STRAIN, Ec = CFG.COMP / CFG.COMP_STRAIN, Ek = CFG.KERF_CONTACT * Ec;
   const closedGap = CFG.KERF_WIDTH * 1.5, half = L.cs * R / 2;
   const st = b.state, act = b.act;
-  let s0 = 0, s1 = 0, s2 = 0, cx = 0, cy = 0, ok = false;
+  if (!b.sgn) b.sgn = new Int8Array(n);
+  const sgn = b.sgn;
+  let e0 = 0, e1 = 0, e2 = 0, cx = 0, cy = 0, ok = false;
   act.fill(0); b.closed = false;
-  for (let it = 0; it < 7; it++) {
+  for (let it = 0; it < 12; it++) {
     let A = 0, Sx = 0, Sy = 0;
     for (let c = 0; c < n; c++) {
-      const w = st[c] === INTACT ? 1 : (act[c] ? KC : 0);
+      const w = st[c] === INTACT ? (sgn[c] < 0 ? Ec : Et) : (act[c] ? Ek : 0);
       if (w) { A += w; Sx += w * X[c]; Sy += w * Y[c]; }
     }
     if (A < 1e-9) { ok = false; break; }
     cx = Sx / A * R; cy = Sy / A * R;
     let Ixx = 0, Iyy = 0, Ixy = 0;
     for (let c = 0; c < n; c++) {
-      const w = st[c] === INTACT ? 1 : (act[c] ? KC : 0);
+      const w = st[c] === INTACT ? (sgn[c] < 0 ? Ec : Et) : (act[c] ? Ek : 0);
       if (!w) continue;
       const dx = X[c] * R - cx, dy = Y[c] * R - cy;
       Ixx += w * dy * dy; Iyy += w * dx * dx; Ixy += w * dx * dy;
     }
     A *= dA; Ixx *= dA; Iyy *= dA; Ixy *= dA;
-    const own = A * (2 * half) * (2 * half) / 12;       // each fibre's own second moment
+    const own = A * (2 * half) * (2 * half) / 12;       // each fibre's own width
     Ixx += own; Iyy += own;
     const det = Ixx * Iyy - Ixy * Ixy;
     const Mup = Mu - cy * Nax, Mxp = -Mv - cx * Nax;
-    s0 = Nax / A; s1 = (Mxp * Ixx - Mup * Ixy) / det; s2 = (Mup * Iyy - Mxp * Ixy) / det;
+    e1 = (Mxp * Ixx - Mup * Ixy) / det; e2 = (Mup * Iyy - Mxp * Ixy) / det;
+    e0 = Nax / A - e1 * cx - e2 * cy;
     ok = true;
-    if (it === 0) {
-      const edge = (Math.abs(s1) + Math.abs(s2)) * half;
-      let minC = 0;
-      for (let c = 0; c < n; c++) if (st[c] === INTACT) {
-        const lin = s0 + s1 * (X[c] * R - cx) + s2 * (Y[c] * R - cy) - edge;
-        if (lin < minC) minC = lin;
-      }
-      b.minC = minC;
-      if (minC > -CFG.COMP || b.ncut === 0) break;
-      b.closed = true;
-    }
-    let changed = false;
+    // which fibres are stretched and which squeezed? (their stiffness depends on it)
+    let changed = false, minE = 0;
+    const edge = (Math.abs(e1) + Math.abs(e2)) * half;
     for (let c = 0; c < n; c++) {
-      if (st[c] === INTACT) continue;
-      const lin = s0 + s1 * (X[c] * R - cx) + s2 * (Y[c] * R - cy);
-      const want = gapOf(b, c) <= closedGap && lin < 0 ? 1 : 0;
-      if (want !== act[c]) { act[c] = want; changed = true; }
+      const eps = e0 + e1 * X[c] * R + e2 * Y[c] * R;
+      if (st[c] === INTACT) {
+        const sg = eps < 0 ? -1 : 1;
+        if (sg !== sgn[c]) { sgn[c] = sg; changed = true; }
+        if (eps - edge < minE) minE = eps - edge;
+      } else if (b.closed) {
+        const want = gapOf(b, c) <= closedGap && eps < 0 ? 1 : 0;
+        if (want !== act[c]) { act[c] = want; changed = true; }
+      }
     }
+    if (!b.closed && b.ncut > 0 && minE < -CFG.COMP_STRAIN) { b.closed = true; changed = true; }
     if (!changed) break;
   }
-  if (!ok) { b.c0 = b.s1 = b.s2 = 0; b.maxT = 0; return false; }
-  b.c0 = s0 - s1 * cx - s2 * cy; b.s1 = s1; b.s2 = s2;
-  const edge = (Math.abs(s1) + Math.abs(s2)) * half;
-  let maxT = 0;
+  if (!ok) { b.e0 = b.e1 = b.e2 = 0; b.maxT = b.minC = 0; return false; }
+  b.e0 = e0; b.e1 = e1; b.e2 = e2;
+  const edge = (Math.abs(e1) + Math.abs(e2)) * half;
+  let hi = 0, lo = 0;
   for (let c = 0; c < n; c++) if (st[c] === INTACT) {
-    const lin = b.c0 + s1 * X[c] * R + s2 * Y[c] * R + edge;
-    if (lin > maxT) maxT = lin;
+    const eps = e0 + e1 * X[c] * R + e2 * Y[c] * R;
+    if (eps + edge > hi) hi = eps + edge;
+    if (eps - edge < lo) lo = eps - edge;
   }
-  b.maxT = maxT;
+  b.maxT = hi * Et; b.minC = lo * Ec;
   return true;
 }
 

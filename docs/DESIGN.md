@@ -258,14 +258,23 @@ section. Each tick, for every rooted piece:
 2. **Beam pass** — one reverse sweep over the segments accumulates the total
    force and moment carried past each segment's base. O(segments).
 3. **Bundle solve** (`fibres.analyse`) — at each bundle's weakest plane
-   (`f.at`: the base joint, or wherever it has been sawn) solve for the
-   stress plane `σ(x, y) = c0 + s1·x + s2·y` over the *intact fibres only*,
-   from the three equilibrium equations. This is not an approximation of the
-   fibre model: it is its exact answer when the fibres are stiff.
-   A saw kerf is an 8 mm gap and carries nothing — unless the intact fibres
-   are past compressive yield (`COMP`), in which case they crush, the kerf
-   closes, and severed fibres carry compression too (never tension). That is
-   what clamps a saw bar.
+   (`f.at`: the base joint, or wherever it has been sawn). Every fibre
+   changes length in proportion to the force on it: it has stretched by
+   `TENS_STRAIN` of its length when it reaches `MOR`, and shortened by
+   `COMP_STRAIN` of its length when it reaches `COMP`. Those two numbers are
+   the wood's stiffness in tension and in compression (they need not be
+   equal). The faces the fibres run between stay flat, so the fibres' strains
+   lie on a plane, `ε(x, y) = e0 + e1·x + e2·y`, found from the three
+   equilibrium equations over the *intact fibres only* — each weighted by
+   its own stiffness, which depends on whether it turns out stretched or
+   squeezed (a short iteration). Severed fibres carry nothing and have no
+   say in the plane.
+   A saw kerf is an 8 mm gap — unless the fibres beside it are squeezed past
+   `COMP_STRAIN`, in which case they crush, the kerf closes, and its faces
+   carry compression too (never tension). That is what clamps a saw bar.
+
+Loads are worked out **on the bent shape** (3.2a): weights act where the
+wood actually is. A lean therefore adds to the moment that caused it.
 
 Every fibre therefore has a stress every tick, and the debug view draws it
 (3.5). Numbers on the demo tree: the 19 cm limb carries itself at a few MPa;
@@ -276,45 +285,55 @@ rigging point.
 `MOR` is 30 MPa (clear green hardwood is ≈ 50; the difference stands in for
 knots and unions).
 
-### 3.2a Bending
+### 3.2a Fibres change length; discs tilt
 
-A stiff bundle is not rigid; it is *stiff*. Its fibres are springs that reach
-`MOR` at `FIBRE_YIELD` of stretch, so the stress plane across a bundle is
-also a tilt of its far face relative to its near face:
+The fibres of a segment run from the disc at its base to the disc at its tip.
+With strain plane `ε = e0 + e1·x + e2·y` and segment length `L`, each fibre is
+`ε·L` longer or shorter than it grew, and the tip disc sits wherever those
+lengths put it (`model/flex.js`):
 
 ```
-phi = (s2·u − s1·v) · FIBRE_YIELD / MOR        (rotation vector, radians)
+moved along the stem by     e0 · L                      (the fibres' mean change)
+tilted by                   phi = (e2·u − e1·v) · L     (their differences)
 ```
 
-`model/flex.js` hinges every segment at its base by its bundle's `phi` and
-adds the tilts up along the stem, giving each segment a **frame** (a small
-rigid transform in piece-local space) that says where that wood really is.
-A loaded limb droops most at its tip; a partly sawn bundle, with few fibres
-carrying the same moment, tilts visibly at the cut. `phi` chases its target
-like a damped spring (`FLEX_FREQ`, `FLEX_DAMP`), so wood bounces when a
-climber moves or a load comes on or off.
+Child segments grow from the tip disc, so tilts add up along the stem. Because
+a severed fibre is not in the plane, cutting fibres on one side shifts load
+onto the rest, lengthening or shortening them more, and the disc tilts
+further. And because loads are taken on the tilted shape (3.2), the tilt
+raises the moment, which raises the strains, which raises the tilt. With
+enough fibres left that settles after a small lean; with too few it runs
+until a fibre passes `MOR` and the bundle goes live. (Measured: back-cutting
+80 % of the demo trunk's fibres with no notch took the worst fibre from 8 MPa
+to 30 MPa as the top swung 1.2 m, with no further cutting.)
 
-Everything that touches standing wood goes through that frame:
-the drawing (bark, fibres, foliage), the Rapier colliders (moved every other
-tick, only if they have shifted), the climber, rope nodes, the lanyard, the
-saw's probe and planting, and the parent side of a live bundle.
-`sim.segToWorld / segToLocal / segDirToWorld` are the only way sim code
-should place a point on a segment.
+Each segment has a frame for its base disc and one for its tip disc;
+`flex.at(seg, t)` gives the frame of the cross-section a fraction `t` along
+it (the stem curves evenly between its discs). Everything that touches
+standing wood goes through those frames: the drawing — every fibre is redrawn
+between its own two ends, so fibres visibly lean, stretch and shorten
+individually, and bark and foliage follow — the Rapier colliders (moved every
+other tick, only if they have shifted), the climber, rope nodes, the lanyard,
+the saw's probe and planting, and the parent side of a live bundle.
+`sim.segToWorld / segToLocal / segDirToWorld` are the only way sim code should
+place a point on a segment.
 
-`phi` is exactly the angle the live-regime springs below would settle at
-under the same load. So when a bundle goes live, the new body starts in the
-bent pose and its fibres are already carrying what they carried a tick
-earlier: no jolt. Wood beyond that bundle keeps its bend relative to the new
-body and relaxes straight over ~0.3 s (dynamic pieces are not analysed, so
-they have no stress to hold a bend).
+`phi` and the stretch follow their targets like a damped spring (`FLEX_FREQ`,
+`FLEX_DAMP`), so wood bounces when a load comes on or off; that lag is also
+what gives the cascade above its pace.
 
-Clients compute the same frames from the stress planes already in aux.
-Loads are still computed on the unbent geometry (small-deflection theory):
-bending does not change lever arms.
+When a bundle goes live, the new body starts in the pose those fibre lengths
+describe (`flex.joint`), and its fibres there have the same stiffness
+(3.3), so they are already carrying what they carried a tick earlier. Wood
+beyond that bundle keeps its shape relative to the new body and relaxes
+straight over ~0.3 s (dynamic pieces are not analysed, so they have no strain
+to hold a bend).
 
-On the demo tree with the default 4 mm: the big limb's tip sits ≈ 5 cm low
-under its own weight and ≈ 18 cm low with an 85 kg climber far out; at 15 mm
-that becomes ≈ 80 cm. `FIBRE_YIELD` is the springiness slider in the menu.
+Clients compute the same frames from the strain planes in aux.
+
+On the demo tree at the defaults (0.6 % / 0.9 %): the big limb's tip sits
+≈ 3 cm low under its own weight and ≈ 11 cm low with an 85 kg climber far
+out; with both deformations at 3 % that is ≈ 60 cm.
 
 ### 3.3 Live regime — every fibre is a spring
 
@@ -324,7 +343,8 @@ parent by nothing except the bundle's fibres. Each fibre is then an
 individual element between the two bodies:
 
 ```
-force along the grain   f = k · (elongation − permanent set)      k = MOR·A / FIBRE_YIELD
+force along the grain   f = k · (elongation − permanent set)      k = MOR·A / (TENS_STRAIN·L) stretched,
+                                                                    COMP·A / (COMP_STRAIN·L) squeezed  (L = fibre length)
                         capped at  +MOR·A  (it stretches, taking a set)
                         capped at  −COMP·A (it crushes, taking a set)
 it snaps when           elongation (incl. bending over its own width) > FIBRE_STRETCH,
@@ -375,6 +395,9 @@ Debris: pieces under 2 kg are removed 10 s after creation.
 
 ### 3.4 Segment bookkeeping
 
+- `tree` — a new rooted piece; each segment carries `N`, the fibres across
+  its bundle, so clients build the same bundles whatever their own settings.
+- `reset` — all wood gone (the host is about to send a new `tree`).
 - `cut` — fibres `i[]` of a segment severed at axial positions `z[]`. The
   first cut on a pristine bundle also fixes its weak plane `f.at`.
 - `divide` — a second cut plane more than a stem diameter from the first
@@ -621,7 +644,13 @@ Y is unused.
 **The Tab menu** (`src/view/menu.js`) has a slider and a number box for
 every variable worth iterating on: chainsaw and look sensitivity, inverted
 look, bark and foliage visibility, fibre drawing and colouring, fibre
-strengths and stretch limits, cutting rate, climber mass, rope friction.
+strengths, tension and compression deformation, stretch limits, cutting
+rate, climber mass, the shortest branch that stops a lanyard, rope friction.
+A **New tree** section holds height, trunk diameter, branch density, branch
+length, fibre density (fibre width, and the most fibres across a stem),
+fibre segment length and a shape seed, with a button that clears all wood
+and grows a tree from them (host only; it reaches clients as `reset` +
+`tree`).
 Each row edits one key of `CFG` in place and is remembered in localStorage.
 Wood, saw, climber and rope values only act on the host. Adding a variable
 is one line in `ROWS`.
@@ -669,7 +698,7 @@ on another stem ties the end; *use* on the knot unties.
 7. **Live-bundle solver.** Each live bundle is solved on its own; a chain
    of several live bundles in a row (a hanger hanging from a cracked limb)
    is only loosely coupled and could chatter. Loads fed back to the tree are
-   smoothed for that reason. If it misbehaves, raise `FIBRE_YIELD` (softer
+   smoothed for that reason. If it misbehaves, raise the deformation settings (softer
    fibres) before touching the solver.
 8. **Explicit rope spring stability.** Light loads on short stiff ropes can
    oscillate; stiffness is clamped by load mass. If rope jitter shows up,

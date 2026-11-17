@@ -17,10 +17,10 @@
 
 import * as THREE from 'three';
 import { CFG } from '../config.js';
-import { segAxis, segMass, segCentroidT, segParam, segRadius, lerp3 } from '../model/world.js';
+import { segAxis, segLen, segMass, segCentroidT, segParam, segRadius, lerp3 } from '../model/world.js';
 import { analyse, bundleBasis, layout, gapOf, INTACT, CUT } from '../model/fibres.js';
 import { segDist } from './saw.js';
-import { Flex } from '../model/flex.js';
+import { Flex, frameApply, frameDir } from '../model/flex.js';
 
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -49,6 +49,10 @@ export class Structure {
     return false;
   }
 
+  reset() {
+    this.beam.clear(); this.live.clear(); this.noHit.clear(); this.rootOf.clear(); this.parting.length = 0; this.flex.clear();
+  }
+
   onRemove(piece) {
     for (const [id, j] of [...this.live]) if (id === piece || j.parent === piece) this.endJoint(id, j);
   }
@@ -62,11 +66,13 @@ export class Structure {
       this.beamPass(piece);
       for (const s of [...w.segsOf(piece.id)]) if (w.segs.has(s.id) && s.piece === piece.id) this.bundleStep(s);
     }
-    // every stiff bundle's stress plane is also a tilt across it: the tree bends (model/flex.js)
-    this.flex.update(dt, (s) => [s.f.s1, s.f.s2]);
+    // every fibre's change of length moves and tilts the disc at the end of its segment (model/flex.js)
+    this.flex.update(dt, (s) => [s.f.e0, s.f.e1, s.f.e2]);
   }
 
   // ---- beam analysis: total force and moment carried past each segment's base ----
+  // Weights act where the wood actually is (bent shape, from the last tick), so a lean adds to the moment
+  // that caused it. That feedback is what lets a tilt run away when too few fibres are left to resist it.
   beamPass(piece) {
     const w = this.sim.world, order = w.segsOf(piece.id), beam = this.beam;
     for (const s of order) {
@@ -76,8 +82,9 @@ export class Structure {
     for (const l of this.sim.loads) { const b = beam.get(l.seg); if (b) addLoad(b, l); }
     for (let i = order.length - 1; i >= 0; i--) {
       const s = order[i], b = beam.get(s.id);
-      addWeight(b, lerp3(s.a, s.b, segCentroidT(s)), segMass(s));
-      if (s.leaf) addWeight(b, s.b, s.leaf);
+      const tc = segCentroidT(s);
+      addWeight(b, frameApply(this.flex.at(s.id, tc), lerp3(s.a, s.b, tc)), segMass(s));
+      if (s.leaf) addWeight(b, frameApply(this.flex.at(s.id, 1), s.b), s.leaf);
       if (s.parent >= 0) {
         const pb = beam.get(s.parent);
         pb.F[0] += b.F[0]; pb.F[1] += b.F[1]; pb.F[2] += b.F[2];
@@ -99,11 +106,14 @@ export class Structure {
         const b = this.beam.get(k); if (!b) continue;
         F[0] += b.F[0]; F[1] += b.F[1]; F[2] += b.F[2]; M[0] += b.M[0]; M[1] += b.M[1]; M[2] += b.M[2];
       }
-      addWeight(acc, lerp3(s.a, s.b, segCentroidT(s, f.at, 1)), segMass(s, f.at, 1));
-      if (s.leaf) addWeight(acc, s.b, s.leaf);
+      const tc = segCentroidT(s, f.at, 1);
+      addWeight(acc, frameApply(this.flex.at(s.id, tc), lerp3(s.a, s.b, tc)), segMass(s, f.at, 1));
+      if (s.leaf) addWeight(acc, frameApply(this.flex.at(s.id, 1), s.b), s.leaf);
       for (const l of sim.loads) if (l.seg === s.id && segParam(s, l.p) >= f.at) addLoad(acc, l);
     }
-    const ax = segAxis(s), { u, v } = bundleBasis(ax), C = lerp3(s.a, s.b, f.at), cxF = cross(C, F);
+    // resolve the load in the bundle's own (bent) position and directions
+    const fr = this.flex.at(s.id, f.at), a0 = segAxis(s), b0 = bundleBasis(a0);
+    const ax = frameDir(fr, a0), u = frameDir(fr, b0.u), v = frameDir(fr, b0.v), C = frameApply(fr, lerp3(s.a, s.b, f.at)), cxF = cross(C, F);
     const Mc = [M[0] - cxF[0], M[1] - cxF[1], M[2] - cxF[2]];
     if (!analyse(f, segRadius(s, f.at), dot(F, ax), dot(Mc, u), dot(Mc, v))) { this.separate(s, false); return; }
     // a fibre past its elastic limit: from here on the fibres themselves decide
@@ -128,8 +138,9 @@ export class Structure {
       st: Uint8Array.from(f.state, (x) => (x === CUT ? CONTACT : ELASTIC)),
       gap: Float32Array.from({ length: n }, (_, i) => (f.state[i] === CUT ? gapOf(f, i) : 0)),
       p: new Float32Array(n), force: new Float32Array(n), angle: 0, age: 0,
+      Lg: Math.max(0.15, segLen(s) * (1 - at)),      // length of the fibres across this bundle: what they stretch over
     } : null;
-    const fr = this.flex.frame(s.id);
+    const fr = at > 0 ? this.flex.at(s.id, at) : this.flex.joint(s.id);
     sim.partFrame = fr ? { q: fr.q.slice(), t: fr.t.slice() } : null;      // where this wood is right now, bend included
     sim.emit({ t: 'split', seg: s.id, at, newSeg, newPiece });
     if (!j) return;
@@ -179,11 +190,13 @@ export class Structure {
     j.age++;
     const L = layout(j.N), n = L.n, R = j.R, X = L.X, Y = L.Y;
     const A = L.dA * R * R, h = L.cs * R;
-    const Ft = CFG.MOR * A, Fc = CFG.COMP * A, k = Ft / CFG.FIBRE_YIELD, ks = 0.4 * k, ey = CFG.FIBRE_YIELD, ec = Fc / k;
+    // a fibre reaches MOR having stretched TENS_STRAIN of its length, and COMP having shortened COMP_STRAIN of it
+    const Ft = CFG.MOR * A, Fc = CFG.COMP * A, ey = CFG.TENS_STRAIN * j.Lg, ec = CFG.COMP_STRAIN * j.Lg;
+    const kt = Ft / ey, kc = Fc / ec, ks = 0.4 * kt;
     // frames: the bundle face on the parent (O, u, v, nrm) and the same face carried by the distal body
     // the parent's side of the bundle rides on the (possibly bent) segment it grows from
     const ps = sim.world.segs.get(j.parentSeg) || { id: -1, piece: j.parent };
-    const Ow = sim.segToWorld(ps, j.O, _O), nw = sim.segDirToWorld(ps, j.n, _n), uw = sim.segDirToWorld(ps, j.u, _u), vw = sim.segDirToWorld(ps, j.v, _v);
+    const Ow = sim.segToWorld(ps, j.O, _O), nw = sim.segDirToWorld(ps, j.n, _n, 1), uw = sim.segDirToWorld(ps, j.u, _u, 1), vw = sim.segDirToWorld(ps, j.v, _v, 1);
     const Ob = sim.toWorld(id, j.O, _Ob), ub = sim.dirToWorld(id, j.u, _ub), vb = sim.dirToWorld(id, j.v, _vb);
     // relative rotation of the distal body, as a rotation vector
     const qp = P.rotation(), qb = B.rotation();
@@ -212,7 +225,7 @@ export class Structure {
       if (j.st[i] === ELASTIC && (del - j.p[i] > CFG.FIBRE_STRETCH - bend * h / 2 || del + bend * h / 2 > CFG.FIBRE_STRETCH
         || Math.hypot(SX[i], SY[i], SZ[i]) > CFG.FIBRE_SLIP || bend > CFG.BEND_MAX)) j.st[i] = BROKEN;
       if (j.st[i] === ELASTIC) {
-        alive++; kOwn += k * h * h / 12; mOwn += Ft * h / 4;
+        alive++; kOwn += kt * h * h / 12; mOwn += Ft * h / 4;
         // a fibre found beyond its elastic range has already stretched or crushed that far: it takes a set
         if (del - j.p[i] > ey) j.p[i] = del - ey; else if (del - j.p[i] < -ec) j.p[i] = del + ec;
         E[i] = del - j.p[i];
@@ -223,7 +236,7 @@ export class Structure {
         E[i] = del + j.gap[i];
       }
       mode[i] = j.st[i] === ELASTIC || E[i] <= 0 ? LIN : OFF;    // OFF = not touching
-      DEL[i] = del;
+      DEL[i] = del; KF[i] = j.st[i] === ELASTIC && E[i] > 0 ? kt : kc;      // stiffer or softer depending on which way it is strained
     }
     if (!alive) { this.endJoint(id, j); if (j.age > 1) sim.toast('it came free'); return; }
 
@@ -245,11 +258,11 @@ export class Structure {
       for (let i = 0; i < n; i++) {
         const m = mode[i], el = j.st[i] === ELASTIC;
         if (m === OFF && !el) continue;
-        const fa = m === LIN ? k * E[i] : m === CAP ? capF[i] : 0, kl = el ? ks : 0;
+        const fa = m === LIN ? KF[i] * E[i] : m === CAP ? capF[i] : 0, kl = el ? ks : 0;
         const fx = -fa * nv[0] - kl * SX[i], fy = -fa * nv[1] - kl * SY[i], fz = -fa * nv[2] - kl * SZ[i];
         wr[0] += fx; wr[1] += fy; wr[2] += fz;
         wr[3] += RY[i] * fz - RZ[i] * fy; wr[4] += RZ[i] * fx - RX[i] * fz; wr[5] += RX[i] * fy - RY[i] * fx;
-        addStiffness(K, nv, m === LIN ? k : 0, kl, RX[i], RY[i], RZ[i]);
+        addStiffness(K, nv, m === LIN ? KF[i] : 0, kl, RX[i], RY[i], RZ[i]);
       }
       // each fibre also resists being bent over its own thickness (what a thin hinge strip has left)
       if (ownCap) { wr[3] += mcx; wr[4] += mcy; wr[5] += mcz; }
@@ -279,7 +292,7 @@ export class Structure {
         if (!el && mode[i] === OFF && E[i] > 0.002) continue;
         const rate = nv[0] * (ue[0] + ue[4] * RZ[i] - ue[5] * RY[i]) + nv[1] * (ue[1] + ue[5] * RX[i] - ue[3] * RZ[i]) + nv[2] * (ue[2] + ue[3] * RY[i] - ue[4] * RX[i]);
         RATE[i] = rate;
-        const f = k * (E[i] + coef * rate);
+        const f = KF[i] * (E[i] + coef * rate);
         let want = LIN, cf = 0;
         if (el) { if (f > Ft) { want = CAP; cf = Ft; } else if (f < -Fc) { want = CAP; cf = -Fc; } }
         else if (f >= 0) want = OFF; else if (f < -Fc) { want = CAP; cf = -Fc; }
@@ -296,9 +309,9 @@ export class Structure {
     // what each fibre ended up carrying; fibres at a limit take a permanent set
     for (let i = 0; i < n; i++) {
       if (j.st[i] === BROKEN && mode[i] === OFF) { j.force[i] = NaN; continue; }
-      const f = mode[i] === LIN ? k * (E[i] + coef * RATE[i]) : mode[i] === CAP ? capF[i] : 0;
+      const f = mode[i] === LIN ? KF[i] * (E[i] + coef * RATE[i]) : mode[i] === CAP ? capF[i] : 0;
       j.force[i] = j.st[i] === BROKEN ? NaN : f / Ft;
-      if (j.st[i] === ELASTIC && mode[i] === CAP) j.p[i] = DEL[i] + dt * RATE[i] - capF[i] / k;
+      if (j.st[i] === ELASTIC && mode[i] === CAP) j.p[i] = DEL[i] + dt * RATE[i] - capF[i] / (capF[i] > 0 ? kt : kc);
     }
     B.applyImpulseAtPoint({ x: lam[0], y: lam[1], z: lam[2] }, Ow, true);
     B.applyTorqueImpulse({ x: lam[3], y: lam[4], z: lam[5] }, true);
@@ -314,12 +327,12 @@ export class Structure {
     }
   }
 
-  /** Per-fibre stress for the clients' fibre colours: stiff bundles as a plane, live ones fibre by fibre. */
+  /** For the clients' fibre colours and bending: stiff bundles' strain planes (x 1e7), live ones fibre by fibre. */
   aux() {
     const w = this.sim.world, fs = [], live = [];
     for (const piece of w.pieces.values()) {
       if (!piece.fixed) continue;
-      for (const s of w.segsOf(piece.id)) fs.push(s.id, Math.round(s.f.c0 / 1e4), Math.round(s.f.s1 / 1e4), Math.round(s.f.s2 / 1e4));
+      for (const s of w.segsOf(piece.id)) fs.push(s.id, Math.round(s.f.e0 * 1e7), Math.round(s.f.e1 * 1e7), Math.round(s.f.e2 * 1e7));
     }
     for (const j of this.live.values()) {
       live.push({ seg: j.rootSeg, stub: j.parentSeg, a: +j.angle.toFixed(2), f: Array.from(j.force, (x) => (Number.isNaN(x) ? -128 : Math.max(-127, Math.min(127, Math.round(x * 100))))) });
@@ -398,7 +411,8 @@ function solve6(A, b) {
 
 const _K = new Float64Array(36), _W = new Float64Array(36), _D = new Float64Array(36), _A = new Float64Array(36);
 const _J = new Float64Array(18), _M = new Float64Array(18);
-const NF = 300;   // >= the most fibres in a bundle
+const NF = 520;   // >= the most fibres in a bundle
+const KF = new Float64Array(NF);
 const _E = new Float64Array(NF), DEL = new Float64Array(NF), RATE = new Float64Array(NF), _RX = new Float64Array(NF), _RY = new Float64Array(NF), _RZ = new Float64Array(NF);
 const _SX = new Float64Array(NF), _SY = new Float64Array(NF), _SZ = new Float64Array(NF), _mode = new Uint8Array(NF), _capF = new Float64Array(NF);
 _J[0] = 1; _J[7] = 1; _J[14] = 1;

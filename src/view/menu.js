@@ -24,32 +24,45 @@ const ROWS = [
   ['Wood fibres'],
   ['MOR', 'Tension strength (MPa)', 2, 80, 1, 1e6, true],
   ['COMP', 'Crushing strength (MPa)', 1, 60, 1, 1e6, true],
-  ['FIBRE_YIELD', 'Springiness: fibre stretch at full strength (mm). Higher bends more', 0.5, 40, 0.5, 0.001],
+  ['TENS_STRAIN', 'Tension deformation: stretch at full tension strength (% of length)', 0.05, 10, 0.05, 0.01],
+  ['COMP_STRAIN', 'Compression deformation: shortening at crushing strength (% of length)', 0.05, 10, 0.05, 0.01],
   ['FLEX_FREQ', 'Bounce speed (rad/s)', 2, 30, 0.5, 1],
   ['FLEX_DAMP', 'Bounce damping (1 = none)', 0.05, 1.5, 0.05, 1],
   ['FIBRE_STRETCH', 'Stretch at which a fibre snaps (mm)', 2, 80, 1, 0.001, true],
   ['FIBRE_SLIP', 'Sideways slip at which a fibre shears (mm)', 5, 100, 1, 0.001, true],
   ['BEND_MAX', 'Fold angle no fibre survives (rad)', 0.2, 3.1, 0.05, 1, true],
   ['DENSITY', 'Wood density (kg/m3)', 200, 1400, 10, 1, true],
+  ['New tree (these apply when you press Grow)'],
+  ['TREE_HEIGHT', 'Height (m)', 3, 30, 0.5, 1, true],
+  ['TREE_DIAMETER', 'Trunk diameter at the base (m)', 0.1, 1.5, 0.02, 1, true],
+  ['BRANCH_DENSITY', 'Branch density (1 = a limb about every metre)', 0, 3, 0.1, 1, true],
+  ['BRANCH_LENGTH', 'Branch length (multiplier)', 0.2, 3, 0.1, 1, true],
+  ['FIBRE_PITCH', 'Fibre density: fibre width (mm). Smaller = more fibres', 8, 100, 1, 0.001, true],
+  ['GRID_MAX', 'Most fibres across one stem', 3, 25, 2, 1, true],
+  ['SEG_LEN', 'Fibre segment length (m)', 0.15, 2, 0.05, 1, true],
+  ['TREE_SEED', 'Shape (seed)', 1, 200, 1, 1, true],
+  ['@grow', 'Clear all wood and grow a new tree'],
   ['Chainsaw'],
   ['CUT_RATE', 'Cutting rate (cm2 of wood per second)', 10, 1000, 10, 1e-4, true],
   ['SAW_FEED', 'Feed speed in open air or an open kerf (m/s)', 0.02, 1, 0.01, 1, true],
   ['PINCH_STUCK', 'Kerf force that pinches the bar (N)', 200, 20000, 100, 1, true],
   ['Climber and rope'],
   ['P_MASS', 'Climber mass (kg)', 40, 400, 5, 1, true],
+  ['STUB_LEN', 'Shortest branch that stops the lanyard at a union (m)', 0, 3, 0.05, 1, true],
   ['CLIMB_BOUNCE', 'Weight multiplier while moving on spurs', 1, 3, 0.1, 1, true],
   ['ROPE_MU', 'Friction per wrap on the lowering device', 0.02, 0.5, 0.01, 1, true],
   ['GRIP_MAX', 'Grip strength on the rope tail (N)', 50, 1000, 10, 1, true],
 ];
 
 export class Menu {
-  /** onChange() is called after any value changes. */
-  constructor(onChange) {
+  /** onChange() is called after any value changes; onGrow() when the grow button is pressed. */
+  constructor(onChange, onGrow) {
+    this.onGrow = onGrow;
     this.el = document.getElementById('menu');
     this.onChange = onChange;
     this.open = false;
     this.defaults = {};
-    for (const r of ROWS) if (r.length > 1) this.defaults[r[0]] = CFG[r[0]];
+    for (const r of ROWS) if (r[0] in CFG) this.defaults[r[0]] = CFG[r[0]];
     try { Object.assign(CFG, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { /* ignore bad saved settings */ }
     this.build();
   }
@@ -63,10 +76,15 @@ export class Menu {
     this.inputs = [];
     for (const r of ROWS) {
       if (r.length === 1) { const t = document.createElement('h3'); t.textContent = r[0]; el.appendChild(t); continue; }
+      if (r[0] === '@grow') {
+        const b = document.createElement('button'); b.textContent = r[1]; b.className = 'go';
+        b.onclick = () => this.onGrow();
+        el.appendChild(b); continue;
+      }
       const [key, label, min, max, step, scale] = r;
       const row = document.createElement('label'); row.className = 'row';
       const name = document.createElement('span'); name.textContent = label; row.appendChild(name);
-      if (typeof this.defaults[key] === 'boolean') {
+      if (typeof CFG[key] === 'boolean') {
         const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = CFG[key];
         cb.onchange = () => this.set(key, cb.checked);
         row.appendChild(cb); this.inputs.push(() => { cb.checked = CFG[key]; });

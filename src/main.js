@@ -15,7 +15,9 @@ const q = new URLSearchParams(location.search);
 
 const world = new World();
 let view = null;
-const menu = new Menu(() => view && view.applySettings());     // also loads saved settings into CFG, before anything reads them
+const menu = new Menu(() => view && view.applySettings(), () => {
+  if (sim) sim.regrow(); else hud.toast('Only the host can grow a new tree');
+});     // also loads saved settings into CFG, before anything reads them
 view = new View($('game'), world);
 const hud = new Hud(world);
 const input = new Input($('game'));
@@ -37,7 +39,8 @@ async function startHost(online) {
   if (running) return; running = true;
   msg('Starting simulation...');
   const { Sim } = await import('./sim/sim.js');
-  sim = await Sim.create(world, +(q.get('seed') || 7));
+  if (q.has('seed')) CFG.TREE_SEED = +q.get('seed');
+  sim = await Sim.create(world);
   me = nextPid++;
   sim.players.add(me, 'host');
   role = 'solo';

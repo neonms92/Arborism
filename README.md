@@ -52,6 +52,11 @@ Vertical look is inverted (forward looks down).
   square to it. Press to push it straight in; the look controls pivot it
   about where it sits (left/right swings it, up/down tilts the cut). It works
   through the wood fibre by fibre. It will cut ropes, and your own lanyard.
+- Tab also has a "New tree" section: set height, trunk diameter, branch
+  density and length, fibre density and fibre segment length, then press
+  "Clear all wood and grow a new tree" (host only).
+- Raise the two deformation sliders under "Wood fibres" to watch fibres
+  stretch and shorten and the stem bend; cut fibres on one side and it leans.
 - Tab opens a menu of sliders. Turn "Bark visibility" up to see the tree with
   bark on: cuts show as real slots and notches in it.
 - Cut a limb from the top only, then try an undercut first.
