@@ -112,8 +112,12 @@ export class World {
     const info = {};
     switch (ev.t) {
       case 'tree':
-        for (const s of ev.segs) this.segs.set(s.id, { ...s, piece: ev.piece, f: makeBundle(gridFor(s.r0)) });
+        for (const s of ev.segs) this.segs.set(s.id, { ...s, piece: ev.piece, f: makeBundle(s.N || gridFor(s.r0)) });
         this.pieces.set(ev.piece, { id: ev.piece, fixed: true });
+        this._dirty();
+        break;
+      case 'reset':                 // all wood gone (a new tree follows)
+        this.segs.clear(); this.pieces.clear(); this.rope = { state: 0 };
         this._dirty();
         break;
       case 'cut': {                 // the saw severed fibres i[] at z[] (m from the segment base)

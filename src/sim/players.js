@@ -90,6 +90,14 @@ export class Players {
     this.sim.toast(by === p ? 'You cut your own lanyard' : `Player ${by.id} cut player ${p.id}'s lanyard`);
     this.toGround(p);
   }
+  /** All wood is gone: everyone is on the ground with empty hands on the tree. */
+  onReset() {
+    for (const p of this.list.values()) {
+      sawOff(this.sim, p);
+      if (p.mode === MODE.ROPE) this.leaveRope(p);
+      if (p.mode === MODE.CLIMB) this.toGround(p);
+    }
+  }
   onDivide(ev) {
     for (const p of this.list.values()) {
       if (!p.cl || p.cl.seg !== ev.seg) continue;

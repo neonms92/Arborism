@@ -210,3 +210,32 @@ parted relaxes its inner bend by a fade, not by physics.
 **D36 — Default `FIBRE_YIELD` raised from 1.5 mm to 4 mm.** At 1.5 mm a limb
 at breaking load had moved a few centimetres. 4 mm gives a visible droop
 under a climber. It also softens live bundles, which the solver likes.
+
+## Fourth round: fibres that change length, tree settings
+
+**D37 — Bending is now fibre strain, with separate tension and compression
+deformation; D35's single springiness is superseded.** The owner asked for
+each fibre to stretch or shorten against its natural length, with the disc
+at a bundle's end tilting from those lengths, severed fibres having no say,
+and the tilt able to cascade. Implemented as: strain plane per bundle with
+each fibre's stiffness chosen by the sign of its own strain (`TENS_STRAIN`,
+`COMP_STRAIN`); fibre length = segment length, so a fibre's change of length
+is strain × L; tip disc placed from those lengths; loads taken on the bent
+shape so tilt feeds moment. `FIBRE_YIELD` is gone; live fibres use the same
+two numbers and the fibre's length, so the regimes still agree.
+What was *not* done: fibres do not individually buckle or curve between
+their ends; they are straight between two flat discs, and a segment's
+curvature is even along it. Getting fibres to curve within a segment means
+shorter segments (the "fibre segment length" slider), not a different model.
+
+**D38 — A severed fibre is out for its whole segment.** That is the owner's
+model and it is what makes "fibre segment length" meaningful: it is the
+length over which a cut weakens the stem. Shorter segments localise damage
+(and cost more).
+
+**D39 — Tree settings apply on "Grow", not live.** They change the model
+(segments, bundles), which only changes by events; growing is `reset` +
+`tree`. Segment data carries its bundle's fibre count so clients never
+depend on their own density setting. Generation is capped at `SEG_CAP`
+segments, and long twigs are thickened so a tree does not break under its
+own weight at extreme slider values.

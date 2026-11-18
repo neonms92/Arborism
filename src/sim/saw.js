@@ -177,7 +177,7 @@ function probe(sim, c0, c1) {
       if (z < (f.lo ? f.lo[i] : 0) - 1e-4 || z > (f.hi ? f.hi[i] : L) + 1e-4) continue;      // this fibre ends before here
       if (f.state[i] === CUT && z > f.zmin[i] - CFG.KERF_WIDTH && z < f.zmax[i] + CFG.KERF_WIDTH) {
         // lying in an existing kerf: free to move, unless the kerf has closed on the bar
-        if (f.act[i]) pinch += Math.max(0, -CFG.KERF_CONTACT * (f.c0 + f.s1 * X * s.r0 + f.s2 * Y * s.r0)) * Ly.dA * s.r0 * s.r0;
+        if (f.act[i]) pinch += Math.max(0, -CFG.KERF_CONTACT * CFG.COMP / CFG.COMP_STRAIN * (f.e0 + f.e1 * X * s.r0 + f.e2 * Y * s.r0)) * Ly.dA * s.r0 * s.r0;
         continue;
       }
       // the last fibres of a live bundle are cut where the two bodies meet

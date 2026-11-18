@@ -4,7 +4,7 @@
 import RAPIER from 'rapier';
 import * as THREE from 'three';
 import { CFG } from '../config.js';
-import { segLen, segAxis, segMass, lerp3 } from '../model/world.js';
+import { segLen, segAxis, segMass, segParam, lerp3 } from '../model/world.js';
 import { generateTree } from '../model/treegen.js';
 import { frameApply, frameDir, frameInverse } from '../model/flex.js';
 import { Players } from './players.js';
@@ -16,12 +16,12 @@ const Y = new THREE.Vector3(0, 1, 0);
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
 
 export class Sim {
-  static async create(world, seed = 7) {
+  static async create(world) {
     await RAPIER.init();
-    return new Sim(world, seed);
+    return new Sim(world);
   }
 
-  constructor(world, seed) {
+  constructor(world) {
     this.R = RAPIER;
     this.world = world;
     this.tick = 0;
@@ -60,8 +60,12 @@ export class Sim {
     this.rope = new Rope(this);
     this.structure = new Structure(this);
 
-    this.emit({ t: 'tree', piece: world.newId(), segs: generateTree(seed, () => world.newId()) });
+    this.grow();
   }
+
+  grow() { this.emit({ t: 'tree', piece: this.world.newId(), segs: generateTree(CFG.TREE_SEED, () => this.world.newId()) }); }
+  /** Clear all wood and grow a new tree from the current TREE_* settings. */
+  regrow() { this.emit({ t: 'reset' }); this.grow(); this.toast('A new tree'); }
 
   emit(ev) { this.world.apply(ev); this.outbox.push(ev); }
   toast(msg, to = -1) { this.emit({ t: 'toast', msg, to }); }
@@ -97,6 +101,11 @@ export class Sim {
       this.born.set(ev.newPiece, this.tick);
       for (const id of info.moved) this.addCollider(this.world.segs.get(id), body);
       this.players.onSplit(ev, info);
+    } else if (ev.t === 'reset') {
+      for (const body of this.bodies.values()) this.rapier.removeRigidBody(body);
+      this.bodies.clear(); this.segCol.clear(); this.colSeg.clear(); this.colBase.clear(); this.born.clear();
+      this.contactRaw.clear(); this.contactF.clear(); this.loads.length = 0;
+      this.structure.reset(); this.rope.reset(); this.players.onReset();
     } else if (ev.t === 'rmpiece') {
       const body = this.bodies.get(ev.piece);
       for (const [id, col] of [...this.segCol]) if (!this.world.segs.has(id)) { this.colSeg.delete(col.handle); this.segCol.delete(id); }
@@ -143,15 +152,23 @@ export class Sim {
   }
 
   // ---- the same, for a point on a particular segment: follows that segment's bend (model/flex.js) ----
-  segToWorld(s, p, target = new THREE.Vector3()) { return this.toWorld(s.piece, frameApply(this.structure.flex.frame(s.id), p), target); }
-  segDirToWorld(s, d, target = new THREE.Vector3()) { return this.dirToWorld(s.piece, frameDir(this.structure.flex.frame(s.id), d), target); }
-  segToLocal(s, wp) { return frameInverse(this.structure.flex.frame(s.id), this.toLocal(s.piece, wp)); }
+  segToWorld(s, p, target = new THREE.Vector3()) {
+    return this.toWorld(s.piece, frameApply(this.structure.flex.at(s.id, Math.min(1, Math.max(0, segParam(s, p)))), p), target);
+  }
+  segDirToWorld(s, d, target = new THREE.Vector3(), t = 0.5) { return this.dirToWorld(s.piece, frameDir(this.structure.flex.at(s.id, t), d), target); }
+  segToLocal(s, wp) {
+    const flex = this.structure.flex, pl = this.toLocal(s.piece, wp);
+    let t = 0.5, p = pl;
+    for (let n = 0; n < 3; n++) { p = frameInverse(flex.at(s.id, t), pl); t = Math.min(1, Math.max(0, segParam(s, p))); }   // which cross-section is it on?
+    return p;
+  }
 
   /** Move the standing tree's colliders to where its bent wood is (only those that have moved). */
   syncColliders() {
     const flex = this.structure.flex;
     for (const [id, base] of this.colBase) {
       const fr = flex.frame(id); if (!fr) continue;
+      if (!this.world.pieces.get(this.world.segs.get(id)?.piece)?.fixed) continue;
       const m = frameApply(fr, base.mid);
       if (Math.abs(m[0] - base.at[0]) + Math.abs(m[1] - base.at[1]) + Math.abs(m[2] - base.at[2]) < 0.002) continue;
       base.at = m;
@@ -201,7 +218,7 @@ export class Sim {
       f[0] += ((raw ? raw[0] : 0) - f[0]) * k; f[1] += ((raw ? raw[1] : 0) - f[1]) * k; f[2] += ((raw ? raw[2] : 0) - f[2]) * k;
       const s = this.world.segs.get(seg);
       if (!s || Math.hypot(f[0], f[1], f[2]) < 20) { this.contactF.delete(seg); continue; }
-      if (this.world.pieces.get(s.piece).fixed) this.loads.push({ seg, p: lerp3(s.a, s.b, 0.5), f: [f[0], f[1], f[2]] });
+      if (this.world.pieces.get(s.piece).fixed) this.loads.push({ seg, p: this.segToWorld(s, lerp3(s.a, s.b, 0.5)).toArray(), f: [f[0], f[1], f[2]] });
     }
     for (const seg of this.contactRaw.keys()) if (!this.contactF.has(seg)) this.contactF.set(seg, [0, 0, 0]);
     this.contactRaw.clear();

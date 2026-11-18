@@ -1,6 +1,7 @@
 # Status
 
-Last updated after adding elastic bending (third round of owner feedback).
+Last updated after the fourth round of owner feedback (fibres that change
+length, tree generation settings, regrow).
 Keep this file current.
 
 ## How things were checked
@@ -18,7 +19,9 @@ yet swung the saw with a real mouse.
 |---|---|
 | Page | Loads with a clean console; starts in first person with fibres drawn and bark hidden. |
 | Fibres everywhere | Every segment has a bundle (≈ 2000 fibres on the demo tree), solved every tick, drawn and coloured per fibre: yellow → red (compression), → blue (tension), → green (bending in a live bundle), dark (snapped). |
-| Bending | Standing wood flexes with the load its fibres carry. Demo limb tip: ≈ 5 cm low at rest, ≈ 18 cm with an 85 kg climber far out, ≈ 80 cm with springiness set to 15 mm. Climber, colliders, ropes, saw and drawing all follow the bent wood; clients compute the same bend from aux. Going live starts from the bent pose (no jump). |
+| Bending | Every fibre stretches or shortens with the force on it (separate tension and compression deformation); each segment's end disc is placed and tilted from its fibres' lengths; severed fibres do not count; loads are taken on the bent shape, so tilt can cascade. Demo limb tip: ≈ 3 cm low at rest, ≈ 11 cm with an 85 kg climber far out, ≈ 60 cm with both deformations at 3 %. Back-cutting 80 % of the trunk with no notch: the lean fed itself and the worst fibre went from 8 to 30 MPa with no further cutting. Fibres are drawn individually between their own ends. Clients compute the same shape. |
+| New tree | Height, trunk diameter, branch density, branch length, fibre density, fibre segment length and seed are in the Tab menu; "Clear all wood and grow a new tree" rebuilds the world from them. Host, client and late joiner agree afterwards. Tried: an 18 m, 0.9 m, dense tree (capped at ≈ 900 segments, 13 000 fibres, ≈ 3 ms per step) and a 6 m sapling with 21 fibres across. |
+| Lanyard union length | In the menu ("Shortest branch that stops the lanyard"). |
 | Overload | A 400 kg test load far out a limb: bundle goes live, limb bends ~0.25 rad on stretched fibres, the next bundle in goes, it comes free; climber rides it down at free-fall speed and is hurt. |
 | Limb cuts (direct fibre severing) | Top cut only: bottom fibres hold as a strap and the limb swings. Undercut then top cut: parts clean. |
 | Felling (direct fibre severing) | Notch toward the lean + back cut: tips over on an 11-fibre hinge over ~2.5 s, fibres snap progressively, comes free, lands along the notch line. Back cut against the lean: kerf closes (pinch), tree stands. Straight through: free, slides off toward the lean. |
@@ -38,10 +41,20 @@ software GL.
 
 ## What is rough
 
-- **Bending is quasi-static.** The bend follows the load through a damped
-  spring per joint (bounce speed and damping are in the menu); it is not
-  inertia, so a limb does not keep swaying like a real one, and there is no
-  wind. Loads are computed on the unbent shape. Fallen pieces do not bend.
+- **Bending is quasi-static.** The shape follows the fibres' strains through
+  a damped spring per segment (bounce speed and damping are in the menu); it
+  is not inertia, so a limb does not keep swaying like a real one, and there
+  is no wind. Fallen pieces do not deform.
+- Fibres are straight between the two flat discs at their segment's ends.
+  They lean, stretch and shorten individually, but do not curve or buckle
+  on their own; finer bending comes from a shorter fibre segment length.
+- A severed fibre is out for its whole segment, so with long segments a cut
+  weakens (and bends) a long stretch of stem.
+- Extreme tree settings are only lightly guarded: very dense or very long
+  branches hit the segment cap, and a tree can still be grown that sheds a
+  twig or two under its own weight. Many fibres across a big tree is slow.
+- Growing a new tree leaves players where they stand (anyone climbing is
+  put on the ground); it does not clear injuries.
 - Sawing into bent wood has only been checked for errors, not for feel.
 - **Saw feel is still a guess.** Nobody has used it with a real mouse. The
   pivot directions (which way left/right and up/down turn the bar) were

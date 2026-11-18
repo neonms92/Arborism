@@ -13,7 +13,7 @@
 // CFG.BARK_OPACITY blends between them (the Tab menu).
 
 import * as THREE from 'three';
-import { segAxis, segLen, lanyardLoop } from '../model/world.js';
+import { segAxis, segLen, segParam, lanyardLoop } from '../model/world.js';
 import { bundleBasis, layout, CUT } from '../model/fibres.js';
 import { Flex, frameApply } from '../model/flex.js';
 import { CFG, MODE, INJ } from '../config.js';
@@ -22,7 +22,7 @@ const SIDES = 7;
 const PLAYER_COLORS = [0xe8a23a, 0x3a9be8, 0xd94f6a, 0x62c462, 0xb07be0, 0xe0d24a];
 const Y = new THREE.Vector3(0, 1, 0);
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _m = new THREE.Matrix4(), _c = new THREE.Color();
-const _q2 = new THREE.Quaternion(), _mD = new THREE.Matrix4();
+const _q2 = new THREE.Quaternion(), _e0 = [0, 0, 0], _e1 = [0, 0, 0];
 const _bx = new THREE.Vector3(), _by = new THREE.Vector3(), _bz = new THREE.Vector3(), _s = new THREE.Vector3(), _q = new THREE.Quaternion();
 const NEUTRAL = [0.86, 0.69, 0.33], RED = [0.92, 0.08, 0.06], BLUE = [0.08, 0.25, 0.98], GREEN = [0.1, 0.85, 0.2], DEAD = [0.3, 0.22, 0.14];
 
@@ -90,6 +90,10 @@ export class View {
   // ---- model -> meshes ----
   onEvent(ev, info) {
     switch (ev.t) {
+      case 'reset':
+        for (const id of [...this.pieces.keys()]) this.dropPiece(id);
+        this.flex.clear();
+        break;
       case 'load':
         for (const id of [...this.pieces.keys()]) this.dropPiece(id);
         for (const id of this.world.pieces.keys()) this.buildPiece(id);
@@ -97,7 +101,7 @@ export class View {
       case 'tree': this.buildPiece(ev.piece); break;
       case 'split': {
         if (!info.moved) break;
-        const old = this.pieces.get(info.oldPiece), fr = this.flexNow && this.flexNow.frame(ev.seg);
+        const old = this.pieces.get(info.oldPiece), fr = this.flexNow && (ev.at > 0 ? this.flexNow.at(ev.seg, ev.at) : this.flexNow.joint(ev.seg));
         this.flex.release(info.moved, fr);
         this.buildPiece(info.oldPiece);
         const np = this.buildPiece(ev.newPiece);
@@ -135,7 +139,7 @@ export class View {
     }
     const segs = this.world.segsOf(id);
     const pos = [], col = [], lpos = [];
-    const barkSeg = [], leafSeg = [];           // [seg id, first vertex, vertex count] so bending can move each segment's part
+    const barkSpan = [], leafSeg = [];          // bark: [seg id, first vertex, t0, t1] per panel; leaves: [seg id, first vertex, count]
     const ico = new THREE.IcosahedronGeometry(1, 0).attributes.position;
     for (const s of segs) {
       const start = pos.length / 3;
@@ -163,12 +167,12 @@ export class View {
         for (const [z0, z1] of spans) {
           if (z1 - z0 < 0.004) continue;
           const p00 = at(k, z0), p10 = at(k + 1, z0), p01 = at(k, z1), p11 = at(k + 1, z1);
+          barkSpan.push(s.id, pos.length / 3, z0 / L, z1 / L);
           pos.push(...p00, ...p10, ...p11, ...p00, ...p11, ...p01);
         }
       }
       const shade = 0.85 + ((s.id * 37) % 10) / 60;
       for (let i = start; i < pos.length / 3; i++) col.push(0.42 * shade, 0.31 * shade, 0.22 * shade);
-      barkSeg.push(s.id, start, pos.length / 3 - start);
       if (s.leaf > 0) {
         const r = 0.3 + s.leaf * 0.18;
         leafSeg.push(s.id, lpos.length / 3, ico.count);
@@ -184,7 +188,7 @@ export class View {
       mesh.geometry = g;
     };
     set(p.bark, pos, col); set(p.leaves, lpos, null);
-    p.barkBase = Float32Array.from(pos); p.leafBase = Float32Array.from(lpos); p.barkSeg = barkSeg; p.leafSeg = leafSeg; p.bent = false;
+    p.barkBase = Float32Array.from(pos); p.leafBase = Float32Array.from(lpos); p.barkSpan = barkSpan; p.leafSeg = leafSeg; p.ver = -1; p.bent = false;
     this.buildFibres(p, segs);
     p.bark.visible = CFG.BARK_OPACITY > 0.01; p.leaves.visible = CFG.LEAF_OPACITY > 0.01;
     this.lastAuxTick = -1; this.painted = false;
@@ -198,6 +202,7 @@ export class View {
     const mesh = new THREE.InstancedMesh(this.fibreGeo, this.fibreMat, Math.max(1, cap));
     mesh.frustumCulled = false;
     const info = [];              // per instance: [seg, fibre index]
+    const ends = [];              // per instance: its two ends (unbent, piece-local), where along the segment they are, its width
     let k = 0;
     for (const s of segs) {
       const f = s.f, Ly = layout(f.N), L = segLen(s), ax = segAxis(s), { u, v } = bundleBasis(ax);
@@ -215,6 +220,10 @@ export class View {
         const stretch = _w.length(); _w.multiplyScalar(1 / stretch);
         _q2.setFromUnitVectors(_by, _w).multiply(_q);
         mesh.setMatrixAt(k, _m.compose(_v, _q2, _s.set(h, (z1 - z0) * stretch, h)));
+        const ra = s.r0 + (s.r1 - s.r0) * z0 / L, rb = s.r0 + (s.r1 - s.r0) * z1 / L;
+        ends.push(s.a[0] + ax[0] * z0 + (u[0] * Ly.X[i] + v[0] * Ly.Y[i]) * ra, s.a[1] + ax[1] * z0 + (u[1] * Ly.X[i] + v[1] * Ly.Y[i]) * ra, s.a[2] + ax[2] * z0 + (u[2] * Ly.X[i] + v[2] * Ly.Y[i]) * ra,
+          s.a[0] + ax[0] * z1 + (u[0] * Ly.X[i] + v[0] * Ly.Y[i]) * rb, s.a[1] + ax[1] * z1 + (u[1] * Ly.X[i] + v[1] * Ly.Y[i]) * rb, s.a[2] + ax[2] * z1 + (u[2] * Ly.X[i] + v[2] * Ly.Y[i]) * rb,
+          z0 / L, z1 / L, h, _q2.x, _q2.y, _q2.z, _q2.w);
         info.push(s, i); k++;
       };
       for (let i = 0; i < f.n; i++) {
@@ -227,7 +236,7 @@ export class View {
     for (let i = 0; i < k; i++) mesh.setColorAt(i, _c.setRGB(NEUTRAL[0], NEUTRAL[1], NEUTRAL[2]));
     mesh.instanceMatrix.needsUpdate = true;
     mesh.visible = CFG.SHOW_FIBRES;
-    p.fibres = mesh; p.info = info; p.fibBase = Float32Array.from(mesh.instanceMatrix.array.subarray(0, k * 16));
+    p.fibres = mesh; p.info = info; p.fibBase = Float32Array.from(mesh.instanceMatrix.array.subarray(0, k * 16)); p.ends = Float32Array.from(ends);
     p.group.add(mesh);
   }
 
@@ -249,8 +258,8 @@ export class View {
           const o = fs.get(s.id);
           if (o !== undefined) {
             const Ly = layout(f.N), R = s.r0 + (s.r1 - s.r0) * f.at;
-            const sig = (aux.fs[o + 1] + aux.fs[o + 2] * Ly.X[i] * R + aux.fs[o + 3] * Ly.Y[i] * R) * 1e4;
-            t = sig >= 0 ? sig / CFG.MOR : sig / CFG.COMP;
+            const eps = (aux.fs[o + 1] + aux.fs[o + 2] * Ly.X[i] * R + aux.fs[o + 3] * Ly.Y[i] * R) * 1e-7;    // this fibre's strain
+            t = eps >= 0 ? eps / CFG.TENS_STRAIN : eps / CFG.COMP_STRAIN;
           }
         }
         let r = NEUTRAL[0], gg = NEUTRAL[1], b = NEUTRAL[2];
@@ -267,32 +276,53 @@ export class View {
     }
   }
 
-  /** Move a piece's bark, leaves and fibres to where its bent wood is. flex = a Flex, or null for unbent. */
+  /**
+   * Put a piece's wood where the fibres' lengths say it is (flex = a Flex). Every fibre is redrawn between its
+   * own two ends - each end riding on the tilted cross-section it belongs to - so fibres visibly lean, stretch
+   * and shorten individually. Bark panels and foliage follow the same cross-sections.
+   */
   bendPiece(p, flex) {
+    if (p.ver === flex.ver) return;
+    p.ver = flex.ver;
     let any = false;
-    const move = (base, seg, attr) => {
-      const out = attr.array;
-      for (let n = 0; n < seg.length; n += 3) {
-        const fr = flex && flex.frame(seg[n]), i0 = seg[n + 1] * 3, i1 = i0 + seg[n + 2] * 3;
-        if (!fr) { for (let i = i0; i < i1; i++) out[i] = base[i]; continue; }
-        any = true;
-        _q.set(fr.q[0], fr.q[1], fr.q[2], fr.q[3]);
-        for (let i = i0; i < i1; i += 3) {
-          _v.set(base[i], base[i + 1], base[i + 2]).applyQuaternion(_q);
-          out[i] = _v.x + fr.t[0]; out[i + 1] = _v.y + fr.t[1]; out[i + 2] = _v.z + fr.t[2];
-        }
-      }
-      attr.needsUpdate = true;
+    const cache = new Map();                    // seg id * 4096 + t -> frame
+    const at = (id, t) => { const key = id * 4096 + Math.round(t * 2048); let f = cache.get(key); if (f === undefined) { f = flex.at(id, t); cache.set(key, f); } return f; };
+    const put = (f, base, i, out) => {
+      if (!f) { out[i] = base[i]; out[i + 1] = base[i + 1]; out[i + 2] = base[i + 2]; return; }
+      _v.set(base[i], base[i + 1], base[i + 2]).applyQuaternion(_q.set(f.q[0], f.q[1], f.q[2], f.q[3]));
+      out[i] = _v.x + f.t[0]; out[i + 1] = _v.y + f.t[1]; out[i + 2] = _v.z + f.t[2];
+    };
+    const end = (f, base, i, out) => {
+      if (!f) { out[0] = base[i]; out[1] = base[i + 1]; out[2] = base[i + 2]; return; }
+      _v.set(base[i], base[i + 1], base[i + 2]).applyQuaternion(_q.set(f.q[0], f.q[1], f.q[2], f.q[3]));
+      out[0] = _v.x + f.t[0]; out[1] = _v.y + f.t[1]; out[2] = _v.z + f.t[2];
     };
     const bp = p.bark.geometry.getAttribute('position'), lp = p.leaves.geometry.getAttribute('position');
-    if (bp) move(p.barkBase, p.barkSeg, bp);
-    if (lp) move(p.leafBase, p.leafSeg, lp);
-    const info = p.info, arr = p.fibres.instanceMatrix.array, base = p.fibBase;
-    let last = null, fr = null;
+    if (bp) {
+      const sp = p.barkSpan, base = p.barkBase, out = bp.array;
+      for (let n = 0; n < sp.length; n += 4) {
+        const f0 = at(sp[n], sp[n + 2]), f1 = at(sp[n], sp[n + 3]), i = sp[n + 1] * 3;
+        if (f0 || f1) any = true;
+        put(f0, base, i, out); put(f0, base, i + 3, out); put(f1, base, i + 6, out);       // p00 p10 p11
+        put(f0, base, i + 9, out); put(f1, base, i + 12, out); put(f1, base, i + 15, out); // p00 p11 p01
+      }
+      bp.needsUpdate = true;
+    }
+    if (lp) {
+      const sg = p.leafSeg, base = p.leafBase, out = lp.array;
+      for (let n = 0; n < sg.length; n += 3) { const f = at(sg[n], 1); for (let i = sg[n + 1] * 3, e = i + sg[n + 2] * 3; i < e; i += 3) put(f, base, i, out); }
+      lp.needsUpdate = true;
+    }
+    const info = p.info, arr = p.fibres.instanceMatrix.array, base = p.fibBase, E = p.ends;
     for (let k = 0; k < p.fibres.count; k++) {
-      const s = info[k * 2];
-      if (s !== last) { last = s; fr = flex && flex.frame(s.id); if (fr) { any = true; _mD.compose(_v.set(fr.t[0], fr.t[1], fr.t[2]), _q.set(fr.q[0], fr.q[1], fr.q[2], fr.q[3]), _s.set(1, 1, 1)); } }
-      if (fr) { _m.fromArray(base, k * 16).premultiply(_mD).toArray(arr, k * 16); } else for (let i = k * 16; i < k * 16 + 16; i++) arr[i] = base[i];
+      const id = info[k * 2].id, o = k * 13, f0 = at(id, E[o + 6]), f1 = at(id, E[o + 7]);
+      if (!f0 && !f1) { for (let i = k * 16; i < k * 16 + 16; i++) arr[i] = base[i]; continue; }
+      any = true;
+      end(f0, E, o, _e0); end(f1, E, o + 3, _e1);
+      _bx.set(E[o + 3] - E[o], E[o + 4] - E[o + 1], E[o + 5] - E[o + 2]).normalize();            // how it lay when grown
+      _by.set(_e1[0] - _e0[0], _e1[1] - _e0[1], _e1[2] - _e0[2]); const len = _by.length(); _by.multiplyScalar(1 / (len || 1));
+      _q2.setFromUnitVectors(_bx, _by).multiply(_q.set(E[o + 9], E[o + 10], E[o + 11], E[o + 12]));
+      _m.compose(_v.set((_e0[0] + _e1[0]) / 2, (_e0[1] + _e1[1]) / 2, (_e0[2] + _e1[2]) / 2), _q2, _s.set(E[o + 8], len, E[o + 8])).toArray(arr, k * 16);
     }
     p.fibres.instanceMatrix.needsUpdate = true;
     p.bent = any;
@@ -334,11 +364,11 @@ export class View {
     let flex = src.flex || null;
     if (!flex && aux) {
       const at = new Map(); for (let i = 0; i < aux.fs.length; i += 4) at.set(aux.fs[i], i);
-      this.flex.update(Math.min(dt, 0.05), (s) => { const o = at.get(s.id); return o === undefined ? null : [aux.fs[o + 2] * 1e4, aux.fs[o + 3] * 1e4]; });
+      this.flex.update(Math.min(dt, 0.05), (s) => { const o = at.get(s.id); return o === undefined ? null : [aux.fs[o + 1] * 1e-7, aux.fs[o + 2] * 1e-7, aux.fs[o + 3] * 1e-7]; });
       flex = this.flex;
     }
     this.flexNow = flex;
-    for (const p of this.pieces.values()) this.bendPiece(p, flex);
+    if (flex) for (const p of this.pieces.values()) this.bendPiece(p, flex);
     if (aux && CFG.SHOW_FIBRES && aux.tick !== this.lastAuxTick && (CFG.STRESS_COLORS || !this.painted)) { this.lastAuxTick = aux.tick; this.painted = true; this.paintFibres(aux); }
     const seen = new Set();
     let mePos = null;
@@ -378,7 +408,7 @@ export class View {
     const cl = a.m === MODE.CLIMB && a.cl, s = cl ? this.world.segs.get(cl[0]) : null, piece = s ? this.pieces.get(s.piece) : null;
     pm.lanyard.visible = !!piece;
     if (!piece) return;
-    const fr = this.flexNow && this.flexNow.frame(s.id);
+    const fr = this.flexNow && this.flexNow.at(s.id, cl[1]);
     const pts = lanyardLoop(s, cl[1], cl[2], CFG.STANDOFF).map((q) => { const b = frameApply(fr, q); return new THREE.Vector3(b[0], b[1], b[2]).applyQuaternion(piece.group.quaternion).add(piece.group.position); });
     pm.lanyard.geometry.dispose();
     pm.lanyard.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.3), 20, 0.012, 5);
@@ -387,7 +417,7 @@ export class View {
   nodeWorld(n, out) {
     const s = this.world.segs.get(n.seg), piece = s && this.pieces.get(s.piece);
     if (!piece) return null;
-    const b = frameApply(this.flexNow && this.flexNow.frame(s.id), n.p);
+    const b = frameApply(this.flexNow && this.flexNow.at(s.id, Math.min(1, Math.max(0, segParam(s, n.p)))), n.p);
     return out.set(b[0], b[1], b[2]).applyQuaternion(piece.group.quaternion).add(piece.group.position);
   }
 

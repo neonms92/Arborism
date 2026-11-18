@@ -29,14 +29,24 @@ export const CFG = {
   DEBRIS_MASS: 2,          // kg, pieces lighter than this are removed...
   DEBRIS_LIFE: 10,         // ...this many seconds after creation
 
+  // --- tree generation (applied by "Grow a new tree" in the Tab menu) ---
+  TREE_SEED: 7,
+  TREE_HEIGHT: 11,         // m
+  TREE_DIAMETER: 0.54,     // m at the base
+  BRANCH_DENSITY: 1,       // 1 = a limb roughly every metre of trunk
+  BRANCH_LENGTH: 1,        // multiplier
+  SEG_CAP: 900,            // stop adding branches once the tree has this many segments
+  SEG_LEN: 0.8,            // m, length of a fibre segment (how finely stems are divided along their length)
+
   // --- fibres (every segment is a bundle of them) ---
   FIBRE_PITCH: 0.03,       // m, target fibre width; a segment gets round(diameter / pitch) fibres across
   GRID_MAX: 17,            // most fibres across a diameter
   KERF_WIDTH: 0.008,       // m
   COMP: 12e6,              // Pa, compressive yield: above this the wood crushes and kerfs close
   KERF_CONTACT: 0.5,       // relative stiffness of a closed kerf in compression (static analysis)
-  FIBRE_YIELD: 0.004,      // m, stretch at which a fibre reaches MOR. This is the wood's springiness: it sets
-                           // how far a loaded limb bends (model/flex.js) and how stiff a live bundle is.
+  TENS_STRAIN: 0.006,      // how much a fibre has stretched, as a fraction of its length, when it reaches MOR
+  COMP_STRAIN: 0.009,      // how much a fibre has shortened, as a fraction of its length, when it starts to crush
+                           // (so its stiffness is MOR / TENS_STRAIN in tension and COMP / COMP_STRAIN in compression)
   FLEX_FREQ: 9,            // rad/s, how fast bending follows a change of load (the bounce)
   FLEX_DAMP: 0.35,         // damping ratio of that bounce (1 = no bounce)
   FIBRE_STRETCH: 0.02,     // m, elongation at which a fibre snaps (it stretches plastically in between)
