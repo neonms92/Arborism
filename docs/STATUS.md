@@ -107,6 +107,13 @@ software GL.
 - Injury `DOWN` is a toast and a tipped-over capsule; Start / Enter respawns.
 - No sound.
 
+## Proposed: automated fibre tests
+
+The owner wants a "Testing" button on the main menu that runs engine tests
+in parallel and tracks results. The first step is a manifest of the fibre
+mechanics tests, `docs/TESTS.md`, **awaiting approval**. Nothing is
+implemented yet; do not build the runner until the manifest is approved.
+
 ## Next task
 
 **P2-1 in DESIGN.md section 9: play it and tune `config.js`.** First things

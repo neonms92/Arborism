@@ -239,3 +239,13 @@ length over which a cut weakens the stem. Shorter segments localise damage
 depend on their own density setting. Generation is capped at `SEG_CAP`
 segments, and long twigs are thickened so a tree does not break under its
 own weight at extreme slider values.
+
+## Testing
+
+**D40 — Automated tests, in the browser, after all.** The owner asked for a
+Testing menu that runs engine tests in parallel with trackable results; this
+supersedes "no automated tests" for the fibre model. The tests run the real
+sim headless in Web Workers (one per run, because `CFG` is a shared module
+object), are defined as data in a manifest (`docs/TESTS.md`), and judge
+outcomes over parameter ranges rather than single values, so they also map
+where the model stops behaving. Still no build step and no Node test runner.
