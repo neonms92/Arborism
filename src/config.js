@@ -26,6 +26,7 @@ export const CFG = {
   GRAVITY: 9.81,
   CONTACT_TAU: 0.04,       // s, low-pass on contact-force loads
   CONTACT_MIN: 150,        // N, contact-force event threshold
+  ROLL_RESIST: 0.02,       // m, rolling resistance of loose wood on the ground: lever arm of the normal force
   DEBRIS_MASS: 2,          // kg, pieces lighter than this are removed...
   DEBRIS_LIFE: 10,         // ...this many seconds after creation
 

@@ -85,7 +85,8 @@ export function cutFibres(b, idx, z) {
  *   sum(E eps dA) = Nax ;  sum(E eps y dA) = Mu ;  -sum(E eps x dA) = Mv
  * where E is each fibre's own stiffness: MOR/TENS_STRAIN if it is stretched,
  * COMP/COMP_STRAIN if it is squeezed (found by iteration, since which is which
- * depends on the answer). Severed fibres carry nothing and have no say in the
+ * depends on the answer; a fibre that will not settle sits on the neutral axis
+ * and gets the mean of the two, b.sgn = 0). Severed fibres carry nothing and have no say in the
  * plane -- unless the wood beside the kerf is being crushed, in which case the
  * kerf has closed and its faces carry compression too (b.act marks those;
  * they are what clamps a saw bar).
@@ -99,20 +100,25 @@ export function analyse(b, R, Nax, Mu, Mv) {
   const closedGap = CFG.KERF_WIDTH * 1.5, half = L.cs * R / 2;
   const st = b.state, act = b.act;
   if (!b.sgn) b.sgn = new Int8Array(n);
-  const sgn = b.sgn;
+  const sgn = b.sgn, Em = (Et + Ec) / 2;
+  // A fibre lying on the neutral axis can flip between stretched and squeezed from one iteration to the next
+  // forever (its strain is ~0 either way, but its stiffness moves the centroid). After two flips it is taken
+  // to be exactly on the axis: sgn 0, the mean stiffness, and no more flipping in this solve. Kerf contact
+  // that keeps toggling is settled the same way (left closed).
+  const flips = flipScratch(n);
   let e0 = 0, e1 = 0, e2 = 0, cx = 0, cy = 0, ok = false;
   act.fill(0); b.closed = false;
-  for (let it = 0; it < 12; it++) {
+  for (let it = 0; it < 16; it++) {
     let A = 0, Sx = 0, Sy = 0;
     for (let c = 0; c < n; c++) {
-      const w = st[c] === INTACT ? (sgn[c] < 0 ? Ec : Et) : (act[c] ? Ek : 0);
+      const w = st[c] === INTACT ? (sgn[c] < 0 ? Ec : sgn[c] > 0 ? Et : Em) : (act[c] ? Ek : 0);
       if (w) { A += w; Sx += w * X[c]; Sy += w * Y[c]; }
     }
     if (A < 1e-9) { ok = false; break; }
     cx = Sx / A * R; cy = Sy / A * R;
     let Ixx = 0, Iyy = 0, Ixy = 0;
     for (let c = 0; c < n; c++) {
-      const w = st[c] === INTACT ? (sgn[c] < 0 ? Ec : Et) : (act[c] ? Ek : 0);
+      const w = st[c] === INTACT ? (sgn[c] < 0 ? Ec : sgn[c] > 0 ? Et : Em) : (act[c] ? Ek : 0);
       if (!w) continue;
       const dx = X[c] * R - cx, dy = Y[c] * R - cy;
       Ixx += w * dy * dy; Iyy += w * dx * dx; Ixy += w * dx * dy;
@@ -132,11 +138,14 @@ export function analyse(b, R, Nax, Mu, Mv) {
       const eps = e0 + e1 * X[c] * R + e2 * Y[c] * R;
       if (st[c] === INTACT) {
         const sg = eps < 0 ? -1 : 1;
-        if (sg !== sgn[c]) { sgn[c] = sg; changed = true; }
+        if (sg !== sgn[c] && flips[c] < 2) {
+          if (sgn[c] !== 0 && ++flips[c] >= 2) sgn[c] = 0; else sgn[c] = sg;
+          changed = true;
+        }
         if (eps - edge < minE) minE = eps - edge;
       } else if (b.closed) {
         const want = gapOf(b, c) <= closedGap && eps < 0 ? 1 : 0;
-        if (want !== act[c]) { act[c] = want; changed = true; }
+        if (want !== act[c] && flips[c] < 2) { act[c] = want; if (++flips[c] >= 2) act[c] = 1; changed = true; }
       }
     }
     if (!b.closed && b.ncut > 0 && minE < -CFG.COMP_STRAIN) { b.closed = true; changed = true; }
@@ -155,6 +164,9 @@ export function analyse(b, R, Nax, Mu, Mv) {
   b.maxT = hi * Et; b.minC = lo * Ec;
   return true;
 }
+
+let FLIPS = new Uint8Array(64);
+function flipScratch(n) { if (FLIPS.length < n) FLIPS = new Uint8Array(n * 2); FLIPS.fill(0, 0, n); return FLIPS; }
 
 // ---- (de)serialization for the welcome message ----
 export function packBundle(b) {

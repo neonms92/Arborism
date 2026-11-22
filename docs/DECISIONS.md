@@ -268,3 +268,29 @@ model: wood comes from `tree` events, cuts from `sever()` / `cutLive()`.
 first runs fail in places (see STATUS.md); the manifest's criteria were
 implemented as written, and where it was silent the choice is in TESTS.md
 section 8. Tuning the tolerances, or the engine, is the owner's call.
+
+**D44 — A fibre that will not settle sits on the neutral axis.** The stiff
+solve in `fibres.analyse` could oscillate for ever (INV-6, 438 runs in the
+first must-pass run): a fibre whose strain is ≈ 0 flips between tension and
+compression stiffness, and the flip moves the section's centroid enough to
+flip it back. After two changes in one solve a fibre takes the mean of the two
+stiffnesses (`b.sgn = 0`) and stays there; a closed kerf fibre that keeps
+toggling stays in contact. The physics is unchanged, the iteration converges.
+
+**D45 — The live active set cannot cycle.** `structure.liveStep` could also
+fail to converge: two fibres traded between their tension and compression
+caps every iteration, and after the last one the impulse it applied was from
+a set that was never consistent, launching an 8 kg piece at 83 m/s (INV-3).
+Now a fibre goes from one cap to the other only through linear, and one that
+has changed three times in a step is held in the conservative state (elastic
+fibres linear, since a stiff implicit spring only dissipates; broken faces
+let go); up to 12 iterations. D19's rules (a, b, c) are untouched.
+
+**D46 — Loose wood on the ground has rolling resistance.** Rapier contacts are
+points on a rigid plane, so a round felled log rolled for as long as the test
+watched (FM-10 "settled" failed in most runs). Real ground gives under a log.
+Each tick every awake dynamic piece touching the ground gets a torque
+`ROLL_RESIST` (m) times the ground's normal force against its spin, never
+more than stops it. 2 cm is a soft forest floor; 0 restores the old
+behaviour. In the Tab menu.
+

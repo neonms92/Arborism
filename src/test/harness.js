@@ -277,9 +277,16 @@ export class Ctx {
         const rx = p.x - c.x, ry = p.y - c.y, rz = p.z - c.z;
         const sp = Math.hypot(v.x + wv.y * rz - wv.z * ry, v.y + wv.z * rx - wv.x * rz, v.z + wv.x * ry - wv.y * rx);
         k = Math.max(0, 1 - sp / 2);
-        // and it cannot by itself accelerate that wood harder than 2 g (one tick of a big load would launch it)
-        const mag = Math.hypot(f[0], f[1], f[2]), cap = 2 * b.mass() * CFG.GRAVITY;
-        if (mag * k > cap) k = cap / mag;
+        // and it cannot by itself accelerate the point it acts on harder than 2 g (one tick of a big load would
+        // launch it): cap at 2 g times the wood's effective mass at that point, rotation included
+        const mag = Math.hypot(f[0], f[1], f[2]);
+        if (mag > 0) {
+          const n = [f[0] / mag, f[1] / mag, f[2] / mag], rn = [ry * n[2] - rz * n[1], rz * n[0] - rx * n[2], rx * n[1] - ry * n[0]];
+          const e = b.effectiveWorldInvInertia().elements, I = [e[0], e[1], e[2], e[1], e[3], e[4], e[2], e[4], e[5]];
+          let q = 0; for (let a = 0; a < 3; a++) for (let c = 0; c < 3; c++) q += rn[a] * I[a * 3 + c] * rn[c];
+          const cap = 2 * CFG.GRAVITY / (1 / b.mass() + q);
+          if (mag * k > cap) k = cap / mag;
+        }
       }
       l.applied = k * Math.hypot(f[0], f[1], f[2]);
       if (k > 0) sim.applyForce(s.id, p, { x: f[0] * k, y: f[1] * k, z: f[2] * k });
@@ -452,7 +459,7 @@ export function equilibriumError(f) {
   const Et = CFG.MOR / CFG.TENS_STRAIN, Ec = CFG.COMP / CFG.COMP_STRAIN, Ek = CFG.KERF_CONTACT * Ec, half = L.cs * R / 2;
   let N = 0, MU = 0, MX = 0, A = 0;
   for (let c = 0; c < n; c++) {
-    const wgt = f.state[c] === INTACT ? (f.sgn[c] < 0 ? Ec : Et) : (f.act[c] ? Ek : 0);
+    const wgt = f.state[c] === INTACT ? (f.sgn[c] < 0 ? Ec : f.sgn[c] > 0 ? Et : (Et + Ec) / 2) : (f.act[c] ? Ek : 0);
     if (!wgt) continue;
     const x = X[c] * R, y = Y[c] * R, eps = f.e0 + f.e1 * x + f.e2 * y, s = wgt * eps * dA;
     N += s; MU += s * y; MX += s * x; A += wgt * dA;

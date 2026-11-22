@@ -252,7 +252,8 @@ export class Structure {
     if (!P.isDynamic()) uu[1] -= G * dt;                 // gravity is about to act on the distal body only
     const coef = dt + CFG.FIBRE_DAMP, K = _K, D = _D, Am = _A, ue = [0, 0, 0, 0, 0, 0];
     let lam = null, ownCap = false, mcx = 0, mcy = 0, mcz = 0;
-    for (let iter = 0; iter < 6; iter++) {
+    const flips = _flips; flips.fill(0, 0, n);
+    for (let iter = 0; iter < 12; iter++) {
       for (let a = 0; a < 36; a++) K[a] = 0;
       const wr = [0, 0, 0, 0, 0, 0];
       for (let i = 0; i < n; i++) {
@@ -296,7 +297,16 @@ export class Structure {
         let want = LIN, cf = 0;
         if (el) { if (f > Ft) { want = CAP; cf = Ft; } else if (f < -Fc) { want = CAP; cf = -Fc; } }
         else if (f >= 0) want = OFF; else if (f < -Fc) { want = CAP; cf = -Fc; }
-        if (want !== mode[i] || (want === CAP && cf !== capF[i])) { mode[i] = want; capF[i] = cf; changed = true; }
+        if (want !== mode[i] || (want === CAP && cf !== capF[i])) {
+          // An active set can cycle (a fibre flips between its two caps, or two fibres trade places) and
+          // leave an inconsistent impulse that launches a piece. A fibre goes from one cap to the other
+          // only through LIN, and one that keeps changing is held in the conservative state: elastic
+          // fibres stay linear (a stiff implicit spring only dissipates), broken faces let go.
+          if (flips[i] >= 3) continue;
+          if (mode[i] === CAP && want === CAP) { want = LIN; cf = 0; }
+          if (++flips[i] >= 3) { want = el ? LIN : OFF; cf = 0; }
+          mode[i] = want; capF[i] = cf; changed = true;
+        }
       }
       if (!ownCap && mOwn > 0) {
         const ex = thp[0] + coef * ue[3], ey = thp[1] + coef * ue[4], ez = thp[2] + coef * ue[5];
@@ -414,7 +424,7 @@ const _J = new Float64Array(18), _M = new Float64Array(18);
 const NF = 520;   // >= the most fibres in a bundle
 const KF = new Float64Array(NF);
 const _E = new Float64Array(NF), DEL = new Float64Array(NF), RATE = new Float64Array(NF), _RX = new Float64Array(NF), _RY = new Float64Array(NF), _RZ = new Float64Array(NF);
-const _SX = new Float64Array(NF), _SY = new Float64Array(NF), _SZ = new Float64Array(NF), _mode = new Uint8Array(NF), _capF = new Float64Array(NF);
+const _SX = new Float64Array(NF), _SY = new Float64Array(NF), _SZ = new Float64Array(NF), _mode = new Uint8Array(NF), _capF = new Float64Array(NF), _flips = new Uint8Array(NF);
 _J[0] = 1; _J[7] = 1; _J[14] = 1;
 const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion();
 const _O = new THREE.Vector3(), _n = new THREE.Vector3(), _u = new THREE.Vector3(), _v = new THREE.Vector3();

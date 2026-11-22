@@ -40,38 +40,40 @@ Sim cost on the dev machine: ≈ 0.1 ms per step idle, ≈ 0.2 ms with the saw
 against the trunk; colouring all fibres ≈ 0.2 ms. Rendering has only run in
 software GL.
 
-## Engine tests: first must-pass run
+## Engine tests: must-pass run
 
-All 18 tests of docs/TESTS.md, must-pass box, 5 613 runs, ≈ 6 min on the dev
+All 18 tests of docs/TESTS.md, must-pass box, 5 613 runs, ≈ 7 min on the dev
 container (4 cores, adaptive workers). A failure here is a finding about the
 engine or about the manifest's criteria; nothing was loosened to pass.
+"First" is the first run; "now" is after D44–D46 (solver oscillation, live
+solver launches, rolling resistance).
 
-| Test | Pass | What fails |
-|---|---|---|
-| FM-01 beam sag | 81 / 81 | — (sag sits between the two bounds, close to the bimodular answer) |
-| FM-02 root stress | 43 / 81 | `|minC| ≥ 0.6 M·c/I` at stiffness-ratio corners: the bimodular section genuinely carries less compression stress; the manifest's band does not bracket it there (the bimodular prediction is recorded alongside) |
-| FM-03 plain stem | 75 / 81 | extra lean at rest > 2 % H for slender, soft corners |
-| FM-04 overload | 0 / 49 | mostly: the limb goes live near the analytic load (good) but then hangs and never comes free, so no fibre ever snaps; where it does come free, every fibre often goes in one tick (no ordered tearing) |
-| FM-05 cracked, holding | 19 / 19 | — |
-| FM-10 notch steers | 11 / 113 (+9 invalid) | the felled log keeps rolling (never "settled"); hinge often lets go below 10°; heading error > 15° in many corners; 3+ rows of hinge never release at all |
-| FM-11 no notch | 61 / 81 (+3) | some corners do not come free or go > 25° off the lean |
-| FM-12 pinch | 0 / 49 | a kerf only "closes" when the wood beside it crushes (D13), which never happens at these leans and depths |
-| FM-13 hinge trend | 0 / 9 | 1 and 2 rows behave alike; 3 – 4 rows never release |
-| FM-14 top cut strap | 2 / 81 | thick straps stay stiff (never live); thin ones droop ~15° and stop |
-| FM-15 undercut + top cut | 80 / 81 (+1) | — |
-| FM-16 straight through | 5 / 25 | a stem with no lean balances on its stump; butt slides > 2 m on tall stems |
-| FM-20 discretisation | 0 / 1 | fall heading, hinge angle and P_live all move with SEG_LEN / FIBRE_PITCH |
-| FM-21 determinism | 1 / 1 | identical event logs and transforms |
-| FM-22 step cost | 1 / 1 | idle p95 ≈ 0.6 ms, falling ≈ 0.1 ms |
-| FM-40 tree stands | 1 174 / 1 620 (+150) | worst utilisation > 0.7 at 10 s (251), twigs shed (206), SEG_CAP hit (55) |
-| FM-41 climbable | 892 / 1 268 (+289, 352 skipped) | 87 trees have a limb ≥ 12 cm that goes live under a climber |
-| FM-42 generator | 1 620 / 1 620 | — |
+| Test | First | Now | What fails now |
+|---|---|---|---|
+| FM-01 beam sag | 81 / 81 | 81 / 81 | — (sag sits between the two bounds, close to the bimodular answer) |
+| FM-02 root stress | 43 / 81 | 43 / 81 | `|minC| ≥ 0.6 M·c/I` at stiffness-ratio corners: the bimodular section genuinely carries less compression stress; the manifest's band does not bracket it there (the bimodular prediction is recorded alongside) |
+| FM-03 plain stem | 75 / 81 | 75 / 81 | extra lean at rest > 2 % H for slender, soft corners |
+| FM-04 overload | 0 / 49 | 0 / 49 | mostly: the limb goes live near the analytic load (good) but then hangs and never comes free, so no fibre ever snaps; where it does come free, every fibre often goes in one tick (no ordered tearing) |
+| FM-05 cracked, holding | 19 / 19 | 19 / 19 | — |
+| FM-10 notch steers | 11 / 113 (+9 invalid) | 42 / 113 | hinge often lets go below 10°; heading error > 15° in many corners; 3+ rows of hinge never release at all (logs now settle) |
+| FM-11 no notch | 61 / 81 (+3) | 65 / 81 | some corners do not come free or go > 25° off the lean |
+| FM-12 pinch | 0 / 49 | 0 / 49 | a kerf only "closes" when the wood beside it crushes (D13), which never happens at these leans and depths |
+| FM-13 hinge trend | 0 / 9 | 0 / 9 | 1 and 2 rows behave alike; 3 – 4 rows never release |
+| FM-14 top cut strap | 2 / 81 | 2 / 81 | thick straps stay stiff (never live); thin ones droop ~15° and stop |
+| FM-15 undercut + top cut | 80 / 81 (+1) | 81 / 81 | — |
+| FM-16 straight through | 5 / 25 | 16 / 25 | a stem with no lean balances on its stump |
+| FM-20 discretisation | 0 / 1 | 0 / 1 | fall heading, hinge angle and P_live all move with SEG_LEN / FIBRE_PITCH |
+| FM-21 determinism | 1 / 1 | 1 / 1 | identical event logs and transforms |
+| FM-22 step cost | 1 / 1 | 0 / 1 | idle p95 1.2 ms against a 1 ms bound while 3 other workers ran; alone it measures 0.7 – 1.0 ms with or without rolling resistance, so this one is timing noise at the edge of its bound |
+| FM-40 tree stands | 1 174 / 1 620 (+150) | 1 221 / 1 620 | worst utilisation > 0.7 at 10 s, twigs shed, SEG_CAP hit |
+| FM-41 climbable | 892 / 1 268 (+289, 352 skipped) | 1 089 / 1 205 (415 skipped) | limbs ≥ 12 cm that go live under a climber |
+| FM-42 generator | 1 620 / 1 620 | 1 620 / 1 620 | — |
 
-**INV-6 (invalid runs)** is a real solver issue: `fibres.analyse` can stop
-after its 12 iterations oscillating between two sign choices for a fibre that
-sits on the neutral axis. That fibre's strain is ≈ 0 either way, but its
-stiffness changes the section's centroid and inertia, so the solved strain
-plane is ≈ 1 % out of equilibrium. Seen mostly on 3-fibre twig bundles.
+No run is invalid any more. The 438 INV-6 runs were `fibres.analyse`
+oscillating on a fibre at the neutral axis (D44); the INV-3 runs were one
+live-solver active set cycling between caps and launching a piece (D45), and
+the test's own load spinning a light limb (load cap now uses the effective
+mass, TESTS.md section 8).
 
 ## What is rough
 

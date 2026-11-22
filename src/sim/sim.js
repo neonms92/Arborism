@@ -41,7 +41,7 @@ export class Sim {
     this.contactF = new Map();        // filtered
 
     const g = RAPIER.ColliderDesc.cuboid(200, 0.5, 200).setTranslation(0, -0.5, 0).setFriction(0.9);
-    this.rapier.createCollider(g);
+    this.groundCol = this.rapier.createCollider(g);
 
     // wood still joined by a live fibre bundle must not also collide across that joint
     const noHit = (c1, c2) => {
@@ -230,6 +230,7 @@ export class Sim {
     if (this.onLoads) this.onLoads(dt);
     this.structure.step(dt);
     if (this.tick % 2 === 0) this.syncColliders();
+    this.rollResist();
     this.rapier.step(this.eq, this.hooks);
     this.eq.drainContactForceEvents((e) => this.onContact(e));
     this.players.post(dt);
@@ -252,6 +253,34 @@ export class Sim {
       const raw = this.contactRaw.get(seg) || [0, 0, 0];
       raw[0] += dir.x * mag * sgn; raw[1] += dir.y * mag * sgn; raw[2] += dir.z * mag * sgn;
       this.contactRaw.set(seg, raw);
+    }
+  }
+
+  /**
+   * Rolling resistance for loose wood on the ground. Rapier's contacts are points on a rigid plane, so a
+   * round log rolls on for ever; on real ground it presses in and the soil ahead pushes back. That is a
+   * torque of ROLL_RESIST (a lever arm, m) times the ground's normal force, against the spin, and it
+   * never more than stops it.
+   */
+  rollResist() {
+    const arm = CFG.ROLL_RESIST;
+    if (!(arm > 0)) return;
+    const pushed = new Map();          // body -> normal impulse from the ground last step
+    this.rapier.contactPairsWith(this.groundCol, (oc) => {
+      const b = oc.parent();
+      if (!b || !b.isDynamic() || b.isSleeping() || this.colSeg.get(oc.handle) === undefined) return;
+      let J = 0;
+      this.rapier.contactPair(this.groundCol, oc, (man) => { for (let i = 0, n = man.numContacts(); i < n; i++) J += man.contactImpulse(i); });
+      if (J > 0) pushed.set(b, (pushed.get(b) || 0) + J);
+    });
+    for (const [b, J] of pushed) {
+      const w = b.angvel(), wx = w.x, wy = w.y, wz = w.z, wn = Math.hypot(wx, wy, wz);
+      if (wn < 1e-6) continue;
+      const nx = wx / wn, ny = wy / wn, nz = wz / wn, e = b.effectiveWorldInvInertia().elements;
+      // angular impulse that would stop the spin about that axis: |w| / (n . I^-1 n)
+      const q = nx * (e[0] * nx + e[1] * ny + e[2] * nz) + ny * (e[1] * nx + e[3] * ny + e[4] * nz) + nz * (e[2] * nx + e[4] * ny + e[5] * nz);
+      const L = Math.min(arm * J, q > 0 ? wn / q : 0);
+      b.applyTorqueImpulse({ x: -nx * L, y: -ny * L, z: -nz * L }, true);
     }
   }
 
