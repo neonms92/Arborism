@@ -143,7 +143,7 @@ class Testing {
     const b = boundary(t, recs), box = el('div');
     const color = ([p, n]) => (n ? `hsl(${120 * p / n}, 60%, ${30 + 15 * Math.min(1, n / 4)}%)` : '#222');
     box.append(el('h3', {}, `Boundary report (${b.n} explore runs): pass rate along each parameter`));
-    box.append(el('table', {}, Object.entries(b.per).map(([k, v]) => el('tr', {}, el('td', {}, k), el('td', {}, fmt(v.lo)),
+    box.append(el('table', { style: 'width: auto' }, Object.entries(b.per).map(([k, v]) => el('tr', {}, el('td', {}, k), el('td', {}, fmt(v.lo)),
       el('td', {}, el('span', { class: 'cells', style: `grid-template-columns: repeat(${v.cells.length}, 14px)` }, v.cells.map((c) => el('span', { style: `background:${color(c)}`, title: `${c[0]} / ${c[1]} pass` })))),
       el('td', {}, fmt(v.hi))))));
     for (const m of b.maps) {

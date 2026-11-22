@@ -619,8 +619,12 @@ map, so `src/sim/` imports three and Rapier by relative path (D41).
   limb can hang straight down without reaching the ground (FM-14 needs it to
   droop past 45°). The analytic sag in FM-01 includes the stub's own bending.
 - **Point loads on live wood** fade with the speed of the loaded point (0 at
-  2 m/s), as a climber's weight does: a force cannot be allowed to drive wood
-  past free fall, or INV-3 would catch the test, not the engine.
+  2 m/s), as a climber's weight does, and is capped at what would accelerate
+  that piece at 2 g by itself: a force cannot be allowed to drive wood past
+  free fall (one tick of FM-04's 2x load on a freshly live limb launched it
+  at hundreds of m/s), or INV-3 would catch the test, not the engine. The
+  cost: once live, a limb feels less than the full load, so "comes free" in
+  FM-04 and the held load in FM-05 are weaker than a real hanging weight.
 - **Cuts** go through the saw's own `sever()`. Fibres within
   `max(2 r, 0.15 m)` of a live joint's plane are that joint's fibres (cut with
   `cutLive`), the same distance `sever()` uses to keep one cut plane.
