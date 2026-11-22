@@ -249,3 +249,22 @@ sim headless in Web Workers (one per run, because `CFG` is a shared module
 object), are defined as data in a manifest (`docs/TESTS.md`), and judge
 outcomes over parameter ranges rather than single values, so they also map
 where the model stops behaving. Still no build step and no Node test runner.
+
+**D41 — Code that runs in a worker imports by relative path.** Import maps do
+not apply inside Web Workers, so `src/sim/*.js` now import
+`../../vendor/three/three.module.js` and `../../vendor/rapier/rapier.mjs`
+directly (the same URLs the map resolves to, so the main thread still gets one
+instance of each). The view keeps the bare `three` specifier.
+
+**D42 — The engine gained three small hooks for the tests, nothing else.**
+`Sim.create(world, { tree: false })` starts with no wood; `sim.onLoads(dt)` is
+called each tick where point loads go in (after players, before the
+structure); `fibres.analyse` keeps what it solved for in `b.load` (INV-6
+checks equilibrium against it); `saw.sever` is exported so scripted cuts take
+the saw's path; `config.js` exports `CFG_DEFAULTS`. Tests never write to the
+model: wood comes from `tree` events, cuts from `sever()` / `cutLive()`.
+
+**D43 — A failing test is a finding, not a reason to bend the test.** The
+first runs fail in places (see STATUS.md); the manifest's criteria were
+implemented as written, and where it was silent the choice is in TESTS.md
+section 8. Tuning the tolerances, or the engine, is the owner's call.

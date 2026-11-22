@@ -92,6 +92,9 @@ export const CFG = {
   SHAKEN_TIME: 2,
 };
 
+// The values above as shipped, before the Tab menu loads saved settings over them (the test runner starts from these).
+export const CFG_DEFAULTS = Object.freeze({ ...CFG });
+
 export const INJ = { OK: 0, SHAKEN: 1, HURT: 2, DOWN: 3 };
 export const INJ_NAME = ['ok', 'shaken', 'HURT', 'DOWN'];
 export const TOOL = { HANDS: 0, SAW: 1, ROPE: 2 };

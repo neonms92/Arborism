@@ -3,7 +3,7 @@
 // scalars here (L0, tension, wraps, holder) go out in aux packets.
 // See docs/DESIGN.md section 5.
 
-import * as THREE from 'three';
+import * as THREE from '../../vendor/three/three.module.js';
 import { CFG, MODE } from '../config.js';
 import { segRadius, segParam, lerp3, segAxis } from '../model/world.js';
 

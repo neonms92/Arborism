@@ -1,9 +1,9 @@
 # Fibre mechanics test manifest
 
-**Status: proposal, awaiting the owner's approval.** Nothing here is
-implemented. Once approved, each test below becomes one data entry in a test
-list read by the Testing menu (see "Runner notes" at the end), and the
-tolerances marked *(proposed)* get tuned against the first real runs.
+**Status: implemented** (`src/test/`, the Testing button on the main menu).
+Every test below runs; section 8 lists where the implementation had to pin
+down something this manifest left open. Tolerances marked *(proposed)* are
+still first guesses, to be tuned against the first real runs.
 
 Scope: the fibre model of `docs/DESIGN.md` section 3: the stiff regime
 (`fibres.analyse`, `model/flex.js`), the live regime (`structure.liveStep`),
@@ -543,7 +543,7 @@ slider limits should be updated from.
 
 ---
 
-## 7. Runner notes (for later; not part of this approval)
+## 7. Runner notes (written before the runner; section 8 says what was built)
 
 Things the implementation will have to deal with, found while writing this:
 
@@ -570,3 +570,89 @@ Things the implementation will have to deal with, found while writing this:
   and sessions can be compared. A URL such as `?test=FM-10` running headless
   and printing JSON to the console would let a script (or Claude, in a
   headless browser) run the suite without the menu.
+
+---
+
+## 8. Implementation notes
+
+Where the code is: `src/test/harness.js` (one run: building blocks of 1.4,
+the invariants of 1.2, the measurements of 1.3), `tests.js` (every test as
+data + a scenario), `sampling.js` (1.1), `runcase.js` (one record, section 6),
+`worker.js` + `pool.js` (parallel runs), `store.js` (IndexedDB, JSON
+export/import), `report.js` (summaries, boundary report), `ui.js` (the menu
+and the graphical view).
+
+**Running.** Main menu → Testing. Pick tests and a mode, Run selected. Modes:
+
+| Mode | Runs |
+|---|---|
+| Smoke | the default point (or the box centre), first seed only: a quick "does it still work" |
+| Must-pass | the box of 1.1, judged; a failure is a regression |
+| Explore | N Latin-hypercube points over the explore box (the box beside the mode sets N), recorded with `wouldPass`, feeding the boundary report |
+| Axis sweep | 1.1's bisection per parameter; stores the passing interval around the default |
+
+Click a test for its latest batch: failures per criterion with the worst
+margin, every run (failures first) with a **View** button that re-runs that
+exact case on the main thread with the game's renderer (speed ¼× – max,
+pause, drag to orbit). Results stay in the browser (IndexedDB) and can be
+exported/imported as JSON. "better / same / worse than before" compares the
+pass rate with the previous batch of the same test and mode.
+
+**Headless.** `?test=FM-10,FM-40` (or `?test=all`) with `&mode=smoke|must|explore|sweep`,
+optional `&n=`, `&workers=` (fixed count instead of adaptive) and
+`&commit=<sha>` (stored in each record; a static page cannot read git).
+Prints `ARBTEST {record}` per run and `ARBTEST-DONE {summary}` at the end;
+`window.arbTests` holds the same. Records printed to the console leave out
+`cfg` (it is in the stored copy).
+
+**Workers.** Each worker has its own module instance, so its own `CFG`;
+every run starts from `CFG_DEFAULTS` (config.js as shipped, not the Tab
+menu's saved values) plus the run's parameters. The pool starts at
+`hardwareConcurrency − 1` workers and every 4 s moves the count up or down by
+one, reversing when simulated-seconds-per-second fell, and stepping down
+while the page's frames are slower than 20 ms. Workers cannot see the import
+map, so `src/sim/` imports three and Rapier by relative path (D41).
+
+**Choices the manifest left open:**
+
+- **Limb (1.4):** the stub stands on a rooted base at height `L + 1 m`, so a
+  limb can hang straight down without reaching the ground (FM-14 needs it to
+  droop past 45°). The analytic sag in FM-01 includes the stub's own bending.
+- **Point loads on live wood** fade with the speed of the loaded point (0 at
+  2 m/s), as a climber's weight does: a force cannot be allowed to drive wood
+  past free fall, or INV-3 would catch the test, not the engine.
+- **Cuts** go through the saw's own `sever()`. Fibres within
+  `max(2 r, 0.15 m)` of a live joint's plane are that joint's fibres (cut with
+  `cutLive`), the same distance `sever()` uses to keep one cut plane.
+- **"Analytic" loads** (FM-02, FM-04) use the exact bimodular section
+  (`analytic.js`), integrated independently of the fibre grid; FM-02's band is
+  still against the symmetric `M·c/I`, as written, and also records the
+  bimodular prediction.
+- **FM-02** steps the load through 20 / 40 / 60 / 80 / 100 % of P within one
+  run (1 s each) to judge "monotonic".
+- **FM-05** finds `P_live` with an FM-04 run, then repeats the ramp in a
+  fresh world, holding at `k · P_live`. Kinetic energy uses `m (L/2)²` for the
+  rotational inertia.
+- **FM-10:** "settled" is its own criterion, separate from "lies on the
+  ground", so a rolling log does not hide where it fell. "Notch closed" means
+  a severed *notch* fibre bearing in compression in the live joint (back-cut
+  kerf contact is recorded separately as `kerfContact`). The hinge is
+  `max(t_h · D, one fibre pitch)` thick across the notch apex.
+- **FM-12:** the stem is FM-10's default (H 11 m, D 0.5 m), cut at 0.5 m.
+  `KERF_CONTACT` ranges 0.3 – 0.7 (explore 0.05 – 1).
+- **FM-13** is a grid test: the 9 combinations of the listed values, each
+  running FM-10's default four times (1 – 4 rows of hinge).
+- **FM-14 / FM-15:** cut at `min(0.4 m, L/3)` from the limb's base. FM-15's
+  undercut is made at once and the top cut progressively, 5 cm further out.
+- **FM-21** runs each scenario twice, each time in a fresh `World` and Rapier
+  world, one after the other in the same worker (a worker's module state is
+  only caches and scratch that is rewritten before use).
+- **FM-22** cuts the generated tree's root segment (generated trunks are
+  not straight, so FM-10's cuts are placed on that one segment), notch
+  towards the trunk's lean.
+- **FM-40:** a tree with no split that has not settled by 10 s is graded
+  `restless` (not `stable`). Trunk segments are the generator's first
+  `round(TREE_HEIGHT / SEG_LEN)` segments. `GRID_MAX` samples are rounded to
+  odd numbers. Slenderness is enforced by clamping the diameter.
+- **FM-41** loads each limb (a chain that starts on the trunk) at 2/3 of its
+  length for 3 s, then waits 1 s before the next.

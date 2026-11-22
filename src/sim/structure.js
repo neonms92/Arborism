@@ -15,7 +15,7 @@
 // for them piece-local coordinates ARE world coordinates. The beam pass relies
 // on that.
 
-import * as THREE from 'three';
+import * as THREE from '../../vendor/three/three.module.js';
 import { CFG } from '../config.js';
 import { segAxis, segLen, segMass, segCentroidT, segParam, segRadius, lerp3 } from '../model/world.js';
 import { analyse, bundleBasis, layout, gapOf, INTACT, CUT } from '../model/fibres.js';

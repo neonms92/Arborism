@@ -113,6 +113,17 @@ function begin() {
 $('bHost').onclick = () => startHost(true);
 $('bSolo').onclick = () => startHost(false);
 $('bJoin').onclick = () => startJoin($('code').value);
+// the Testing menu: engine tests in workers (docs/TESTS.md); only from the main menu, never during a game
+let testing = false;
+const openTests = async (headless) => {
+  if (running || testing) return;
+  testing = true; $('lobby').style.display = 'none';
+  const ui = await import('./test/ui.js');
+  const back = () => { testing = false; $('lobby').style.display = ''; };
+  if (headless) ui.headless(q, back); else ui.openTesting(back);
+};
+$('bTest').onclick = () => openTests(false);
+if (q.has('test')) openTests(true);
 $('code').value = (q.get('join') || localStorage.getItem('arb-room') || '').toUpperCase();
 if (q.has('solo')) startHost(false);
 else if (q.has('host')) startHost(true);
@@ -137,6 +148,7 @@ let helpDevice = '';
 
 function frame(now) {
   requestAnimationFrame(frame);
+  if (testing) { last = now; return; }             // the Testing menu covers the game; do not draw behind it
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   if (!input.active) {
     lobbyPad(); input.poll(dt);

@@ -144,6 +144,7 @@ export function analyse(b, R, Nax, Mu, Mv) {
   }
   if (!ok) { b.e0 = b.e1 = b.e2 = 0; b.maxT = b.minC = 0; return false; }
   b.e0 = e0; b.e1 = e1; b.e2 = e2;
+  b.load = [R, Nax, Mu, Mv];          // what it was solved for (the test harness checks equilibrium against it)
   const edge = (Math.abs(e1) + Math.abs(e2)) * half;
   let hi = 0, lo = 0;
   for (let c = 0; c < n; c++) if (st[c] === INTACT) {

@@ -1,8 +1,8 @@
 // Host-only simulation. Owns the Rapier world. Decides everything; tells the
 // world model what happened through emit(event). See docs/DESIGN.md 1.3.
 
-import RAPIER from 'rapier';
-import * as THREE from 'three';
+import RAPIER from '../../vendor/rapier/rapier.mjs';
+import * as THREE from '../../vendor/three/three.module.js';
 import { CFG } from '../config.js';
 import { segLen, segAxis, segMass, segParam, lerp3 } from '../model/world.js';
 import { generateTree } from '../model/treegen.js';
@@ -16,12 +16,13 @@ const Y = new THREE.Vector3(0, 1, 0);
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
 
 export class Sim {
-  static async create(world) {
+  /** opts.tree = false: start with no wood (the test harness builds its own with a `tree` event). */
+  static async create(world, opts = {}) {
     await RAPIER.init();
-    return new Sim(world);
+    return new Sim(world, opts);
   }
 
-  constructor(world) {
+  constructor(world, opts = {}) {
     this.R = RAPIER;
     this.world = world;
     this.tick = 0;
@@ -59,8 +60,9 @@ export class Sim {
     this.players = new Players(this);
     this.rope = new Rope(this);
     this.structure = new Structure(this);
+    this.onLoads = null;              // optional fn(dt), called each tick where point loads go in (test harness)
 
-    this.grow();
+    if (opts.tree !== false) this.grow();
   }
 
   grow() { this.emit({ t: 'tree', piece: this.world.newId(), segs: generateTree(CFG.TREE_SEED, () => this.world.newId()) }); }
@@ -225,6 +227,7 @@ export class Sim {
 
     this.rope.step(dt);          // rope first: the saw and the fibres both need this tick's rope state
     this.players.pre(dt);
+    if (this.onLoads) this.onLoads(dt);
     this.structure.step(dt);
     if (this.tick % 2 === 0) this.syncColliders();
     this.rapier.step(this.eq, this.hooks);
