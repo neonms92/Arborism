@@ -15,7 +15,7 @@ export class Rope {
 
   node(n) { return this.sim.segToWorld(this.sim.world.segs.get(n.seg), n.p); }
 
-  // ---- placing (rope tool) ----
+  // ---- placing ({rig}: block, then tie, then untie at the knot) ----
   target(p, aim) {
     if (!aim || aim.dist > CFG.REACH) return null;
     const sim = this.sim, s = sim.world.segs.get(aim.seg);
@@ -24,10 +24,11 @@ export class Rope {
   }
   prompt(p, aim) {
     const st = this.sim.world.rope.state, t = this.target(p, aim);
-    if (st === 0) return t && t.fixed ? '{interact}: hang the rigging block here' : 'Look at a limb to hang the block';
-    if (st === 1) return t ? '{interact}: tie the rope here' : 'Look at the limb to tie off   {drop} (on the ground): take the block down';
-    if (t && this.node(this.sim.world.rope.anchor).distanceTo(t.point) < 0.7) return '{interact}: untie';
-    return 'Rope is tied. Look at the knot to untie';
+    if (st === 0) return t && t.fixed ? '{rig}: hang the rigging block here' : '';
+    const down = p.mode === MODE.GROUND ? '   {drop}: take the block down' : '';
+    if (st === 1) return (t ? '{rig}: tie the rope here' : 'Look at the wood to tie the rope to') + down;
+    if (t && this.node(this.sim.world.rope.anchor).distanceTo(t.point) < 0.7) return '{rig}: untie';
+    return '';
   }
   place(p, aim) {
     const sim = this.sim, w = sim.world, r = w.rope, t = this.target(p, aim);

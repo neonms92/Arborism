@@ -239,3 +239,21 @@ length over which a cut weakens the stem. Shorter segments localise damage
 depend on their own density setting. Generation is capped at `SEG_CAP`
 segments, and long twigs are thickened so a tree does not break under its
 own weight at extreme slider values.
+
+## Fifth round: controls
+
+**D40 — ESDF, no tools, context-aware buttons, held actions for anything that
+can kill.** Owner's scheme. Movement moved to ESDF; R is interact, W is
+rigging (block / tie / untie), G is punch, C is let go. Tool switching is
+gone: the saw is always on the mouse buttons, and the rest is decided by what
+is looked at. Spurring in / moving the lanyard and letting go of the tree are
+channelled for `LANYARD_TIME` / `LETGO_TIME` (4 s each, both in the Tab menu)
+so a stray press cannot drop a climber. The owner asked for C to use "the
+same time" as the lanyard; it is a separate number with the same default so
+either can be tuned. Grabbing or letting go of the rope tail stays an
+instant R press (it cannot hurt anyone). Taking the block down stays on C on
+the ground. Gamepad: Y rigging, RB punch (picked here, not by the owner).
+Punch: each press adds `PUNCH_FORCE` along the look direction at the point
+hit, fading with time constant `PUNCH_DECAY`; a new press adds to what is
+left, capped at `PUNCH_MAX`. It goes through `sim.applyForce` like the
+climber's weight, so it loads standing wood's fibres and shoves loose pieces.

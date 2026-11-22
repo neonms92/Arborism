@@ -90,10 +90,15 @@ export const CFG = {
   REACH: 2.6,              // m, interact reach
   DV_SHAKEN: 4, DV_HURT: 7, DV_DOWN: 11,   // m/s impact thresholds
   SHAKEN_TIME: 2,
+  // --- controls that take time (hold the button; let go to cancel) ---
+  LANYARD_TIME: 4,         // s of holding {interact} to spur in or move the lanyard
+  LETGO_TIME: 4,           // s of holding {drop} to let go of the tree
+  // --- punch ({punch}): every press adds a short shove; presses faster than it fades stack up ---
+  PUNCH_FORCE: 400,        // N added by one punch, along the look direction at the point hit
+  PUNCH_DECAY: 0.12,       // s, time constant the shove fades with (one punch is about FORCE * DECAY N*s)
+  PUNCH_MAX: 4000,         // N, most that stacked punches add up to
 };
 
 export const INJ = { OK: 0, SHAKEN: 1, HURT: 2, DOWN: 3 };
 export const INJ_NAME = ['ok', 'shaken', 'HURT', 'DOWN'];
-export const TOOL = { HANDS: 0, SAW: 1, ROPE: 2 };
-export const TOOL_NAME = ['hands', 'chainsaw', 'rigging rope'];
 export const MODE = { GROUND: 0, CLIMB: 1, ROPE: 2 };

@@ -627,19 +627,25 @@ The HUD and lobby name controls for whichever device was touched last
 
 | Action | Keyboard / mouse | Gamepad (standard mapping) |
 |---|---|---|
-| Move; climb along / around the stem | WASD | left stick |
+| Move; climb along / around the stem | ESDF (E forward, S left, D back, F right) | left stick |
 | Look | mouse (click to capture) | right stick |
-| Use: spur in, move the lanyard, grab the rope tail, place rope | E | X |
-| Let go of the tree (fall) | C | B |
+| Lanyard (hold `LANYARD_TIME`, 4 s): spur in on the wood looked at, or move the lanyard there | R | X |
+| Interact (press): grab or let go of the rope tail | R | X |
+| Rigging (press): hang the block on the wood looked at; with a block hung, tie the rope to the wood looked at; looking at the knot, untie | W | Y |
+| Punch the wood looked at (press; presses faster than `PUNCH_DECAY` stack up to `PUNCH_MAX`) | G | RB |
+| Let go of the tree (hold `LETGO_TIME`, 4 s); on the ground with a block hung and not tied, take the block down (press) | C | B |
 | Jump | Space | A |
-| Tool: hands / chainsaw / rigging rope | Q, R | LB, RB |
 | Plant the saw on the wood looked at (hold); the look controls then pivot the bar | right mouse | LT |
 | Press the bar forward (chain runs) | left mouse | RT |
 | On the rope tail: ease grip / haul in / wraps | left mouse / right mouse / ↑ ↓ | RT / LT / D-pad ↑ ↓ |
 | Settings menu | Tab | Back |
 | Respawn (prototype) | Enter | Start |
 
-Y is unused.
+There are no tools to switch between: the chainsaw, the rigging and the
+lanyard are all to hand, and what a button does depends on what is looked
+at. A held action shows a ring filling round the reticle (`ch` in the
+player's aux); letting go of the button or looking away cancels it, and the
+button has to be released before it can start again. LB, Q and A are free.
 
 **The Tab menu** (`src/view/menu.js`) has a slider and a number box for
 every variable worth iterating on: chainsaw and look sensitivity, inverted
@@ -655,8 +661,8 @@ Each row edits one key of `CFG` in place and is remembered in localStorage.
 Wood, saw, climber and rope values only act on the host. Adding a variable
 is one line in `ROWS`.
 
-Tools: with the rope tool, *use* on a stem hangs the block first, then *use*
-on another stem ties the end; *use* on the knot unties.
+Rigging: *rig* on a stem hangs the block first, then *rig* on another stem
+ties the end; *rig* on the knot unties.
 
 ---
 
