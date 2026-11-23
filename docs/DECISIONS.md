@@ -239,3 +239,58 @@ length over which a cut weakens the stem. Shorter segments localise damage
 depend on their own density setting. Generation is capped at `SEG_CAP`
 segments, and long twigs are thickened so a tree does not break under its
 own weight at extreme slider values.
+
+## Testing
+
+**D40 — Automated tests, in the browser, after all.** The owner asked for a
+Testing menu that runs engine tests in parallel with trackable results; this
+supersedes "no automated tests" for the fibre model. The tests run the real
+sim headless in Web Workers (one per run, because `CFG` is a shared module
+object), are defined as data in a manifest (`docs/TESTS.md`), and judge
+outcomes over parameter ranges rather than single values, so they also map
+where the model stops behaving. Still no build step and no Node test runner.
+
+**D41 — Code that runs in a worker imports by relative path.** Import maps do
+not apply inside Web Workers, so `src/sim/*.js` now import
+`../../vendor/three/three.module.js` and `../../vendor/rapier/rapier.mjs`
+directly (the same URLs the map resolves to, so the main thread still gets one
+instance of each). The view keeps the bare `three` specifier.
+
+**D42 — The engine gained three small hooks for the tests, nothing else.**
+`Sim.create(world, { tree: false })` starts with no wood; `sim.onLoads(dt)` is
+called each tick where point loads go in (after players, before the
+structure); `fibres.analyse` keeps what it solved for in `b.load` (INV-6
+checks equilibrium against it); `saw.sever` is exported so scripted cuts take
+the saw's path; `config.js` exports `CFG_DEFAULTS`. Tests never write to the
+model: wood comes from `tree` events, cuts from `sever()` / `cutLive()`.
+
+**D43 — A failing test is a finding, not a reason to bend the test.** The
+first runs fail in places (see STATUS.md); the manifest's criteria were
+implemented as written, and where it was silent the choice is in TESTS.md
+section 8. Tuning the tolerances, or the engine, is the owner's call.
+
+**D44 — A fibre that will not settle sits on the neutral axis.** The stiff
+solve in `fibres.analyse` could oscillate for ever (INV-6, 438 runs in the
+first must-pass run): a fibre whose strain is ≈ 0 flips between tension and
+compression stiffness, and the flip moves the section's centroid enough to
+flip it back. After two changes in one solve a fibre takes the mean of the two
+stiffnesses (`b.sgn = 0`) and stays there; a closed kerf fibre that keeps
+toggling stays in contact. The physics is unchanged, the iteration converges.
+
+**D45 — The live active set cannot cycle.** `structure.liveStep` could also
+fail to converge: two fibres traded between their tension and compression
+caps every iteration, and after the last one the impulse it applied was from
+a set that was never consistent, launching an 8 kg piece at 83 m/s (INV-3).
+Now a fibre goes from one cap to the other only through linear, and one that
+has changed three times in a step is held in the conservative state (elastic
+fibres linear, since a stiff implicit spring only dissipates; broken faces
+let go); up to 12 iterations. D19's rules (a, b, c) are untouched.
+
+**D46 — Loose wood on the ground has rolling resistance.** Rapier contacts are
+points on a rigid plane, so a round felled log rolled for as long as the test
+watched (FM-10 "settled" failed in most runs). Real ground gives under a log.
+Each tick every awake dynamic piece touching the ground gets a torque
+`ROLL_RESIST` (m) times the ground's normal force against its spin, never
+more than stops it. 2 cm is a soft forest floor; 0 restores the old
+behaviour. In the Tab menu.
+

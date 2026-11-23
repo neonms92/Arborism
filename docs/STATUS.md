@@ -1,12 +1,13 @@
 # Status
 
-Last updated after the fourth round of owner feedback (fibres that change
-length, tree generation settings, regrow).
+Last updated after the engine tests were built (Testing menu, docs/TESTS.md).
 Keep this file current.
 
 ## How things were checked
 
-There is no test suite (owner's choice). Everything marked "verified" was
+The fibre model now has automated tests: main menu → Testing, or headless
+`?test=all&mode=must` (docs/TESTS.md section 8). The rest of the game still
+has none. Everything marked "verified" below was
 exercised in headless Chromium by scripts driving the real sim — through the
 same input structure a gamepad or mouse produces where noted, otherwise by
 calling the sim directly. **Nothing has been played by a human or run on a
@@ -38,6 +39,41 @@ yet swung the saw with a real mouse.
 Sim cost on the dev machine: ≈ 0.1 ms per step idle, ≈ 0.2 ms with the saw
 against the trunk; colouring all fibres ≈ 0.2 ms. Rendering has only run in
 software GL.
+
+## Engine tests: must-pass run
+
+All 18 tests of docs/TESTS.md, must-pass box, 5 613 runs, ≈ 7 min on the dev
+container (4 cores, adaptive workers). A failure here is a finding about the
+engine or about the manifest's criteria; nothing was loosened to pass.
+"First" is the first run; "now" is after D44–D46 (solver oscillation, live
+solver launches, rolling resistance).
+
+| Test | First | Now | What fails now |
+|---|---|---|---|
+| FM-01 beam sag | 81 / 81 | 81 / 81 | — (sag sits between the two bounds, close to the bimodular answer) |
+| FM-02 root stress | 43 / 81 | 43 / 81 | `|minC| ≥ 0.6 M·c/I` at stiffness-ratio corners: the bimodular section genuinely carries less compression stress; the manifest's band does not bracket it there (the bimodular prediction is recorded alongside) |
+| FM-03 plain stem | 75 / 81 | 75 / 81 | extra lean at rest > 2 % H for slender, soft corners |
+| FM-04 overload | 0 / 49 | 0 / 49 | mostly: the limb goes live near the analytic load (good) but then hangs and never comes free, so no fibre ever snaps; where it does come free, every fibre often goes in one tick (no ordered tearing) |
+| FM-05 cracked, holding | 19 / 19 | 19 / 19 | — |
+| FM-10 notch steers | 11 / 113 (+9 invalid) | 42 / 113 | hinge often lets go below 10°; heading error > 15° in many corners; 3+ rows of hinge never release at all (logs now settle) |
+| FM-11 no notch | 61 / 81 (+3) | 65 / 81 | some corners do not come free or go > 25° off the lean |
+| FM-12 pinch | 0 / 49 | 0 / 49 | a kerf only "closes" when the wood beside it crushes (D13), which never happens at these leans and depths |
+| FM-13 hinge trend | 0 / 9 | 0 / 9 | 1 and 2 rows behave alike; 3 – 4 rows never release |
+| FM-14 top cut strap | 2 / 81 | 2 / 81 | thick straps stay stiff (never live); thin ones droop ~15° and stop |
+| FM-15 undercut + top cut | 80 / 81 (+1) | 81 / 81 | — |
+| FM-16 straight through | 5 / 25 | 16 / 25 | a stem with no lean balances on its stump |
+| FM-20 discretisation | 0 / 1 | 0 / 1 | fall heading, hinge angle and P_live all move with SEG_LEN / FIBRE_PITCH |
+| FM-21 determinism | 1 / 1 | 1 / 1 | identical event logs and transforms |
+| FM-22 step cost | 1 / 1 | 0 / 1 | idle p95 1.2 ms against a 1 ms bound while 3 other workers ran; alone it measures 0.7 – 1.0 ms with or without rolling resistance, so this one is timing noise at the edge of its bound |
+| FM-40 tree stands | 1 174 / 1 620 (+150) | 1 221 / 1 620 | worst utilisation > 0.7 at 10 s, twigs shed, SEG_CAP hit |
+| FM-41 climbable | 892 / 1 268 (+289, 352 skipped) | 1 089 / 1 205 (415 skipped) | limbs ≥ 12 cm that go live under a climber |
+| FM-42 generator | 1 620 / 1 620 | 1 620 / 1 620 | — |
+
+No run is invalid any more. The 438 INV-6 runs were `fibres.analyse`
+oscillating on a fibre at the neutral axis (D44); the INV-3 runs were one
+live-solver active set cycling between caps and launching a piece (D45), and
+the test's own load spinning a light limb (load cap now uses the effective
+mass, TESTS.md section 8).
 
 ## What is rough
 
@@ -107,9 +143,20 @@ software GL.
 - Injury `DOWN` is a toast and a tipped-over capsule; Start / Enter respawns.
 - No sound.
 
+## Proposed: automated fibre tests
+
+The owner wants a "Testing" button on the main menu that runs engine tests
+in parallel and tracks results. The first step is a manifest of the fibre
+mechanics tests, `docs/TESTS.md`, **awaiting approval**. Nothing is
+implemented yet; do not build the runner until the manifest is approved.
+
 ## Next task
 
-**P2-1 in DESIGN.md section 9: play it and tune `config.js`.** First things
+**Owner: look at the first test results above** and decide which are
+engine problems to fix and which manifest criteria to retune (FM-02's band,
+FM-16 with no lean, FM-10's "settled"). Then **P2-1 in DESIGN.md section 9:
+play it and tune `config.js`**, re-running the must-pass tests after each
+change. First things
 to try with a real mouse and a real gamepad:
 
 1. Is planting and pivoting the saw comfortable, do the pivot directions
