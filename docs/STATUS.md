@@ -1,6 +1,8 @@
 # Status
 
-Last updated after the engine tests were built (Testing menu, docs/TESTS.md).
+Last updated after the engine tests (Testing menu, docs/TESTS.md) and the
+fifth round of owner feedback (ESDF controls, no tools, held lanyard / let
+go, punch).
 Keep this file current.
 
 ## How things were checked
@@ -34,6 +36,7 @@ yet swung the saw with a real mouse.
 | Rigging | Block, tie-off, friction device as before. 55 kg limb with 1 m slack peaks ≈ 5.3 kN, is caught, and lowers when the tail is eased. Rope is a 3-D tube. |
 | Network | Host, client and a late joiner agree on fibres cut, pieces, live bundles and rope. Tested against a **local** PeerJS server only. |
 | Controls text | Lobby help, HUD hint line, prompts and toasts name keys or buttons for the device last touched. |
+| Controls (D47) | ESDF; R hold 4 s spurs in (ring round the reticle fills), C hold 4 s lets go, a tap of either does nothing; W hangs the block, ties, unties, takes the block down when looking at it; R on the ground grabs / lets go of wood (a short rope; pulled out of the hands past `GRAB_MAX`); G punches and stacks; saw always on the mouse. Checked in headless Chromium through real key presses; a second tab joins and sees the new HUD. Gamepad mapping (Y rigging, RB punch) not tried on a pad. |
 | Look | First person. Vertical look inverted (`INVERT_Y`). |
 
 Sim cost on the dev machine: ≈ 0.1 ms per step idle, ≈ 0.2 ms with the saw

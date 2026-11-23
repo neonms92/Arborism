@@ -1,7 +1,7 @@
 // Boot, lobby, main loop. The only file that knows about every module.
 // See docs/DESIGN.md 1.3.
 
-import { CFG, TOOL } from './config.js';
+import { CFG } from './config.js';
 import { World } from './model/world.js';
 import { View } from './view/view.js';
 import { Hud, describe } from './view/hud.js';
@@ -141,8 +141,9 @@ function lobbyPad() {
 
 // ---------- main loop ----------
 const hostSource = { pose: (id) => sim.pose(id), get flex() { return sim.structure.flex; } };
-const HELP = '{move} move / climb   {look} look   {interact} use: spur in, move the lanyard, grab or place rope   {drop} let go of the tree   {jump} jump   ' +
-  '{tool} hands / chainsaw / rope   {raise} plant the saw on the wood you are looking at, then {look} pivots the bar and {throttle} presses it in   ' +
+const HELP = '{move} move / climb   {look} look   hold {interact}: spur in / move the lanyard (also grabs the rope tail)   hold {drop}: let go of the tree   {jump} jump   ' +
+  '{rig}: hang the block, then tie the rope to the wood looked at, or untie at the knot   {punch}: punch the wood (press again and again to push harder)   ' +
+  '{raise} plant the saw on the wood you are looking at, then {look} pivots the bar and {throttle} presses it in   ' +
   'on the rope tail: {throttle} ease, {raise} haul, {wraps} wraps   {menu} settings   {respawn} respawn';
 let helpDevice = '';
 
@@ -160,7 +161,7 @@ function frame(now) {
   }
 
   const mine = aux && aux.pl.find((p) => p.id === me);
-  input.sawOut = !!(mine && mine.tool === TOOL.SAW);
+  input.sawOut = !!(mine && mine.saw);
   if (menu.open) { input.mouse.l = input.mouse.r = false; }
   const inp = input.poll(dt);
   if (input.menuToggled) { input.menuToggled = false; menu.toggle(); input.menuOpen = menu.open; }

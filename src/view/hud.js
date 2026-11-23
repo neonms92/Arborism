@@ -2,16 +2,17 @@
 // Prompts and toasts arrive from the host with {tokens}; each player sees the
 // key or button name for the device they last touched.
 
-import { CFG, TOOL_NAME, INJ_NAME, MODE } from '../config.js';
+import { CFG, INJ_NAME, MODE } from '../config.js';
 
 const $ = (id) => document.getElementById(id);
 
 // token -> [keyboard and mouse, gamepad]
 const NAMES = {
-  move: ['WASD', 'Left stick'], look: ['Mouse', 'Right stick'],
-  interact: ['E', 'X'], drop: ['C', 'B'], jump: ['Space', 'A'],
+  move: ['ESDF', 'Left stick'], look: ['Mouse', 'Right stick'],
+  interact: ['R', 'X'], drop: ['C', 'B'], jump: ['Space', 'A'],
+  rig: ['W', 'Y'], punch: ['G', 'RB'],
   raise: ['Right mouse', 'LT'], throttle: ['Left mouse', 'RT'],
-  tool: ['Q / R', 'LB / RB'], wraps: ['Up / Down arrows', 'D-pad up / down'],
+  wraps: ['Up / Down arrows', 'D-pad up / down'],
   menu: ['Tab', 'Back'], respawn: ['Enter', 'Start'],
 };
 export function describe(text, device) {
@@ -24,6 +25,7 @@ export class Hud {
     this.world = world;
     this.status = $('status'); this.prompt = $('prompt'); this.toasts = $('toasts');
     this.ropeEl = $('rope'); this.keys = $('keys');
+    this.ring = $('ringArc');   // channel progress round the reticle
     this.fps = 60; this.device = 'kb';
   }
 
@@ -38,10 +40,13 @@ export class Hud {
     this.fps += (1 / Math.max(dt, 1e-3) - this.fps) * 0.05;
     const a = aux && aux.pl.find((p) => p.id === me);
     let s = `${info}  |  ${Math.round(this.fps)} fps`;
-    if (a) s += `  |  ${TOOL_NAME[a.tool]}  |  ${a.m === MODE.CLIMB ? 'on spurs, lanyard on' : a.m === MODE.ROPE ? 'on the rope' : 'on the ground'}  |  ${INJ_NAME[a.inj]}`;
+    if (a) s += `  |  ${a.m === MODE.CLIMB ? 'on spurs, lanyard on' : a.m === MODE.ROPE ? 'on the rope' : 'on the ground'}  |  ${INJ_NAME[a.inj]}`;
     this.status.textContent = s;
     this.prompt.textContent = a ? describe(a.pr, device) : '';
-    this.keys.textContent = describe('{move} move   {look} look   {tool} tool   {interact} use   {drop} let go   {menu} settings   {respawn} respawn', device);
+    this.keys.textContent = describe('{move} move   {look} look   {interact} lanyard (hold)   {rig} block / tie   {punch} punch   {raise} saw   {drop} let go (hold)   {menu} settings   {respawn} respawn', device);
+    const ch = a ? a.ch || 0 : 0;
+    this.ring.style.display = ch > 0 ? '' : 'none';
+    if (ch > 0) this.ring.setAttribute('stroke-dashoffset', String(100 * (1 - ch)));
 
     const r = aux && aux.rope;
     if (r && this.world.rope.state === 2) {

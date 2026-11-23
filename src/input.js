@@ -11,8 +11,11 @@ const DEAD = 0.18;
 const dz = (v) => (Math.abs(v) < DEAD ? 0 : (v - Math.sign(v) * DEAD) / (1 - DEAD));
 
 // standard gamepad button index -> counter name
-const PAD = { 0: 'jump', 1: 'drop', 2: 'interact', 4: 'toolPrev', 5: 'toolNext', 12: 'wrapUp', 13: 'wrapDn', 9: 'respawn' };
-const KEYS = { Space: 'jump', KeyC: 'drop', KeyE: 'interact', KeyQ: 'toolPrev', KeyR: 'toolNext', ArrowUp: 'wrapUp', ArrowDown: 'wrapDn', Enter: 'respawn' };
+// Movement is ESDF (E forward, S left, D back, F right). There are no tools: what a button does depends on what is looked at.
+const PAD = { 0: 'jump', 1: 'drop', 2: 'interact', 3: 'rig', 5: 'punch', 12: 'wrapUp', 13: 'wrapDn', 9: 'respawn' };
+const KEYS = { Space: 'jump', KeyC: 'drop', KeyR: 'interact', KeyW: 'rig', KeyG: 'punch', ArrowUp: 'wrapUp', ArrowDown: 'wrapDn', Enter: 'respawn' };
+// held buttons for actions that take time (hold to channel, let go to cancel): state field -> [key, pad button]
+const HOLD = { hi: ['KeyR', 2], hd: ['KeyC', 1] };
 
 export class Input {
   constructor(canvas) {
@@ -21,7 +24,7 @@ export class Input {
     this.padPrev = [];
     this.menuToggled = false;
     this.menuOpen = false;      // set by main: the settings menu has the mouse and keyboard
-    this.sawOut = false;        // set by main: the local player is holding the chainsaw
+    this.sawOut = false;        // set by main: the local player's chainsaw is planted
     this.active = false;        // set by main: game running (not in lobby)
     this.device = 'kb';
     window.addEventListener('keydown', (e) => {
@@ -52,7 +55,8 @@ export class Input {
 
   poll(dt) {
     const s = this.state, k = this.keys;
-    let mx = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0), my = (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0);
+    let mx = (k.has('KeyF') ? 1 : 0) - (k.has('KeyS') ? 1 : 0), my = (k.has('KeyE') ? 1 : 0) - (k.has('KeyD') ? 1 : 0);
+    for (const f in HOLD) s[f] = k.has(HOLD[f][0]) ? 1 : 0;
     let lx = 0, ly = 0, rt = this.mouse.l ? 1 : 0, lt = this.mouse.r ? 1 : 0;
 
     const pads = [...(navigator.getGamepads?.() || [])].filter((p) => p && p.connected);
@@ -62,6 +66,7 @@ export class Input {
       const prt = pad.buttons[7]?.value || 0, plt = pad.buttons[6]?.value || 0;
       if (ax.some((v) => v) || prt > 0.1 || plt > 0.1) this.device = 'pad';
       mx += ax[0]; my += -ax[1]; lx = ax[2]; ly = ax[3];
+      for (const f in HOLD) if (pad.buttons[HOLD[f][1]]?.pressed) s[f] = 1;
       rt = Math.max(rt, prt); lt = Math.max(lt, plt);
       pad.buttons.forEach((b, i) => {
         if (b.pressed && !this.padPrev[i]) {
