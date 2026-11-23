@@ -358,3 +358,17 @@ faded as the limb moved and never tore it off). Honest loading makes FM-05
 fail: a limb loaded just past first yield tears off instead of holding, a
 finding for the fibre law. FM-22 runs after every other test, alone.
 
+**D49 — Live fibres are bonded to their neighbours.** The owner's call after
+hinges and straps would not tune. Fibres joined by an unbroken bond fold as
+one strip: a fibre's fold strain is the fold angle times (half its own
+thickness + its distance past the middle of its strip), so a thick strip
+tears sooner than a thin one. A fibre that snaps unloads into its bonded
+neighbours: if what it carried exceeds `SHEAR × pitch × BOND_LEN` the bond
+splits and the crack turns along the grain; otherwise a neighbour in tension
+snaps too. Stiffness is unchanged: the fibre springs between two rigid
+bodies already keep plane sections plane. Measured (must-pass): FM-04
+23 / 49 (with D48's weight), FM-11 68 / 81, others unchanged. What it showed:
+the 3 – 4 row hinges of FM-13 never go live at all — the hinge is strong
+enough to hold the stem (a 12 cm hinge on FM-10's stem has ≈ 4× the moment
+the lean puts on it), which is a scenario question, not a fibre-law one.
+
