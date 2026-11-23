@@ -589,7 +589,8 @@ export const TESTS = [
     },
     async run(env, p) {
       const out = {};
-      for (const [k, q, o] of [['chair', { ...FELL, ...p, step: 0 }, p.dn > 0 ? {} : { noNotch: true }], ['control', { ...FELL }, {}]]) {
+      // the control first, so the viewer ends on the barber chair
+      for (const [k, q, o] of [['control', { ...FELL }, {}], ['chair', { ...FELL, ...p, step: 0 }, p.dn > 0 ? {} : { noNotch: true }]]) {
         const ctx = await env.ctx(), m = ctx.stem(q.H, q.D, q.lean * DEG, 0);
         await ctx.run(2);
         const { back } = await fellCuts(ctx, m, q, 0, o);
@@ -607,7 +608,7 @@ export const TESTS = [
       is('barber chair: it splits before the back cut is finished', !m.chair.backDone || m.chair.backAtRip !== null),
       is('control (FM-10 defaults): no lengthwise split', m.control.rips === 0, m.control.rips),
     ],
-    view: (p) => ({ target: [0, 2, 0], dist: 7, yaw: -Math.PI / 2, pitch: 0.25 }),
+    view: (p) => ({ target: [0.5, 2, 0], dist: 8, yaw: 0, pitch: 0.2 }),      // side on to the lean
   },
   {
     id: 'FM-20', title: 'Results do not depend on the discretisation', time: 500,
