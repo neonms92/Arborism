@@ -17,6 +17,7 @@ import { segAxis, segLen, segParam, lanyardLoop } from '../model/world.js';
 import { bundleBasis, layout, CUT } from '../model/fibres.js';
 import { Flex, frameApply } from '../model/flex.js';
 import { CFG, MODE, INJ } from '../config.js';
+import { PaverView } from './pavers.js';
 
 const SIDES = 7;
 const PLAYER_COLORS = [0xe8a23a, 0x3a9be8, 0xd94f6a, 0x62c462, 0xb07be0, 0xe0d24a];
@@ -48,6 +49,7 @@ export class View {
     const ground = new THREE.Mesh(new THREE.CircleGeometry(150, 48).rotateX(-Math.PI / 2),
       new THREE.MeshLambertMaterial({ color: 0x5d8a48 }));
     ground.receiveShadow = true; this.scene.add(ground);
+    this.paverView = new PaverView(this.scene, world);   // concrete pavers round the tree, and their cracks
 
     this.barkMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, side: THREE.DoubleSide });
     this.leafMat = new THREE.MeshLambertMaterial({ color: 0x3f7d3a, flatShading: true, transparent: true });
@@ -83,12 +85,14 @@ export class View {
     const bo = CFG.BARK_OPACITY;
     this.barkMat.opacity = bo; this.barkMat.depthWrite = bo > 0.95;
     this.leafMat.opacity = CFG.LEAF_OPACITY; this.leafMat.depthWrite = CFG.LEAF_OPACITY > 0.95;
+    if (this.paverView.gravel !== CFG.PAVER_GRAVEL) { this.paverView.gravel = CFG.PAVER_GRAVEL; this.paverView.refresh(); }
     for (const p of this.pieces.values()) { p.bark.visible = bo > 0.01; p.leaves.visible = CFG.LEAF_OPACITY > 0.01; p.fibres.visible = CFG.SHOW_FIBRES; }
     this.lastAuxTick = -1; this.painted = false;
   }
 
   // ---- model -> meshes ----
   onEvent(ev, info) {
+    this.paverView.onEvent(ev);
     switch (ev.t) {
       case 'reset':
         for (const id of [...this.pieces.keys()]) this.dropPiece(id);

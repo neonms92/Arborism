@@ -615,6 +615,31 @@ kinematic climber: contact force × dt / body mass).
 Tool misuse feeds the same states (later tasks): rope running through
 gripping hands, saw pinch release, cutting your own lanyard.
 
+### 6.4 Concrete pavers
+
+The tree stands in a paved circle (`model/pavers.js`): a basket weave of
+`PAVER_SIZE` × `PAVER_SIZE`/2 slabs, whole slabs only, within
+`PAVER_RADIUS` × `TREE_HEIGHT` of the trunk (half the height by default), with
+a square pit of open soil at least `PAVER_PIT` wider than the trunk. The
+layout is generated from three numbers in the `pavers` event, so a client
+never depends on its own settings. They are laid fresh with every new tree.
+
+The slabs are flush with the ground, so physics is unchanged: wood and
+players land on the ground collider, and the host (`sim/pavers.js`) works out
+which paver is under each contact point. An impact's energy is
+½·m_eff·v_n², with v_n the closing speed at the contact before the step and
+m_eff the mass the body presents there (a log landing on its end hits with
+less than its whole mass). It is shared out between the pavers under the
+contact by impulse. A paver whose share is at least `PAVER_CRACK_E` gains
+share / `PAVER_CRACK_E` damage (`crack` event). Damage has no cap. Resting or
+rolling wood closes at ≈ 0 and does nothing.
+
+The view grows cracks from each hit point with a seeded generator, so every
+machine draws the same cracks and more damage only lengthens and adds to
+them: radial cracks, then branches and a crushed spot, then loose chips;
+from `PAVER_GRAVEL` the slab is drawn as a low heap of gravel (finer the
+further past it). Gravel is still flat ground to the physics.
+
 ---
 
 ## 7. Controls

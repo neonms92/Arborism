@@ -10,6 +10,7 @@ import { frameApply, frameDir, frameInverse } from '../model/flex.js';
 import { Players } from './players.js';
 import { Rope } from './rope.js';
 import { Structure } from './structure.js';
+import { Pavers } from './pavers.js';
 
 export const PLAYER_BODY_ID = 60000;   // snapshot ids >= this are players
 const Y = new THREE.Vector3(0, 1, 0);
@@ -58,6 +59,7 @@ export class Sim {
     };
     world.on((ev, info) => this.onEvent(ev, info));
     this.players = new Players(this);
+    this.pavers = new Pavers(this);   // needs the ground collider and nothing else yet
     this.rope = new Rope(this);
     this.structure = new Structure(this);
     this.onLoads = null;              // optional fn(dt), called each tick where point loads go in (test harness)
@@ -65,7 +67,7 @@ export class Sim {
     if (opts.tree !== false) this.grow();
   }
 
-  grow() { this.emit({ t: 'tree', piece: this.world.newId(), segs: generateTree(CFG.TREE_SEED, () => this.world.newId()) }); }
+  grow() { this.pavers.lay(); this.emit({ t: 'tree', piece: this.world.newId(), segs: generateTree(CFG.TREE_SEED, () => this.world.newId()) }); }
   /** Clear all wood and grow a new tree from the current TREE_* settings. */
   regrow() { this.emit({ t: 'reset' }); this.grow(); this.toast('A new tree'); }
 
@@ -234,6 +236,7 @@ export class Sim {
     this.rapier.step(this.eq, this.hooks);
     this.eq.drainContactForceEvents((e) => this.onContact(e));
     this.players.post(dt);
+    this.pavers.post();
 
     if (this.tick % 60 === 0) this.sweepDebris();
   }
@@ -241,6 +244,7 @@ export class Sim {
   onContact(e) {
     const h1 = e.collider1(), h2 = e.collider2();
     const mag = e.totalForceMagnitude(), dir = e.maxForceDirection();
+    this.pavers.onContact(h1, h2);
     for (const [h, other] of [[h1, h2], [h2, h1]]) {
       const pid = this.colPlayer.get(h);
       if (pid !== undefined) { this.players.onContact(pid, mag); continue; }

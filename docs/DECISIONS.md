@@ -324,3 +324,23 @@ player as an impulse (which walking mostly overrides: feet win). A press
 that grabs standing wood and is held on goes on into the 4 s lanyard throw,
 so spurring in is still "hold R"; the press that lets go locks the throw
 until R is released.
+
+## Concrete pavers
+
+**D49 — Pavers crack by impact energy, are flush with the ground, and are
+re-laid with each tree.** The owner asked for a "tunable
+threshold" on impacts from wood or a player; energy (½·m_eff·v_n² at the
+contact) was picked over Δv or force because it separates a twig from a log
+at the same speed and ignores wood that is only resting, and m_eff makes an
+end-first landing count for less than a flat one. Above the threshold a hit
+adds energy / threshold, so one unit of damage is one cracking impact.
+Defaults: 800 J (a jump or a half-metre drop does nothing, 1 m is right at
+the threshold, a fall from about
+3 m does about 3 units), gravel at 30 units. The slabs are drawn on top of the
+existing ground collider instead of being colliders of their own, so nothing
+about how wood rolls or slides changes (the engine branch's rolling
+resistance works on the ground collider) and there are no internal edges
+between slabs to snag on. The owner picked basket weave and a
+paved circle of radius half the tree height (`PAVER_RADIUS`, whole pavers
+only), so a felled tree's crown lands past the paving; damage is lost when a
+new tree is grown.
