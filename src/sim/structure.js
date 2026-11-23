@@ -297,7 +297,7 @@ export class Structure {
     // limits, solve the 6-DOF system, clamp the ones that are not, and repeat (active set).
     const dOx = Ob.x - Ow.x, dOy = Ob.y - Ow.y, dOz = Ob.z - Ow.z;
     const E = _E, RX = _RX, RY = _RY, RZ = _RZ, SX = _SX, SY = _SY, SZ = _SZ, mode = _mode, capF = _capF;
-    let alive = 0, kOwn = 0, mOwn = 0;
+    let alive = 0, kOwn = 0, mOwn = 0, cFold = 0;
     // Fibres are bonded to their neighbours (the wood between them). A bonded strip folds as one piece, so a
     // fibre's fold strain grows with its distance from the middle of its strip, not just its own thickness:
     // thick hinges are quicker to tear, thin strips still fold far (D49).
@@ -350,7 +350,7 @@ export class Structure {
         // its own fold: a fibre bundle is many thin plies of real fibre that slide on each other when it is
         // folded, so it is as stiff and strong in bending as FIBRE_PLY-thick layers (stretched on the outside of
         // each ply, crushed on the inside), not as one solid block h thick (D52)
-        alive++; kOwn += kt * h * ply / 12; mOwn += Ft * ply * Fc / (2 * (Ft + Fc));
+        alive++; kOwn += kt * h * ply / 12; cFold += kt * h * h / 12 * CFG.FOLD_DAMP; mOwn += Ft * ply * Fc / (2 * (Ft + Fc));
         // a fibre found beyond its elastic range has already stretched or crushed that far: it takes a set
         if (del - j.p[i] > ey) j.p[i] = del - ey; else if (del - j.p[i] < -ec) j.p[i] = del + ec;
         E[i] = del - j.p[i];
@@ -399,6 +399,8 @@ export class Structure {
       //   lambda = dt (w0 - D (u + W lambda))    =>   (I + dt D W) lambda = dt (w0 - D u),   D = (dt + damp) K
       const rhs = [0, 0, 0, 0, 0, 0];
       for (let a = 0; a < 36; a++) D[a] = coef * K[a];
+      // plies rubbing on each other as a fibre folds: a drag on how fast it folds (D53)
+      for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) D[(3 + a) * 6 + 3 + b] += cFold * ((a === b ? 1 : 0) - nv[a] * nv[b]);
       for (let a = 0; a < 6; a++) {
         let du = 0;
         for (let b = 0; b < 6; b++) {

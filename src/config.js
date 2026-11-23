@@ -63,7 +63,8 @@ export const CFG = {
   PART_OVERLAP: 0.01,      // m: two pieces that were joined start colliding once they overlap by less than this
   BOND_LEN: 0.05,          // m, length along the grain over which neighbouring fibres are bonded (SHEAR acts over it)
   FIBRE_DAMP: 0.01,        // s, stiffness-proportional damping of a live bundle
-  BEND_MAX: 1.6,           // rad, no fibre survives being folded further than this
+  BEND_MAX: 3.14,          // rad, no fibre survives being folded further than this (3.14 = folded right over)
+  FOLD_DAMP: 0.1,          // s, drag on folding fibres (plies rubbing): this times a solid fibre's bending stiffness
   COLOR_GAMMA: 0.6,        // debug fibre colours: (stress / limit) ^ gamma
 
   // --- chainsaw ---

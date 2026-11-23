@@ -452,3 +452,14 @@ FM-14's limb now folds to about 92° (it stopped at 14° before), where
 `BEND_MAX` snaps every fibre at once, so it holds ~0.3 s instead of 1 s.
 The FM-11 losses are trunks left hanging on a folded hinge.
 
+**D53 — Fibres can fold right over, and folding is damped.** The owner:
+with no bottom cut the bottom fibres are free to fold completely over
+(important for trunks), and folded fibres should still damp the motion.
+`BEND_MAX` is now 3.14 rad (180°, was 1.6). Folding fibres now feel a drag
+on their fold rate, as their plies rub: `FOLD_DAMP` (0.1 s, menu) times a
+solid fibre's bending stiffness, solved implicitly with the rest of the
+joint. FM-14's default limb now folds to 73° in 2.5 s and hangs there (no
+damping: it swings to 99°). Must-pass: FM-14 1 → 20 / 81, FM-10 50 → 49,
+FM-11 61 → 60, FM-15 80 / 81; smoke FM-04 now passes. Peeling (a strap
+tearing back along the stem) is not modelled.
+
