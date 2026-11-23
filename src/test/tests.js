@@ -279,8 +279,10 @@ export const TESTS = [
         bimodT: Et() * M / EI * (R - c), bimodC: Ec() * M / EI * (R + c), monotonic: mono, levels: steps.map((s) => s[0]), splits: ctx.splits.length };
     },
     judge: (m) => [
-      ge('maxT >= 0.6 McI', m.ratioT, 0.6), le('maxT <= 1.6 McI', m.ratioT, 1.6),
-      ge('|minC| >= 0.6 McI', m.ratioC, 0.6), le('|minC| <= 1.6 McI', m.ratioC, 1.6),
+      // the owner's call (FM-02 card): against the bimodular section, whose tension and compression stiffness
+      // differ, not the symmetric M c / I
+      ge('maxT >= 0.6 x bimodular', m.maxT / m.bimodT, 0.6), le('maxT <= 1.6 x bimodular', m.maxT / m.bimodT, 1.6),
+      ge('|minC| >= 0.6 x bimodular', -m.minC / m.bimodC, 0.6), le('|minC| <= 1.6 x bimodular', -m.minC / m.bimodC, 1.6),
       is('maxT rises monotonically with P', m.monotonic), is('no split', m.splits === 0, m.splits),
     ],
     view: (p) => ({ target: [0, p.L + 1.5, 0], dist: 1.2, yaw: 0.6, pitch: 0.2 }),
@@ -494,11 +496,25 @@ export const TESTS = [
       await ctx.run(1);
       const hc = 0.5;
       m.cut(() => [hc, hc]);
+      // The owner's call (FM-16 card): a stem balanced on its stump gets a small push. Half a second after the
+      // cut, a level push at the top, the way it leans (+x), ramping up by 2 % of the stem's weight per
+      // second, and let go once it tilts 10° past its lean: the least push that tips it (a rocking stem that
+      // swings back is pushed again).
+      const t0 = ctx.t + 0.5, Wt = m.segs().reduce((a, e) => a + segMass(e.s), 0) * CFG.GRAVITY;
+      let pushing = true, pushPeak = 0;
+      ctx.hooks.push((c) => {
+        if (!pushing || c.t < t0) return;
+        const tp = m.top();
+        const d = m.dirOf(m.topPiece()), tilt = d ? Math.acos(Math.max(-1, Math.min(1, d.y / Math.hypot(d.x, d.y, d.z)))) / DEG : 0;
+        if (tilt > p.lean + 10 || tp.p.y < 1.5) { pushing = false; return; }
+        const F = 0.02 * Wt * (c.t - t0); pushPeak = F;
+        c.sim.applyForce(tp.seg.id, tp.p, { x: F, y: 0, z: 0 });
+      });
       await ctx.run(20, () => m.top().p.y < 1.5 && st.settled);
       const piece = m.topPiece(), d = m.dirOf(piece), heading = d ? Math.atan2(d.z, d.x) / DEG : null, butt = m.butt(piece);
       const stump = m.axis.map((a) => a * hc);
       return { splits: ctx.splits.length, clean: ctx.splits.length > 0 && !ctx.splits[0].live, topY: +m.top().p.y.toFixed(3), heading,
-        slide: butt ? +Math.hypot(butt.x - stump[0], butt.z - stump[2]).toFixed(3) : null };
+        slide: butt ? +Math.hypot(butt.x - stump[0], butt.z - stump[2]).toFixed(3) : null, pushPeak: +pushPeak.toFixed(1), pushOfWeight: +(pushPeak / Wt).toFixed(4) };
     },
     judge: (m, p) => [
       is('one clean split', m.splits === 1 && m.clean, m.splits), le('falls (top < 1.5 m)', m.topY, 1.5),

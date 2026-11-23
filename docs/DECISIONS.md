@@ -344,3 +344,17 @@ between slabs to snag on. The owner picked basket weave and a
 paved circle of radius half the tree height (`PAVER_RADIUS`, whole pavers
 only), so a felled tree's crown lands past the paving; damage is lost when a
 new tree is grown.
+
+**D47 — Owner's calls on two test criteria.** FM-02 checks root stress
+against the bimodular section, not `M·c/I`: green wood is softer in
+compression, so the symmetric formula overstates compression stress (77 / 81
+pass; the rest fail "rises monotonically"). FM-16 pushes a stem that sits
+balanced on its stump after the cut, as a feller would: the least push that
+tips it (25 / 25 pass).
+
+**D48 — The tests hang real weights and time alone.** FM-04 / FM-05 load
+the limb with a point mass on a ball joint once it is live (a capped force
+faded as the limb moved and never tore it off). Honest loading makes FM-05
+fail: a limb loaded just past first yield tears off instead of holding, a
+finding for the fibre law. FM-22 runs after every other test, alone.
+

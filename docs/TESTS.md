@@ -146,9 +146,9 @@ bending (DESIGN 3.2, 3.2a). This pins them to a textbook answer.
   breaking load; explore 0 – 95 %.
 - **Measured:** root `maxT`, `minC`; the analytic `M·c/I` for a solid circle
   at the root; the neutral-axis offset implied by the strain plane.
-- **Pass if:** `maxT` and `|minC|` are each within 0.6 – 1.6 × `M·c/I`
-  *(proposed: the model is bimodular, so tension and compression differ from
-  the symmetric formula; the band brackets the exact bimodular answer)*;
+- **Pass if:** `maxT` and `|minC|` are each within 0.6 – 1.6 × the
+  bimodular section's answer (owner's decision: tension and compression
+  stiffness differ, so the symmetric `M·c/I` is the wrong reference);
   `maxT` increases monotonically with P across the sweep; no `split`.
 - **Time:** 5 s.
 - **View:** close-up of the root bundle, fibres coloured, stress values
@@ -385,7 +385,10 @@ underside fibres must act as a hinge that nothing closes on.
 ### FM-16 Straight through: free, no launch
 
 - **Scenario:** Stem(H, D, lean). A single level plane cut through every
-  fibre at once at `h_c`.
+  fibre at once at `h_c`. Half a second later a level push at the top, the
+  way it leans, ramping by 2 % of the stem's weight per second until it has
+  tilted 10° past its lean (owner's decision: a stem balanced on its stump
+  gets a small push; one that overhangs needs none).
 - **Parameters:** H 4 – 20, D 0.2 – 0.8, lean 0 – 10°.
 - **Pass if:** one clean (not live) `split`; the stem falls (top < 1.5 m at
   the end) and, if lean ≥ 3°, within 30° of the lean; butt slides ≤ 2 m;
