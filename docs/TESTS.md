@@ -395,6 +395,31 @@ underside fibres must act as a hinge that nothing closes on.
   INV-3 holds.
 - **Time:** 20 s.
 
+### FM-17 Straight stem, level cut: it stands
+
+*Why (owner, 2026-11-23):* with nothing off-centre, nothing should tip it.
+
+- **Scenario:** Stem(H, D, 0°). One level cut through every fibre at 0.5 m.
+- **Parameters:** H 4 – 20, D 0.2 – 0.8.
+- **Pass if:** one clean split; the top stays above 0.95 H and drifts
+  less than 0.1 m over 20 s.
+
+### FM-18 Straight stem, notch only: it leans into the notch
+
+*Why (owner, 2026-11-23):* wood above a notch sits off-centre on what is
+left, so the stem must lean the notch's way before anything lets go. Checks
+that a partly cut bundle carries the weight of the wood above at that
+wood's own centre of gravity.
+
+- **Scenario:** Stem(H, D, 0°). A notch (upper face at `alpha`) at 0.5 m,
+  deepened by 5 % of D every second until the stem goes live; repeated with
+  the notch facing 0°, 90°, 180° and 270°, each in a fresh world.
+- **Parameters:** H 4 – 20, D 0.2 – 0.8, alpha 45 – 70°.
+- **Measured:** the top's sideways movement just before release, its
+  heading, the depth at release, the fall heading.
+- **Pass if:** for each direction, the top has moved more than 1 mm before
+  release, within 30° of the way the notch faces.
+
 ---
 
 ## 4. Solver robustness
