@@ -138,7 +138,7 @@ async function fell(env, p, o = {}) {
     buttAlong: +along.toFixed(3),
     hingePlanned: hingeN, hingeStart: J ? J.startElastic : null, hingeSnapped: J ? J.snapped.length : null,
     hingeEnd: J ? (J.end >= 0 ? J.endElastic : null) : null,
-    peakU: +peakU.toFixed(4), stepFall: ctx.stepStats(fallFrom), splits: ctx.splits.length,
+    peakU: +peakU.toFixed(4), stepFall: ctx.stepStats(fallFrom), splits: ctx.splits.length, rips: ctx.rips.length,
   };
 }
 
@@ -382,6 +382,7 @@ export const TESTS = [
       ge('hinge life >= 0.5 s', m.hingeLife ?? NaN, 0.5), ge('hinge-release angle >= 10°', m.releaseAngle ?? NaN, 10),
       le('butt <= 1.5 m towards the notch', m.buttAlong, 1.5), le('butt <= 0.5 m back over the stump', -m.buttAlong, 0.5),
       le('step cost p95 <= 4 ms', m.stepFall.p95, 4),
+      is('no lengthwise split (FM-19 relies on this)', m.rips === 0, m.rips),
     ],
     view: (p) => ({ target: [p.H / 4, p.H / 4, 0], dist: p.H * 1.2, yaw: Math.PI, pitch: 0.4, arrows: true }),
   },
@@ -545,68 +546,61 @@ export const TESTS = [
     // The owner's (2026-11-23): a notch alone, deepened step by step, takes away wood on one side, so the
     // wood above should sit off-centre on what is left and lean the notch's way before anything lets go.
     // Four notch directions, each in its own world.
-    id: 'FM-18', title: 'Straight stem, notch only: it leans into the notch (4 directions)', time: 160,
-    params: { H: P([4, 20], [2, 35], 11, 'm'), D: P([0.2, 0.8], [0.05, 1.5], 0.5, 'm'), alpha: P([45, 70], [30, 90], 55, '°') },
+    id: 'FM-18', title: 'Straight stem, notch only: it leans into the notch', time: 40,
+    params: {
+      H: P([4, 20], [2, 35], 11, 'm'), D: P([0.2, 0.8], [0.05, 1.5], 0.5, 'm'), alpha: P([45, 70], [30, 90], 55, '°'),
+      psi: P(list(0, 90, 180, 270), [0, 360], 0, '°'),       // the way the notch faces
+    },
     fix(p) { p.D = Math.min(Math.max(p.D, p.H / 200), p.H / 5); return p; },
     async run(env, p) {
-      const out = [];
-      for (const psi of [0, 90, 180, 270]) {
-        const ctx = await env.ctx(), m = ctx.stem(p.H, p.D, 0, 0);
+      const psi = p.psi, ctx = await env.ctx(), m = ctx.stem(p.H, p.D, 0, 0);
+      await ctx.run(1);
+      const hc = 0.5, R = m.R(hc), tanA = Math.tan(p.alpha * DEG), dN = perpTo([Math.cos(psi * DEG), 0, Math.sin(psi * DEG)], m.axis);
+      const top0 = m.top().p.clone(), lean = () => { const t = m.top().p; return [t.x - top0.x, t.z - top0.z]; };
+      let rel = null, before = null, depth = 0;
+      for (let dn = 0.05; dn <= 0.9 + 1e-9 && rel === null; dn += 0.05) {
+        const qA = R - dn * 2 * R;
+        m.cut((ov) => { const q = dot(ov, dN) * R; return q > qA ? [hc, hc + (q - qA) * tanA] : null; });
         await ctx.run(1);
-        const hc = 0.5, R = m.R(hc), tanA = Math.tan(p.alpha * DEG), dN = perpTo([Math.cos(psi * DEG), 0, Math.sin(psi * DEG)], m.axis);
-        const top0 = m.top().p.clone(), lean = () => { const t = m.top().p; return [t.x - top0.x, t.z - top0.z]; };
-        let rel = null, before = null, depth = 0;
-        for (let dn = 0.05; dn <= 0.9 + 1e-9 && rel === null; dn += 0.05) {
-          const qA = R - dn * 2 * R;
-          m.cut((ov) => { const q = dot(ov, dN) * R; return q > qA ? [hc, hc + (q - qA) * tanA] : null; });
-          await ctx.run(1);
-          if (ctx.splits.length) { rel = { dn: +dn.toFixed(2), lean: lean() }; break; }
-          before = lean(); depth = dn;
-        }
-        await ctx.run(rel ? 10 : 0);
-        const d = m.dirOf(m.topPiece()), fell = d ? Math.atan2(d.z, d.x) / DEG : null;
-        const head = (v) => (v && Math.hypot(v[0], v[1]) > 1e-6 ? Math.atan2(v[1], v[0]) / DEG : null);
-        out.push({ psi, depthBefore: +depth.toFixed(2), leanBefore: before ? +Math.hypot(before[0], before[1]).toFixed(5) : 0,
-          headingBefore: head(before), releaseDepth: rel ? rel.dn : null, fellHeading: rel && d && d.y < 0.7 ? +fell.toFixed(1) : null });
+        if (ctx.splits.length) { rel = { dn: +dn.toFixed(2), lean: lean() }; break; }
+        before = lean(); depth = dn;
       }
-      return { dirs: out };
+      await ctx.run(rel ? 10 : 0);
+      const d = m.dirOf(m.topPiece()), fell = d ? Math.atan2(d.z, d.x) / DEG : null;
+      const head = (v) => (v && Math.hypot(v[0], v[1]) > 1e-6 ? Math.atan2(v[1], v[0]) / DEG : null);
+      return { psi, depthBefore: +depth.toFixed(2), leanBefore: before ? +Math.hypot(before[0], before[1]).toFixed(5) : 0,
+        headingBefore: head(before), releaseDepth: rel ? rel.dn : null, fellHeading: rel && d && d.y < 0.7 ? +fell.toFixed(1) : null };
     },
-    judge: (m) => m.dirs.flatMap((o) => [
-      ge(`notch at ${o.psi}°: leans before release (> 1 mm)`, o.leanBefore, 0.001),
-      le(`notch at ${o.psi}°: leans toward the notch (within 30°)`, Math.abs(wrap((o.headingBefore ?? o.psi + 180) - o.psi)), 30),
-    ]),
+    judge: (m) => [
+      ge('leans before release (> 1 mm)', m.leanBefore, 0.001),
+      le('leans toward the notch (within 30°)', Math.abs(wrap((m.headingBefore ?? m.psi + 180) - m.psi)), 30),
+    ],
     view: (p) => ({ target: [0, p.H / 3, 0], dist: p.H * 1.4, yaw: -Math.PI / 2, pitch: 0.35 }),
   },
   {
     // The owner's (2026-11-23): a hard-leaning trunk with a shallow notch, back-cut straight in from behind,
     // splits up the stem ahead of the saw (a barber chair). Nothing in the engine knows about barber chairs:
     // a lengthwise split happens wherever severed fibres leave more shear along the grain than the wood can
-    // carry (DECISIONS D50). The control is FM-10's ordinary fell, which must not split.
-    id: 'FM-19', title: 'Barber chair: a hard lean back-cut without a proper notch splits up the stem', time: 60,
+    // carry (DECISIONS D50). That an ordinary fell does not split is FM-10's job.
+    id: 'FM-19', title: 'Barber chair: a hard lean back-cut without a proper notch splits up the stem', time: 30, dependsOn: ['FM-10'],
     params: {
       lean: P([15, 25], [8, 35], 20, '°'), dn: P([0.05, 0.12], [0, 0.2], 0.1, '× D'),
       H: P([12, 20], [6, 30], 15, 'm'), D: P([0.4, 0.7], [0.2, 1.2], 0.5, 'm'),
     },
     async run(env, p) {
-      const out = {};
-      // the control first, so the viewer ends on the barber chair
-      for (const [k, q, o] of [['control', { ...FELL }, {}], ['chair', { ...FELL, ...p, step: 0 }, p.dn > 0 ? {} : { noNotch: true }]]) {
-        const ctx = await env.ctx(), m = ctx.stem(q.H, q.D, q.lean * DEG, 0);
-        await ctx.run(2);
-        const { back } = await fellCuts(ctx, m, q, 0, o);
-        let backAtRip = null;
-        ctx.hooks.push((c) => { if (backAtRip === null && c.rips.length) backAtRip = back.count; });
-        await ctx.run(90, () => back.done || (ctx.rips.length && ctx.t > ctx.rips[0].tick * CFG.TICK + 5));
-        await ctx.run(5);
-        const hc = q.hc, rise = ctx.rips.length ? Math.max(...ctx.rips.map((r) => r.hi)) - hc : 0;
-        out[k] = { rips: ctx.rips.length, rise: +rise.toFixed(2), backDone: !!back.done, backAtRip, backN: back.list.length };
-      }
-      return out;
+      const q = { ...FELL, ...p, step: 0 }, ctx = await env.ctx(), m = ctx.stem(q.H, q.D, q.lean * DEG, 0);
+      await ctx.run(2);
+      const { back } = await fellCuts(ctx, m, q, 0, p.dn > 0 ? {} : { noNotch: true });
+      let backAtRip = null;
+      ctx.hooks.push((c) => { if (backAtRip === null && c.rips.length) backAtRip = back.count; });
+      await ctx.run(90, () => back.done || (ctx.rips.length && ctx.t > ctx.rips[0].tick * CFG.TICK + 5));
+      await ctx.run(5);
+      const rise = ctx.rips.length ? Math.max(...ctx.rips.map((r) => r.hi)) - q.hc : 0;
+      return { rips: ctx.rips.length, rise: +rise.toFixed(2), backDone: !!back.done, backAtRip, backN: back.list.length };
     },
     judge: (m) => [
-      ge('barber chair: the stem splits lengthwise >= 1 m above the cut (m)', m.chair.rise, 1),
-      is('barber chair: it splits before the back cut is finished', !m.chair.backDone || m.chair.backAtRip !== null),
-      is('control (FM-10 defaults): no lengthwise split', m.control.rips === 0, m.control.rips),
+      ge('the stem splits lengthwise >= 1 m above the cut (m)', m.rise, 1),
+      is('it splits before the back cut is finished', !m.backDone || m.backAtRip !== null),
     ],
     view: (p) => ({ target: [0.5, 2, 0], dist: 8, yaw: 0, pitch: 0.2 }),      // side on to the lean
   },

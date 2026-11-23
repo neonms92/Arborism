@@ -69,8 +69,8 @@ for it).
 | FM-15 undercut + top cut | 80 / 81 (+1) | 81 / 81 | — |
 | FM-16 straight through | 5 / 25 | 16 / 25 | a stem with no lean balances on its stump |
 | FM-17 straight, level cut (new) | — | 21 / 21 | — |
-| FM-18 straight, notch only, 4 ways (new) | — | 25 / 25 | — |
-| FM-19 barber chair (new, D50) | — | 16 / 33 | thin stems at light leans never split; elsewhere the split often stops under 1 m. Where it passes, the trunk still breaks at the cut and takes the split slab with it (no standing slab yet) |
+| FM-18 straight, notch only (new; one notch direction per run since 2026-11-23) | — | 33 / 33 | — |
+| FM-19 barber chair (new, D50; depends on FM-10, which now also checks an ordinary fell does not split) | — | 16 / 33 | thin stems at light leans never split; elsewhere the split often stops under 1 m. Where it passes, the trunk still breaks at the cut and takes the split slab with it (no standing slab yet) |
 | FM-20 discretisation | 0 / 1 | 0 / 1 | fall heading, hinge angle and P_live all move with SEG_LEN / FIBRE_PITCH |
 | FM-21 determinism | 1 / 1 | 1 / 1 | identical event logs and transforms |
 | FM-22 step cost | 1 / 1 | 0 / 1 | idle p95 1.2 ms against a 1 ms bound while 3 other workers ran; alone it measures 0.7 – 1.0 ms with or without rolling resistance, so this one is timing noise at the edge of its bound |

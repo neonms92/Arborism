@@ -108,7 +108,7 @@ class Testing {
         s.invalid ? el('span', { class: 'invalid' }, ` · ${s.invalid} invalid`) : '', s.skip ? el('span', { class: 'skip' }, ` · ${s.skip} skipped`) : '',
         el('span', { class: 'muted' }, ` · ${s.mode}${s.trend ? ' · ' + s.trend + ' than before' : ''}`)) : el('span', { class: 'muted' }, 'not run');
       return el('tr', { class: 't' + (this.focus === t.id ? ' sel' : ''), onclick: () => { this.focus = t.id; this.render(); if (innerWidth < 800) this.detail.scrollIntoView({ behavior: 'smooth' }); } },
-        el('td', {}, cb), el('td', {}, el('b', {}, t.id)), el('td', {}, t.title), el('td', {}, res));
+        el('td', {}, cb), el('td', {}, el('b', {}, t.id)), el('td', {}, t.title, t.dependsOn ? el('span', { class: 'muted' }, ` (needs ${t.dependsOn.join(', ')})`) : ''), el('td', {}, res));
     });
     this.list.replaceChildren(el('table', {}, el('tr', {}, el('th', {}, ''), el('th', {}, 'Test'), el('th', {}, ''), el('th', {}, 'Latest batch')), rows));
     this.renderDetail();
@@ -126,6 +126,13 @@ class Testing {
     const t = this.focus && TEST_BY_ID.get(this.focus);
     if (!t) { this.detail.replaceChildren(el('p', { class: 'muted' }, 'Pick a test to see its results.')); return; }
     const s = summarise(this.recs, t.id), kids = [el('h3', {}, `${t.id} ${t.title}`)];
+    if (t.dependsOn) {
+      // a test that relies on another one to check part of the story (FM-19 needs FM-10's ordinary fell not to split)
+      kids.push(el('div', {}, 'Depends on: ', ...t.dependsOn.map((id) => {
+        const d = summarise(this.recs, id);
+        return el('span', {}, el('b', {}, id + ' '), d ? el('span', { class: d.fail || d.invalid ? 'fail' : 'pass' }, `${d.pass} / ${d.judged} pass `) : el('span', { class: 'muted' }, 'not run '));
+      })));
+    }
     kids.push(el('div', { class: 'muted' }, 'Parameters: ', Object.entries(t.params).map(([k, d]) => `${k} ${fmtRange(d.must)} (explore ${fmtRange(d.explore)}) ${d.unit || ''}`).join(' · ') || 'none'));
     kids.push(el('div', { class: 'bar' }, el('button', { class: 'go', onclick: () => this.viewDefault(t.id) }, 'View the default point')));
     if (!s) { this.detail.replaceChildren(...kids); return; }
@@ -170,6 +177,8 @@ class Testing {
 
   async runTests(ids, mode, opts = {}) {
     if (this.progress.running) return null;
+    // a test's dependencies run with it, so its result can be read together with theirs
+    for (let i = 0; i < ids.length; i++) for (const d of TEST_BY_ID.get(ids[i])?.dependsOn || []) if (!ids.includes(d)) ids = [...ids, d];
     const batch = Date.now().toString(36) + Math.random().toString(36).slice(2, 5), commit = commitOf();
     this.pool = this.pool || new Pool(opts.workers || 0);
     this.pool.onChange = () => this.renderStatus();
