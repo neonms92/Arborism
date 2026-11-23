@@ -11,6 +11,42 @@ import { Pool } from './pool.js';
 import * as store from './store.js';
 import { summarise, boundary } from './report.js';
 import { runCase } from './runcase.js';
+import { segMass, segCentroidT, lerp3 } from '../model/world.js';
+import { frameApply } from '../model/flex.js';
+
+/**
+ * Centres of gravity for the viewer's plumb lines: every loose piece's (from its body), and for standing wood
+ * the centre of gravity of everything the lowest cut on each stem holds up, with that cut's centre (the hinge).
+ */
+export function gravityCentres(sim) {
+  const w = sim.world, flex = sim.structure.flex, out = [];
+  for (const [id, body] of sim.bodies) {
+    if (body.isFixed()) continue;
+    const c = body.worldCom(); out.push({ c: [c.x, c.y, c.z], m: body.mass(), piece: id });
+  }
+  const cutRooted = (s) => s && s.f.ncut > 0 && s.f.ncut < s.f.n && sim.bodies.get(s.piece)?.isFixed();
+  for (const s of w.segs.values()) {
+    if (!cutRooted(s)) continue;
+    let up = s.parent >= 0 ? w.segs.get(s.parent) : null, lower = false;
+    for (; up; up = up.parent >= 0 ? w.segs.get(up.parent) : null) if (up.piece === s.piece && cutRooted(up)) { lower = true; break; }
+    if (lower) continue;
+    const f = s.f, acc = [0, 0, 0]; let m = 0;
+    const add = (p, mm) => { acc[0] += p[0] * mm; acc[1] += p[1] * mm; acc[2] += p[2] * mm; m += mm; };
+    const tc = segCentroidT(s, f.at, 1);
+    add(frameApply(flex.at(s.id, tc), lerp3(s.a, s.b, tc)), segMass(s, f.at, 1));
+    if (s.leaf) add(frameApply(flex.at(s.id, 1), s.b), s.leaf);
+    const stack = [...w.kids(s.id)];
+    while (stack.length) {
+      const k = w.segs.get(stack.pop()); if (!k || k.piece !== s.piece) continue;
+      const t = segCentroidT(k);
+      add(frameApply(flex.at(k.id, t), lerp3(k.a, k.b, t)), segMass(k));
+      if (k.leaf) add(frameApply(flex.at(k.id, 1), k.b), k.leaf);
+      stack.push(...w.kids(k.id));
+    }
+    if (m > 0) out.push({ c: acc.map((x) => x / m), m, hinge: frameApply(flex.at(s.id, f.at), lerp3(s.a, s.b, f.at)), seg: s.id });
+  }
+  return out;
+}
 
 const CSS = `
 #testing { position: fixed; inset: 0; overflow-y: auto; background: #141b12; color: #eee; font: 13.5px/1.4 system-ui, sans-serif; padding: 14px 18px 60px; box-sizing: border-box; z-index: 20; }
@@ -250,7 +286,8 @@ class Testing {
 
   /**
    * Watch one run in 3D. Touch: one finger orbits, two fingers pinch to dolly the camera forward / back
-   * (it moves; the lens does not zoom) and drag to pan, double tap resets the camera. Mouse: drag, wheel.
+   * (it moves; the lens does not zoom) and drag to pan, double tap resets the camera. Mouse: drag orbits, right / shift drag
+   * pans, wheel moves forward / back. Trackpad: two-finger swipe pans, pinch moves forward / back.
    * Replay starts the run again from the beginning; the phone's back gesture returns to the list.
    */
   async view(rec) {
@@ -266,7 +303,8 @@ class Testing {
       speed = speeds[i][0]; spb.textContent = speeds[i][1]; wall0 = performance.now(); sim0 = ctxNow ? ctxNow.t : 0;
     } }, '1×');
     const pb = el('button', { onclick: () => { paused = !paused; pb.textContent = paused ? 'Play' : 'Pause'; } }, 'Pause');
-    let showHud = innerWidth >= 800;
+    let showHud = innerWidth >= 800, showPlumb = true, plumbGroup = null;
+    const plb = el('button', { class: 'on', title: 'Plumb lines from the centres of gravity', onclick: () => { showPlumb = !showPlumb; plb.classList.toggle('on', showPlumb); } }, 'Plumb');
     const ib = el('button', { class: showHud ? 'on' : '', title: 'Show the run details', onclick: () => { showHud = !showHud; ib.classList.toggle('on', showHud); hud.style.display = showHud ? '' : 'none'; } }, 'Info');
     hud.style.display = showHud ? '' : 'none';
     // ---- sliders: every parameter of the test, and its steps (one of the runs a comparison test makes).
@@ -339,7 +377,7 @@ class Testing {
 
     const wrapEl = el('div', { id: 'tview' }, canvas, hud, panel,
       el('div', { class: 'top' }, el('button', { title: 'Back to the test list', onclick: () => close() }, '‹ Tests'), title),
-      el('div', { class: 'bot' }, el('button', { onclick: () => replay() }, 'Replay'), pb, spb, pbtn, ib));
+      el('div', { class: 'bot' }, el('button', { onclick: () => replay() }, 'Replay'), pb, spb, pbtn, plb, ib));
     document.body.append(wrapEl);
 
     // ---- camera: an orbit about a target; dolly moves the camera, and carries the target along once it gets close
@@ -361,25 +399,47 @@ class Testing {
     };
     const orbit = (dx, dy) => { cam.yaw -= dx * 0.007; cam.pitch = Math.max(-1.4, Math.min(1.5, cam.pitch + dy * 0.007)); };
     const pts = new Map();
-    let lastTap = 0, moved = 0;
+    let lastTap = 0, moved = 0, g2 = null;
     const two = () => { const [a, b] = [...pts.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
-    canvas.onpointerdown = (e) => { try { canvas.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ } pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = 0; };
+    canvas.onpointerdown = (e) => { g2 = null; try { canvas.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ } pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = 0; };
     canvas.onpointermove = (e) => {
       const p = pts.get(e.pointerId); if (!p) return;
+      if (pts.size === 1 && e.pointerType === 'mouse' && (e.buttons & 6 || e.shiftKey)) {   // right / middle / shift drag pans
+        pan(e.clientX - p.x, e.clientY - p.y); moved += 99; p.x = e.clientX; p.y = e.clientY; camTouched = true; return;
+      }
       if (pts.size === 1) { orbit(e.clientX - p.x, e.clientY - p.y); moved += Math.abs(e.clientX - p.x) + Math.abs(e.clientY - p.y); p.x = e.clientX; p.y = e.clientY; camTouched = true; return; }
+      // Two fingers: decide once per gesture whether it is a pinch or a pan, from whichever has moved further
+      // after the first 16 px, so a two-finger drag does not creep forward or back as the fingers shift.
       const before = two(); p.x = e.clientX; p.y = e.clientY; const after = two();
-      if (before.d > 10 && after.d > 10) dolly(before.d / after.d);     // fingers apart: forward
-      pan(after.x - before.x, after.y - before.y);
+      if (!g2) g2 = { d0: before.d, x0: before.x, y0: before.y, mode: null };
+      if (!g2.mode) {
+        const pinch = Math.abs(after.d - g2.d0), drag = Math.hypot(after.x - g2.x0, after.y - g2.y0);
+        if (Math.max(pinch, drag) > 16) {
+          g2.mode = pinch > drag ? 'pinch' : 'pan';
+          if (g2.mode === 'pinch' && g2.d0 > 10) dolly(g2.d0 / after.d); else pan(after.x - g2.x0, after.y - g2.y0);
+        }
+      } else if (g2.mode === 'pinch') { if (before.d > 10 && after.d > 10) dolly(before.d / after.d); }     // fingers apart: forward
+      else pan(after.x - before.x, after.y - before.y);
       moved += 99; camTouched = true;
     };
     const up = (e) => {
       if (!pts.delete(e.pointerId)) return;
+      if (pts.size < 2) g2 = null;
       if (pts.size || e.type === 'pointercancel') return;
       const now = performance.now();
       if (moved < 12) { if (now - lastTap < 320) { if (camView) setView(camView); camTouched = false; lastTap = 0; } else lastTap = now; }
     };
     canvas.onpointerup = up; canvas.onpointercancel = up;
-    canvas.onwheel = (e) => { e.preventDefault(); dolly(Math.exp(e.deltaY * 0.001)); camTouched = true; };
+    // A trackpad's two-finger swipe arrives as small pixel wheel steps (often with some deltaX) and its pinch as
+    // ctrl + wheel; a mouse wheel arrives in lines or big notches. Swipes pan, pinches and mouse wheels dolly.
+    canvas.onwheel = (e) => {
+      e.preventDefault(); camTouched = true;
+      const mouse = e.deltaMode !== 0 || (e.deltaX === 0 && Math.abs(e.deltaY) >= 50 && Number.isInteger(e.deltaY));
+      if (e.ctrlKey) dolly(Math.exp(e.deltaY * 0.01));
+      else if (mouse && !e.shiftKey) dolly(Math.exp((e.deltaMode ? e.deltaY * 33 : e.deltaY) * 0.001));
+      else pan(-e.deltaX, -e.deltaY);
+    };
+    canvas.oncontextmenu = (e) => e.preventDefault();
 
     // ---- the phone's back gesture closes the viewer, not the page
     history.pushState({ tview: 1 }, '');
@@ -394,6 +454,37 @@ class Testing {
       if (!fromPop) history.back();
     };
 
+    // ---- plumb lines: yellow from each centre of gravity straight down to the ground; for standing wood above a
+    // cut, cyan from the cut's centre too, so you can see when the weight has moved past the hinge
+    const drawPlumbs = (sim) => {
+      if (plumbGroup && plumbGroup.parent !== vw.scene) plumbGroup = null;
+      if (!plumbGroup) { plumbGroup = new THREE.Group(); plumbGroup.renderOrder = 10; vw.scene.add(plumbGroup); }
+      plumbGroup.visible = showPlumb;
+      if (!showPlumb) return;
+      const list = gravityCentres(sim), segs = [], cols = [], dots = [], dcols = [];
+      const seg = (a, b, col) => { segs.push(a[0], a[1], a[2], b[0], b[1], b[2]); cols.push(...col, ...col); };
+      const line = (p, col) => {          // straight down, with a cross where it meets the ground
+        const g = [p[0], 0.02, p[2]], r = 0.25;
+        seg(p, g, col); seg([g[0] - r, 0.02, g[2]], [g[0] + r, 0.02, g[2]], col); seg([g[0], 0.02, g[2] - r], [g[0], 0.02, g[2] + r], col);
+        dots.push(p); dcols.push(...col);
+      };
+      const Y = [1, 0.85, 0.1], C = [0.2, 0.9, 1];
+      for (const g of list) {
+        line(g.c, Y);
+        if (g.hinge) { line(g.hinge, C); seg([g.hinge[0], 0.02, g.hinge[2]], [g.c[0], 0.02, g.c[2]], [1, 1, 1]); }   // on the ground: how far the weight is past the hinge
+      }
+      for (const o of plumbGroup.children) o.geometry.dispose();
+      plumbGroup.clear();
+      if (!segs.length) return;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(segs, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+      plumbGroup.add(new THREE.LineSegments(geo, plumbMat));
+      const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(dots.flat(), 3));
+      pg.setAttribute('color', new THREE.Float32BufferAttribute(dcols, 3));
+      plumbGroup.add(new THREE.Points(pg, dotMat));
+    };
+    const plumbMat = new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, transparent: true });
+    const dotMat = new THREE.PointsMaterial({ vertexColors: true, size: 10, sizeAttenuation: false, depthTest: false, transparent: true });
     const raf = () => new Promise((r) => requestAnimationFrame(r));
     const draw = (ctx) => {
       if (!vw) return;
@@ -403,6 +494,7 @@ class Testing {
       c.lookAt(t[0], t[1], t[2]);
       const sim = ctx.sim, U = ctx.worstU();
       vw.update(1 / 60, { pose: (id) => sim.pose(id), get flex() { return sim.structure.flex; } }, sim.aux(), -1, null);
+      drawPlumbs(sim);
       // one step of a comparison test may have nothing of its own to judge: its checks are across the batch
       const v = done ? (done.metrics && done.metrics.one && !done.criteria.length ? 'one step' : done.verdict === 'explore' ? (done.wouldPass ? 'pass' : 'fail') : done.verdict) : null;
       title.replaceChildren(el('b', {}, `${rec.test} ${T.title}`),
@@ -413,7 +505,9 @@ class Testing {
         `run ${ctx === ctxNow ? '' : '(earlier) '}t = ${ctx.t.toFixed(2)} s   pieces ${sim.world.pieces.size}   live bundles ${sim.structure.live.size}   splits ${ctx.splits.length}\n` +
         `worst U ${U.U.toFixed(3)}   step ${ctx.stepMs.length ? ctx.stepMs[ctx.stepMs.length - 1].toFixed(2) : 0} ms` +
         (done ? `\n\nverdict: ${done.verdict}${done.failed.length ? '\nfailed: ' + done.failed.join('\n        ') : ''}${done.breach ? '\n' + done.breach.inv + ': ' + done.breach.detail : ''}${done.error ? '\n' + done.error.split('\n')[0] : ''}` : '') +
-        '\n\none finger: orbit · pinch: move forward / back · two fingers: pan · double tap: reset camera';
+        '\n\none finger: orbit · pinch: move forward / back · two fingers: pan · double tap: reset camera'
+        + '\nmouse: drag orbit · right drag: pan · wheel: forward / back · trackpad swipe: pan'
+        + '\nplumb: yellow = centre of gravity straight down, cyan = the cut (hinge) straight down';
     };
     const start = async () => {
       const my = ++gen;

@@ -58,6 +58,7 @@ export const CFG = {
   FLEX_FREQ: 9,            // rad/s, how fast bending follows a change of load (the bounce)
   FLEX_DAMP: 0.35,         // damping ratio of that bounce (1 = no bounce)
   FIBRE_STRETCH: 0.02,     // m, elongation at which a fibre snaps (it stretches plastically in between)
+  FIBRE_PLY: 0.01,         // m, a fibre bundle folds like layers this thick sliding on each other (FIBRE_PITCH or more = one solid block)
   FIBRE_SLIP: 0.03,        // m, sideways slip at which a fibre shears off
   PART_OVERLAP: 0.01,      // m: two pieces that were joined start colliding once they overlap by less than this
   BOND_LEN: 0.05,          // m, length along the grain over which neighbouring fibres are bonded (SHEAR acts over it)

@@ -67,7 +67,7 @@ way to request a lossy channel. `vendor/peerjs/peerjs.min.js` is patched so
 Stale snapshots must be dropped, not queued. Re-apply the patch if PeerJS is
 ever updated (the `sed` line is in CLAUDE.md).
 
-**D13 — Kerfs close only when the wood beside them crushes.** First version
+**D13 — Kerfs close only when the wood beside them crushes.** (Extended by D51.) First version
 let every closed kerf share compression elastically; that pinched every cut
 on a big trunk just from the tree's weight. A real kerf is an 8 mm gap and
 elastic strain is microns. Now the intact wood carries everything until it
@@ -413,4 +413,42 @@ Limits: the split runs whole segments at a time (0.8 m on the test stems), a
 segment that has split is not joined again, and a half that hangs from a
 live (moving) piece is not checked again because live bundles have no shear
 check yet.
+
+**D51 — A kerf also closes when the stem rotates its gap shut.** The owner
+asked for cuts into the lean to pinch the bar (FM-12). Under D13 that never
+happened: the wood beside the kerf has to crush first, and at FM-12's leans
+it sits under a tenth of `COMP`. Now `fibres.analyse` is given the
+segment's length, the same length `flex.js` bends over, and a severed fibre
+touches across its kerf when the plane strain at its place shortens it by
+more than its gap (`eps · L + gap < 0`). Such a face (`act` 2) pushes only
+with what is left once the gap has closed (`kerfStrain`: `eps + gap / L`),
+so contact starts from zero instead of jumping. The crushing rule of D13
+stays as it was (`act` 1). The saw's pinch probe, the FM-12 hook and the
+INV-6 equilibrium check all go through `kerfStrain`.
+Measured on FM-12's stem (H 11 m, D 0.5 m): the bar now pinches when the
+back cut reaches about 0.68 D at 4–10° leans (0.62 D at 15–20°, 0.74 D at
+2°), before the stem goes live at about 0.79 D. Before this it never pinched.
+At 0.4 D and 6° the kerf closes only 0.9 mm of its 8 mm, so FM-12's bound
+of 0.5 D still fails; that bound is the owner's call. The engine's wood is
+already about six times softer than real wood (`COMP / COMP_STRAIN`
+≈ 1.3 GPa), so a real stem would close even less by bending alone: what
+makes real kerfs close early (creep, crushing right at the notch tip) is not
+modelled. FM-10 must-pass went from 41 to 39 / 113 (three softer-wood fells
+at 8° lean now hold on their closed kerfs, one other now passes).
+
+**D52 — A folded fibre bends like thin plies, and keeps its fold.** The
+owner found FM-14's strap rigid. Measured on its default limb: the whole
+120 N·m the limb hangs by was carried by the three strap fibres' own
+bending, each treated as a solid 2.2 cm block (no axial force at all), and
+that fold sprang back elastically, so the limb bounced back to 9°. Now:
+(a) a fibre's own fold is as stiff and as strong as layers `FIBRE_PLY`
+thick (real fibres slide on each other when a bundle folds), and its outer
+fold strain is taken over the ply too; (b) the fold's plastic moment uses
+tension on the outside and crushing (`COMP`) on the inside; (c) a fold past
+that moment takes a permanent set, like a fibre's stretch (D20).
+`FIBRE_PLY` 10 mm (menu). Must-pass, solid → 10 mm → 5 mm: FM-10
+39 → 50 → 53, FM-11 69 → 61 → 56, FM-14 2 → 1 → 1, FM-15 81 → 81 → 80.
+FM-14's limb now folds to about 92° (it stopped at 14° before), where
+`BEND_MAX` snaps every fibre at once, so it holds ~0.3 s instead of 1 s.
+The FM-11 losses are trunks left hanging on a folded hinge.
 
