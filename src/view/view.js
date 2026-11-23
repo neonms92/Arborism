@@ -345,14 +345,15 @@ export class View {
     const saw = new THREE.Group();
     const eng = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.13, 0.1), new THREE.MeshLambertMaterial({ color: 0xe05a1a, flatShading: true }));
     // the planted point is the middle of the bar's leading edge; the powerhead hangs off the -X end
-    const bar = new THREE.Mesh(new THREE.BoxGeometry(CFG.BAR_LEN, 0.012, 0.07), new THREE.MeshLambertMaterial({ color: 0xbbbbbb }));
-    bar.position.z = -0.035; eng.position.set(-CFG.BAR_LEN / 2 - 0.1, 0, -0.06); saw.add(eng, bar); saw.visible = false;
+    // unit length; stretched to the host's bar length each frame (BAR_LEN is tunable)
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(1, 0.012, 0.07), new THREE.MeshLambertMaterial({ color: 0xbbbbbb }));
+    bar.position.z = -0.035; eng.position.set(-0.35, 0, -0.06); saw.add(eng, bar); saw.visible = false;
     const lanyard = new THREE.Mesh(new THREE.BufferGeometry(), this.lanyardMat);
     lanyard.frustumCulled = false; lanyard.visible = false;
     const grab = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat);
     grab.frustumCulled = false; grab.visible = false;
     this.scene.add(group, saw, lanyard, grab);
-    p = { group, saw, bar, lanyard, grab };
+    p = { group, saw, bar, eng, lanyard, grab };
     this.players.set(id, p);
     return p;
   }
@@ -401,7 +402,7 @@ export class View {
   }
 
   poseSaw(pm, a) {
-    const sw = a.saw;                 // [planted point (3), bar direction (3), feed direction (3), stuck, cutting]
+    const sw = a.saw;                 // [planted point (3), bar direction (3), feed direction (3), stuck, cutting, bar length]
     pm.saw.visible = !!sw;
     if (!sw) return;
     // saw frame: X along the bar, Z = feed direction (the cutting edge leads), Y = normal of the cut
@@ -409,6 +410,8 @@ export class View {
     pm.saw.quaternion.setFromRotationMatrix(_m.makeBasis(_w, _by, _bz));
     pm.saw.position.set(sw[0], sw[1], sw[2]);
     pm.bar.material.color.setHex(sw[9] ? 0xff3030 : sw[10] ? 0xfff0a0 : 0xbbbbbb);
+    const len = sw[11] || CFG.BAR_LEN;
+    pm.bar.scale.x = len; pm.eng.position.x = -len / 2 - 0.1;
   }
 
   poseLanyard(pm, a) {

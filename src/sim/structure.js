@@ -19,7 +19,6 @@ import * as THREE from '../../vendor/three/three.module.js';
 import { CFG } from '../config.js';
 import { segAxis, segLen, segMass, segCentroidT, segParam, segRadius, lerp3 } from '../model/world.js';
 import { analyse, bundleBasis, layout, gapOf, makeBundle, fibreForces, isGone, INTACT, CUT } from '../model/fibres.js';
-import { segDist } from './saw.js';
 import { Flex, frameApply, frameDir } from '../model/flex.js';
 
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
@@ -60,7 +59,7 @@ export class Structure {
   step(dt) {
     const w = this.sim.world;
     for (const [id, j] of [...this.live]) this.liveStep(id, j, dt);
-    if (this.parting.length && this.sim.tick % 6 === 0) this.checkParting();
+    if (this.parting.length) this.checkParting();
     for (const piece of w.pieces.values()) {
       if (!piece.fixed) continue;
       this.beamPass(piece);
@@ -126,8 +125,8 @@ export class Structure {
   // Where fibres have been severed, the ones left carry what the severed ones did. Away from the cut the
   // load spreads back over the whole section, so along any lengthwise plane through the wood the difference
   // has to cross from one side to the other as shear, within BOND_LEN of the cut. If that shear is more
-  // than the wood's SHEAR strength, the wood splits along that plane: the side that was carrying less comes
-  // away from the side carrying the load, and stays joined only to the wood above. Nothing here knows about
+  // than the wood's SHEAR strength, the wood splits along that plane, provided one side is severed right
+  // across: that side comes away and stays joined only to the wood above. Nothing here knows about
   // notches, back cuts or barber chairs: it is the same check for any pattern of severed fibres.
   ripCheck(s, R, Nax, Mu, Mv) {
     const f = s.f, n = f.n, Ly = layout(f.N), X = Ly.X, Y = Ly.Y;
@@ -142,47 +141,46 @@ export class Structure {
     if (ref.sgn) ref.sgn.fill(0);
     if (!analyse(ref, R, Nax, Mu, Mv)) return false;
     const T = fibreForces(f, R, _T), Tr = fibreForces(ref, R, _Tr), cs = Ly.cs;
-    let best = 0, big = 0, bc = 0, bs = 0, bd = 0;
+    let best = 0, big = 0, bc = 0, bs = 0, bd = 0, bA = true;
     for (let o = 0; o < 8; o++) {
       const c = Math.cos(o * Math.PI / 8), sn = Math.sin(o * Math.PI / 8);
       for (let k = 1; k < f.N; k++) {
         const d = -1 + cs * k;
-        let dA = 0, nA = 0, nB = 0, on = 0;
+        let dA = 0, nA = 0, nB = 0, on = 0, iA = 0, iB = 0;
         for (let i = 0; i < n; i++) {
           if (isGone(f, i)) continue;
-          const p = X[i] * c + Y[i] * sn;
-          if (p > d) { dA += T[i] - Tr[i]; nA++; } else nB++;
+          const p = X[i] * c + Y[i] * sn, intact = f.state[i] === INTACT;
+          if (p > d) { dA += T[i] - Tr[i]; nA++; if (intact) iA++; } else { nB++; if (intact) iB++; }
           if (Math.abs(p - d) < cs / 2) on++;            // fibres along the plane: about one per fibre pitch of its width
         }
         if (!nA || !nB || !on) continue;
+        // wood can only come away on a side that is already severed right across: wood held at both ends
+        // by intact fibres can crack between them, but nothing moves
+        if (iA && iB) continue;
         const tau = Math.abs(dA) / (on * cs * R * CFG.BOND_LEN);
         if (tau > best) best = tau;
-        // of the planes that give way, the crack is the one that frees the most load (a sliver along the bark
-        // can be the most stressed plane without being where the wood comes apart)
-        if (tau > CFG.SHEAR && Math.abs(dA) > big) { big = Math.abs(dA); bc = c; bs = sn; bd = d; }
+        // of the planes that give way, the crack is the one that frees the most load
+        if (tau > CFG.SHEAR && Math.abs(dA) > big) { big = Math.abs(dA); bc = c; bs = sn; bd = d; bA = !iA; }
       }
     }
     f.ripTau = best;
-    if (best <= CFG.SHEAR) return false;
+    if (!big) return false;
     const sim = this.sim, w = sim.world, L = segLen(s);
     if (zlo > 0.1) {
       // the cut is partway along this segment: first give the wood above it a segment of its own (next tick it splits)
       sim.emit({ t: 'divide', seg: s.id, at: Math.min(0.95, (zlo - 0.02) / L), newSeg: w.newId() });
       return true;
     }
-    // the side of the plane that was carrying less load comes away
-    let la = 0, lb = 0; const ia = [], ib = [];
-    for (let i = 0; i < n; i++) {
-      if (isGone(f, i)) continue;
-      if (X[i] * bc + Y[i] * bs > bd) { la += Math.abs(T[i]); ia.push(i); } else { lb += Math.abs(T[i]); ib.push(i); }
-    }
+    // the side that is severed right across comes away
+    const h = [];
+    for (let i = 0; i < n; i++) if (!isGone(f, i) && (X[i] * bc + Y[i] * bs > bd) === bA) h.push(i);
     // the stem carries on above this segment into its biggest child that starts at its top
     let cont = -1, cr = 0;
     for (const k of w.kids(s.id)) {
       const c = w.segs.get(k);
       if (Math.abs(c.a[0] - s.b[0]) + Math.abs(c.a[1] - s.b[1]) + Math.abs(c.a[2] - s.b[2]) < 1e-3 && c.r0 > cr) { cr = c.r0; cont = k; }
     }
-    sim.emit({ t: 'rip', seg: s.id, h: la <= lb ? ia : ib, newSeg: w.newId(), cont });
+    sim.emit({ t: 'rip', seg: s.id, h, newSeg: w.newId(), cont });
     sim.toast('the wood is splitting along the grain');
     return true;
   }
@@ -220,8 +218,10 @@ export class Structure {
     sim.toast('fibres are giving way');
   }
 
-  // The last fibre has gone. The two bodies still overlap where they were joined (colliders know nothing
-  // of notches), so they only start colliding with each other once they have actually moved apart.
+  // The last fibre has gone. The two bodies may still overlap where they were joined (colliders know
+  // nothing of notches), so they only start colliding with each other once the overlap has gone. That is
+  // judged by the colliders themselves: while they are merely touching (a butt lying on its stump) they
+  // must collide, or the wood falls through.
   endJoint(id, j) {
     this.live.delete(id);
     this.parting.push({ id, j });
@@ -236,8 +236,21 @@ export class Structure {
     this.parting = this.parting.filter(({ id, j }) => {
       const a = w.segs.get(j.rootSeg), b = w.segs.get(j.parentSeg);
       if (a && b && sim.bodies.has(a.piece) && sim.bodies.has(b.piece)) {
-        const d = segDist(sim.segToWorld(a, a.a), sim.segToWorld(a, a.b), sim.segToWorld(b, b.a), sim.segToWorld(b, b.b)).d;
-        if (d < Math.max(a.r0, a.r1) + Math.max(b.r0, b.r1) + 0.03) return true;      // still overlapping
+        const ca = sim.segCol.get(a.id), cb = sim.segCol.get(b.id);
+        let deep = 0;
+        const probe = (c, piece) => {
+          if (!c) return;
+          for (const s of w.segsOf(piece)) {
+            const o = sim.segCol.get(s.id); if (!o || o === c) continue;
+            const hit = c.contactCollider(o, 0);
+            if (hit && -hit.distance > deep) deep = -hit.distance;
+          }
+        };
+        probe(ca, b.piece); probe(cb, a.piece);                 // the pairs the joint's filter covers
+        // still inside each other where they were joined: let them come apart, but only ever further apart.
+        // Sinking deeper than they already were is not coming apart, so from then on they collide.
+        if (j.partDepth === undefined) j.partDepth = deep;
+        if (deep > CFG.PART_OVERLAP && deep <= j.partDepth + CFG.PART_OVERLAP) { j.partDepth = Math.min(j.partDepth, deep); return true; }
       }
       this.unfilter(id, j);
       return false;

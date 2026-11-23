@@ -103,6 +103,21 @@ Tests that do not use the tree generator build their wood from these.
   (m² per s), as the saw would. Used for back cuts, where the timing matters.
 - **Point load(seg, t, F, ramp):** a force added to `sim.loads` each tick at a
   fraction `t` along the segment, ramped linearly from 0 over `ramp` seconds.
+- **One fell per run (owner, 2026-11-23).** A run builds one world and does
+  one thing to it, so what the viewer shows is the whole test. A variant (a
+  direction, a depth) is a parameter, not a loop inside the run. Only tests
+  that compare runs keep several worlds in a batch: FM-05 (finds `P_live`,
+  then holds a fresh limb at k · `P_live`), FM-13 (hinge rows 1 – 4), FM-20
+  (resolutions) and FM-21 (the same run twice). Each declares its runs as
+  `steps`, and the viewer shows one step at a time. A test that needs
+  another scenario checked names it in `dependsOn` instead, and running it
+  runs that test too (FM-19 depends on FM-10).
+- **Viewer sliders (owner, 2026-11-23).** The viewer's Params panel has a
+  slider for every parameter and every step. Each track is coloured by the
+  stored run nearest to that point: green passed, red failed, darker when
+  the nearest run is some way off, grey where nothing has run. Letting go
+  of a slider restarts the run there. For a comparison test, the checks
+  across runs come from the latest batch and are listed under the sliders.
 
 ---
 
@@ -300,7 +315,9 @@ geometry.
   - butt displacement from the stump ≤ 1.5 m towards the notch, ≤ 0.5 m
     back over the stump;
   - INV-3 holds throughout (nothing launched);
-  - step cost p95 ≤ 4 ms *(proposed)*.
+  - step cost p95 ≤ 4 ms *(proposed)*;
+  - no lengthwise split (an ordinary fell must not barber-chair; FM-19
+    depends on this).
 - **Time:** back cut takes what it takes at `CUT_RATE`; then 25 s.
 - **View:** two cameras: one looking down the intended fall line with the
   notch, lean and actual heading drawn as ground arrows; one close-up on the
@@ -412,13 +429,14 @@ that a partly cut bundle carries the weight of the wood above at that
 wood's own centre of gravity.
 
 - **Scenario:** Stem(H, D, 0°). A notch (upper face at `alpha`) at 0.5 m,
-  deepened by 5 % of D every second until the stem goes live; repeated with
-  the notch facing 0°, 90°, 180° and 270°, each in a fresh world.
-- **Parameters:** H 4 – 20, D 0.2 – 0.8, alpha 45 – 70°.
+  deepened by 5 % of D every second until the stem goes live. One fell per
+  run (owner, 2026-11-23); the direction the notch faces is a parameter.
+- **Parameters:** H 4 – 20, D 0.2 – 0.8, alpha 45 – 70°, notch facing
+  psi ∈ {0°, 90°, 180°, 270°}.
 - **Measured:** the top's sideways movement just before release, its
   heading, the depth at release, the fall heading.
-- **Pass if:** for each direction, the top has moved more than 1 mm before
-  release, within 30° of the way the notch faces.
+- **Pass if:** the top has moved more than 1 mm before release, within 30°
+  of the way the notch faces.
 
 ### FM-19 Barber chair: a hard lean back-cut without a proper notch splits
 
@@ -430,13 +448,14 @@ test checks the general mechanism on its best-known case.
 
 - **Scenario:** Stem(H, D, lean toward +x). A shallow notch (depth `dn`;
   none when 0) facing the lean at 0.5 m, then FM-10's back cut fed in from
-  behind, level with the notch floor. Control, in a fresh world: FM-10's
-  default fell (5° lean, 0.25 D notch).
+  behind, level with the notch floor. One fell per run.
+- **Depends on:** FM-10, which checks that an ordinary fell does not split.
+  Running FM-19 from the menu runs FM-10 with it.
 - **Parameters:** lean 15 – 25°, dn 0.05 – 0.12 D, H 12 – 20, D 0.4 – 0.7.
 - **Measured:** lengthwise splits, how high above the cut the highest one
   reaches, how far the back cut had got when the first came.
 - **Pass if:** the stem splits lengthwise at least 1 m above the cut, before
-  the back cut is finished; the control does not split at all.
+  the back cut is finished.
 
 ---
 
@@ -477,6 +496,22 @@ coarser or finer tree should behave the same within reason.
   a good commit)*.
 - **Also recorded** for the boundary report: step cost against fibre count
   across all FM-40 runs.
+
+### FM-23 A felled trunk does not pass through its stump
+
+*Why (owner, 2026-11-23):* a felled trunk was seen sinking through its stump.
+Where they were joined the colliders overlap a little after the hinge lets
+go (colliders know nothing of the notch); the two pieces may come apart
+through that overlap, but never sink further in.
+
+- **Scenario:** FM-10's fell. Each tick, the deepest overlap between any
+  free piece and the rooted wood.
+- **Parameters:** lean 0 – 8°, D 0.3 – 0.7, hc 0.3 – 1.0, dn 0.2 – 0.33 D.
+- **Pass if:** once free, the trunk never sits more than 2 cm deeper in the
+  stump than it was the moment it came free. Runs where the trunk never
+  comes free are skipped (FM-10 covers that).
+- **Measured on 2026-11-23:** 5 / 21 before the fix (36 cm deep at FM-10's
+  default point), 21 / 21 after it.
 
 ---
 

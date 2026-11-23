@@ -138,7 +138,7 @@ async function fell(env, p, o = {}) {
     buttAlong: +along.toFixed(3),
     hingePlanned: hingeN, hingeStart: J ? J.startElastic : null, hingeSnapped: J ? J.snapped.length : null,
     hingeEnd: J ? (J.end >= 0 ? J.endElastic : null) : null,
-    peakU: +peakU.toFixed(4), stepFall: ctx.stepStats(fallFrom), splits: ctx.splits.length,
+    peakU: +peakU.toFixed(4), stepFall: ctx.stepStats(fallFrom), splits: ctx.splits.length, rips: ctx.rips.length,
   };
 }
 
@@ -342,9 +342,11 @@ export const TESTS = [
     id: 'FM-05', title: 'Cracked but holding', time: 20,
     params: { k: P([1.0, 1.1], [1.0, 1.5], 1.05) },
     fixed: { ...LIMB0 },
+    steps: { phase: [2, 1] },             // 1: find where the limb goes live; 2: hold a fresh limb at k times that
     async run(env, p) {
       const a = await overload(env, p);
       await a.ctx.run(20, () => a.Plive !== null);
+      if (p.phase === 1) { await a.ctx.run(3); return { one: true, phase: 1, Plive: a.Plive !== null ? +a.Plive.toFixed(1) : null }; }
       if (a.Plive === null) return { Plive: null, held: true, settleAfterHold: 0, lateSnaps: 0, note: 'never went live under 2x the analytic load' };
       const cap = p.k * a.Plive, b = await overload(env, p, { cap }), ctx = b.ctx;
       let holdT = null, peak = 0, lastAbove = null;
@@ -362,7 +364,7 @@ export const TESTS = [
       return { Plive: +a.Plive.toFixed(1), cap: +cap.toFixed(1), held: held(ctx, b.m.topPiece()), holdT, peakKE: +peak.toFixed(3),
         settleAfterHold: holdT !== null && lastAbove !== null ? +(lastAbove - holdT).toFixed(3) : 0, lateSnaps: late };
     },
-    judge: (m) => [is('limb still held at the end', m.held), le('kinetic energy below 1% of peak within 5 s', m.settleAfterHold, 5), is('no fibre snaps in the last 5 s', m.lateSnaps === 0, m.lateSnaps)],
+    judge: (m) => (m.one ? [] : [is('limb still held at the end', m.held), le('kinetic energy below 1% of peak within 5 s', m.settleAfterHold, 5), is('no fibre snaps in the last 5 s', m.lateSnaps === 0, m.lateSnaps)]),
     view: () => ({ target: [1.5, 4, 0], dist: 5, yaw: 0, pitch: 0.1 }),
   },
   {
@@ -382,6 +384,7 @@ export const TESTS = [
       ge('hinge life >= 0.5 s', m.hingeLife ?? NaN, 0.5), ge('hinge-release angle >= 10°', m.releaseAngle ?? NaN, 10),
       le('butt <= 1.5 m towards the notch', m.buttAlong, 1.5), le('butt <= 0.5 m back over the stump', -m.buttAlong, 0.5),
       le('step cost p95 <= 4 ms', m.stepFall.p95, 4),
+      is('no lengthwise split (FM-19 relies on this)', m.rips === 0, m.rips),
     ],
     view: (p) => ({ target: [p.H / 4, p.H / 4, 0], dist: p.H * 1.2, yaw: Math.PI, pitch: 0.4, arrows: true }),
   },
@@ -431,13 +434,16 @@ export const TESTS = [
     id: 'FM-13', title: 'A thicker hinge holds longer (monotonic)', time: 160, grid: true,
     params: { FIBRE_STRETCH: C('FIBRE_STRETCH', list(0.015, 0.0275, 0.04), [0.002, 0.08], 1, 'm'), FIBRE_PITCH: C('FIBRE_PITCH', list(0.02, 0.03, 0.04), [0.008, 0.1], 1, 'm') },
     fixed: { ...FELL },
+    steps: { rows: [1, 2, 3, 4] },          // the viewer can show one hinge at a time
     async run(env, p) {
+      if (p.rows !== undefined) { const m = await fell(env, p, { rows: p.rows }); return { one: true, rows: p.rows, angle: m.releaseAngle, life: m.hingeLife }; }
       const out = [];
       for (const rows of [1, 2, 3, 4]) { const m = await fell(env, p, { rows }); out.push({ rows, angle: m.releaseAngle, life: m.hingeLife }); }
       let dec = true; for (let i = 1; i < out.length; i++) if (!(out[i].angle < out[i - 1].angle)) dec = false;
       return { byRows: out, decreasing: dec, oneRow: out[0].angle };
     },
-    judge: (m) => [is('hinge-release angle decreases as the hinge thickens', m.decreasing), ge('1-row hinge folds to at least 20°', m.oneRow ?? NaN, 20)],
+    judge: (m) => (m.one ? (m.rows === 1 ? [ge('1-row hinge folds to at least 20°', m.angle ?? NaN, 20)] : [])
+      : [is('hinge-release angle decreases as the hinge thickens', m.decreasing), ge('1-row hinge folds to at least 20°', m.oneRow ?? NaN, 20)]),
     view: () => ({ target: [0, 3, 0], dist: 14, yaw: -Math.PI / 2, pitch: 0.35 }),
   },
   {
@@ -545,74 +551,74 @@ export const TESTS = [
     // The owner's (2026-11-23): a notch alone, deepened step by step, takes away wood on one side, so the
     // wood above should sit off-centre on what is left and lean the notch's way before anything lets go.
     // Four notch directions, each in its own world.
-    id: 'FM-18', title: 'Straight stem, notch only: it leans into the notch (4 directions)', time: 160,
-    params: { H: P([4, 20], [2, 35], 11, 'm'), D: P([0.2, 0.8], [0.05, 1.5], 0.5, 'm'), alpha: P([45, 70], [30, 90], 55, '°') },
+    id: 'FM-18', title: 'Straight stem, notch only: it leans into the notch', time: 40,
+    params: {
+      H: P([4, 20], [2, 35], 11, 'm'), D: P([0.2, 0.8], [0.05, 1.5], 0.5, 'm'), alpha: P([45, 70], [30, 90], 55, '°'),
+      psi: P(list(0, 90, 180, 270), [0, 360], 0, '°'),       // the way the notch faces
+    },
     fix(p) { p.D = Math.min(Math.max(p.D, p.H / 200), p.H / 5); return p; },
     async run(env, p) {
-      const out = [];
-      for (const psi of [0, 90, 180, 270]) {
-        const ctx = await env.ctx(), m = ctx.stem(p.H, p.D, 0, 0);
+      const psi = p.psi, ctx = await env.ctx(), m = ctx.stem(p.H, p.D, 0, 0);
+      await ctx.run(1);
+      const hc = 0.5, R = m.R(hc), tanA = Math.tan(p.alpha * DEG), dN = perpTo([Math.cos(psi * DEG), 0, Math.sin(psi * DEG)], m.axis);
+      const top0 = m.top().p.clone(), lean = () => { const t = m.top().p; return [t.x - top0.x, t.z - top0.z]; };
+      let rel = null, before = null, depth = 0;
+      for (let dn = 0.05; dn <= 0.9 + 1e-9 && rel === null; dn += 0.05) {
+        const qA = R - dn * 2 * R;
+        m.cut((ov) => { const q = dot(ov, dN) * R; return q > qA ? [hc, hc + (q - qA) * tanA] : null; });
         await ctx.run(1);
-        const hc = 0.5, R = m.R(hc), tanA = Math.tan(p.alpha * DEG), dN = perpTo([Math.cos(psi * DEG), 0, Math.sin(psi * DEG)], m.axis);
-        const top0 = m.top().p.clone(), lean = () => { const t = m.top().p; return [t.x - top0.x, t.z - top0.z]; };
-        let rel = null, before = null, depth = 0;
-        for (let dn = 0.05; dn <= 0.9 + 1e-9 && rel === null; dn += 0.05) {
-          const qA = R - dn * 2 * R;
-          m.cut((ov) => { const q = dot(ov, dN) * R; return q > qA ? [hc, hc + (q - qA) * tanA] : null; });
-          await ctx.run(1);
-          if (ctx.splits.length) { rel = { dn: +dn.toFixed(2), lean: lean() }; break; }
-          before = lean(); depth = dn;
-        }
-        await ctx.run(rel ? 10 : 0);
-        const d = m.dirOf(m.topPiece()), fell = d ? Math.atan2(d.z, d.x) / DEG : null;
-        const head = (v) => (v && Math.hypot(v[0], v[1]) > 1e-6 ? Math.atan2(v[1], v[0]) / DEG : null);
-        out.push({ psi, depthBefore: +depth.toFixed(2), leanBefore: before ? +Math.hypot(before[0], before[1]).toFixed(5) : 0,
-          headingBefore: head(before), releaseDepth: rel ? rel.dn : null, fellHeading: rel && d && d.y < 0.7 ? +fell.toFixed(1) : null });
+        if (ctx.splits.length) { rel = { dn: +dn.toFixed(2), lean: lean() }; break; }
+        before = lean(); depth = dn;
       }
-      return { dirs: out };
+      await ctx.run(rel ? 10 : 0);
+      const d = m.dirOf(m.topPiece()), fell = d ? Math.atan2(d.z, d.x) / DEG : null;
+      const head = (v) => (v && Math.hypot(v[0], v[1]) > 1e-6 ? Math.atan2(v[1], v[0]) / DEG : null);
+      return { psi, depthBefore: +depth.toFixed(2), leanBefore: before ? +Math.hypot(before[0], before[1]).toFixed(5) : 0,
+        headingBefore: head(before), releaseDepth: rel ? rel.dn : null, fellHeading: rel && d && d.y < 0.7 ? +fell.toFixed(1) : null };
     },
-    judge: (m) => m.dirs.flatMap((o) => [
-      ge(`notch at ${o.psi}°: leans before release (> 1 mm)`, o.leanBefore, 0.001),
-      le(`notch at ${o.psi}°: leans toward the notch (within 30°)`, Math.abs(wrap((o.headingBefore ?? o.psi + 180) - o.psi)), 30),
-    ]),
+    judge: (m) => [
+      ge('leans before release (> 1 mm)', m.leanBefore, 0.001),
+      le('leans toward the notch (within 30°)', Math.abs(wrap((m.headingBefore ?? m.psi + 180) - m.psi)), 30),
+    ],
     view: (p) => ({ target: [0, p.H / 3, 0], dist: p.H * 1.4, yaw: -Math.PI / 2, pitch: 0.35 }),
   },
   {
     // The owner's (2026-11-23): a hard-leaning trunk with a shallow notch, back-cut straight in from behind,
     // splits up the stem ahead of the saw (a barber chair). Nothing in the engine knows about barber chairs:
     // a lengthwise split happens wherever severed fibres leave more shear along the grain than the wood can
-    // carry (DECISIONS D50). The control is FM-10's ordinary fell, which must not split.
-    id: 'FM-19', title: 'Barber chair: a hard lean back-cut without a proper notch splits up the stem', time: 60,
+    // carry (DECISIONS D50). That an ordinary fell does not split is FM-10's job.
+    id: 'FM-19', title: 'Barber chair: a hard lean back-cut without a proper notch splits up the stem', time: 30, dependsOn: ['FM-10'],
     params: {
       lean: P([15, 25], [8, 35], 20, '°'), dn: P([0.05, 0.12], [0, 0.2], 0.1, '× D'),
       H: P([12, 20], [6, 30], 15, 'm'), D: P([0.4, 0.7], [0.2, 1.2], 0.5, 'm'),
     },
     async run(env, p) {
-      const out = {};
-      for (const [k, q, o] of [['chair', { ...FELL, ...p, step: 0 }, p.dn > 0 ? {} : { noNotch: true }], ['control', { ...FELL }, {}]]) {
-        const ctx = await env.ctx(), m = ctx.stem(q.H, q.D, q.lean * DEG, 0);
-        await ctx.run(2);
-        const { back } = await fellCuts(ctx, m, q, 0, o);
-        let backAtRip = null;
-        ctx.hooks.push((c) => { if (backAtRip === null && c.rips.length) backAtRip = back.count; });
-        await ctx.run(90, () => back.done || (ctx.rips.length && ctx.t > ctx.rips[0].tick * CFG.TICK + 5));
-        await ctx.run(5);
-        const hc = q.hc, rise = ctx.rips.length ? Math.max(...ctx.rips.map((r) => r.hi)) - hc : 0;
-        out[k] = { rips: ctx.rips.length, rise: +rise.toFixed(2), backDone: !!back.done, backAtRip, backN: back.list.length };
-      }
-      return out;
+      const q = { ...FELL, ...p, step: 0 }, ctx = await env.ctx(), m = ctx.stem(q.H, q.D, q.lean * DEG, 0);
+      await ctx.run(2);
+      const { back } = await fellCuts(ctx, m, q, 0, p.dn > 0 ? {} : { noNotch: true });
+      let backAtRip = null;
+      ctx.hooks.push((c) => { if (backAtRip === null && c.rips.length) backAtRip = back.count; });
+      await ctx.run(90, () => back.done || (ctx.rips.length && ctx.t > ctx.rips[0].tick * CFG.TICK + 5));
+      await ctx.run(5);
+      const rise = ctx.rips.length ? Math.max(...ctx.rips.map((r) => r.hi)) - q.hc : 0;
+      return { rips: ctx.rips.length, rise: +rise.toFixed(2), backDone: !!back.done, backAtRip, backN: back.list.length };
     },
     judge: (m) => [
-      ge('barber chair: the stem splits lengthwise >= 1 m above the cut (m)', m.chair.rise, 1),
-      is('barber chair: it splits before the back cut is finished', !m.chair.backDone || m.chair.backAtRip !== null),
-      is('control (FM-10 defaults): no lengthwise split', m.control.rips === 0, m.control.rips),
+      ge('the stem splits lengthwise >= 1 m above the cut (m)', m.rise, 1),
+      is('it splits before the back cut is finished', !m.backDone || m.backAtRip !== null),
     ],
-    view: (p) => ({ target: [0, 2, 0], dist: 7, yaw: -Math.PI / 2, pitch: 0.25 }),
+    view: (p) => ({ target: [0.5, 2, 0], dist: 8, yaw: 0, pitch: 0.2 }),      // side on to the lean
   },
   {
     id: 'FM-20', title: 'Results do not depend on the discretisation', time: 500,
     params: {},
-    async run(env) {
+    steps: { SEG_LEN: [0.5, 0.3, 0.8], FIBRE_PITCH: [0.03, 0.02, 0.04], scene: ['fell', 'limb'] },   // one of the 18 runs
+    async run(env, p = {}) {
+      if (p.SEG_LEN !== undefined) {
+        Object.assign(CFG, { SEG_LEN: p.SEG_LEN, FIBRE_PITCH: p.FIBRE_PITCH ?? CFG.FIBRE_PITCH });
+        if (p.scene === 'limb') { const o = await overload(env, LIMB0); await o.ctx.run(20, () => o.Plive !== null); return { one: true, Plive: o.Plive }; }
+        const f = await fell(env, FELL); return { one: true, heading: f.heading, releaseAngle: f.releaseAngle };
+      }
       const fells = [], lives = [];
       for (const SEG_LEN of [0.3, 0.5, 0.8]) for (const FIBRE_PITCH of [0.02, 0.03, 0.04]) {
         Object.assign(CFG, { SEG_LEN, FIBRE_PITCH });
@@ -626,13 +632,15 @@ export const TESTS = [
       return { runs: fells, Plive: lives, headingSpread: +angSpread.toFixed(2),
         releaseSpreadFrac: ra.every(Number.isFinite) ? spread(ra) / med(ra) : null, PliveSpreadFrac: lives.every(Number.isFinite) ? spread(lives) / med(lives) : null };
     },
-    judge: (m) => [le('heading spread <= 10°', m.headingSpread, 10), le('hinge-release angle spread <= 50% of median', m.releaseSpreadFrac ?? NaN, 0.5), le('P_live spread <= 20% of median', m.PliveSpreadFrac ?? NaN, 0.2)],
+    judge: (m) => (m.one ? [] : [le('heading spread <= 10°', m.headingSpread, 10), le('hinge-release angle spread <= 50% of median', m.releaseSpreadFrac ?? NaN, 0.5), le('P_live spread <= 20% of median', m.PliveSpreadFrac ?? NaN, 0.2)]),
     view: () => ({ target: [0, 3, 0], dist: 14, yaw: -Math.PI / 2, pitch: 0.35 }),
   },
   {
     id: 'FM-21', title: 'Same input, same result', time: 140,
     params: {},
-    async run(env) {
+    steps: { scene: ['fell', 'tree'] },     // the viewer shows one of the two scenes, once
+    async run(env, p = {}) {
+      if (p.scene) { if (p.scene === 'tree') await standUp(env, 30); else await fell(env, FELL); return { one: true, scene: p.scene }; }
       const digest = (ctx) => {
         const bodies = {};
         for (const [id, b] of ctx.sim.bodies) { const t = b.translation(), q = b.rotation(); bodies[id] = [t.x, t.y, t.z, q.x, q.y, q.z, q.w]; }
@@ -648,10 +656,10 @@ export const TESTS = [
       };
       return { fell: cmp(runs.fell), tree: cmp(runs.tree), note: 'each run in a fresh World and Rapier world, one after the other in the same worker' };
     },
-    judge: (m) => [
+    judge: (m) => (m.one ? [] : [
       is('FM-10: identical event log', m.fell.sameEvents), le('FM-10: final transforms equal (1e-6)', m.fell.missing ? Infinity : m.fell.worst, 1e-6),
       is('FM-40: identical event log', m.tree.sameEvents), le('FM-40: final transforms equal (1e-6)', m.tree.missing ? Infinity : m.tree.worst, 1e-6),
-    ],
+    ]),
     view: () => ({ target: [0, 3, 0], dist: 14, yaw: -Math.PI / 2, pitch: 0.35 }),
   },
   {
@@ -673,6 +681,28 @@ export const TESTS = [
     },
     judge: (m) => [le('idle step p95 <= 1 ms', m.idle.p95, 1), le('falling step p95 <= 4 ms', m.falling.p95, 4)],
     view: () => ({ target: [0, 5, 0], dist: 18, yaw: -0.8, pitch: 0.3 }),
+  },
+  {
+    // The owner's (2026-11-23): a felled trunk was seen passing through its stump. Wood that has parted must
+    // collide with the wood it parted from as soon as they are no longer inside each other.
+    id: 'FM-23', title: 'A felled trunk does not pass through its stump', time: 40,
+    params: {
+      lean: P([0, 8], [0, 20], FELL.lean, '°'), D: P([0.3, 0.7], [0.15, 1.2], FELL.D, 'm'), hc: P([0.3, 1.0], [0.1, 1.5], FELL.hc, 'm'),
+      dn: P([0.2, 0.33], [0.1, 0.5], FELL.dn, '× D'),
+    },
+    async run(env, p) {
+      const inner = env.ctx, box = {};
+      const env2 = { ...env, async ctx() { const c = await inner.call(env); box.ph = c.trackPhasing(); return c; } };
+      const m = await fell(env2, { ...FELL, ...p });
+      if (!m.free) return { skip: 'the trunk did not come free, so there is nothing to judge (FM-10 is about that)' };
+      return { free: m.free, atFree: +(box.ph.atFree ?? 0).toFixed(4), worstFree: +box.ph.worstFree.toFixed(4), worst: +box.ph.worst.toFixed(4), worstAt: +box.ph.at.toFixed(2), whileHeld: box.ph.live };
+    },
+    judge: (m) => [
+      // where they were joined the colliders overlap a little (they know nothing of the notch); phasing is
+      // sinking further in than that
+      le('once free, it never sinks more than 2 cm deeper into the stump than it was when it came free (m)', m.worstFree - m.atFree, 0.02),
+    ],
+    view: (p) => ({ target: [0.5, 0.8, 0], dist: 4, yaw: 0, pitch: 0.3 }),
   },
   {
     id: 'FM-40', title: 'A generated tree stands up', time: 30, exploreN: 2000, seed: TREE_SEED,

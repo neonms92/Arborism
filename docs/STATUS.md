@@ -62,15 +62,16 @@ for it).
 | FM-04 overload | 0 / 49 | 0 / 49 | mostly: the limb goes live near the analytic load (good) but then hangs and never comes free, so no fibre ever snaps; where it does come free, every fibre often goes in one tick (no ordered tearing) |
 | FM-05 cracked, holding | 19 / 19 | 19 / 19 | — |
 | FM-10 notch steers | 11 / 113 (+9 invalid) | 41 / 113 | hinge often lets go below 10°; heading error > 15° in many corners; 3+ rows of hinge never release at all (logs now settle) |
-| FM-11 no notch | 61 / 81 (+3) | 65 / 81 | some corners do not come free or go > 25° off the lean |
+| FM-11 no notch | 61 / 81 (+3) | 69 / 81 | some corners do not come free or go > 25° off the lean |
 | FM-12 pinch | 0 / 49 | 0 / 49 | a kerf only "closes" when the wood beside it crushes (D13), which never happens at these leans and depths |
 | FM-13 hinge trend | 0 / 9 | 0 / 9 | 1 and 2 rows behave alike; 3 – 4 rows never release |
 | FM-14 top cut strap | 2 / 81 | 2 / 81 | thick straps stay stiff (never live); thin ones droop ~15° and stop |
 | FM-15 undercut + top cut | 80 / 81 (+1) | 81 / 81 | — |
 | FM-16 straight through | 5 / 25 | 16 / 25 | a stem with no lean balances on its stump |
 | FM-17 straight, level cut (new) | — | 21 / 21 | — |
-| FM-18 straight, notch only, 4 ways (new) | — | 25 / 25 | — |
-| FM-19 barber chair (new, D50) | — | 17 / 33 | thin stems at light leans never split; elsewhere the split often stops after one segment, under 1 m |
+| FM-18 straight, notch only (new; one notch direction per run since 2026-11-23) | — | 33 / 33 | — |
+| FM-19 barber chair (new, D50; depends on FM-10, which now also checks an ordinary fell does not split) | — | 16 / 33 | thin stems at light leans never split; elsewhere the split often stops under 1 m. Where it passes, the trunk still breaks at the cut and takes the split slab with it (no standing slab yet) |
+| FM-23 no stump phasing (new) | 5 / 21 before the parting fix | 21 / 21 (12 skipped: the trunk never came free) | — |
 | FM-20 discretisation | 0 / 1 | 0 / 1 | fall heading, hinge angle and P_live all move with SEG_LEN / FIBRE_PITCH |
 | FM-21 determinism | 1 / 1 | 1 / 1 | identical event logs and transforms |
 | FM-22 step cost | 1 / 1 | 0 / 1 | idle p95 1.2 ms against a 1 ms bound while 3 other workers ran; alone it measures 0.7 – 1.0 ms with or without rolling resistance, so this one is timing noise at the edge of its bound |
@@ -128,8 +129,12 @@ mass, TESTS.md section 8).
 - A live bundle never goes back to stiff. A cracked limb stays a separate
   body for good. Several live bundles in a chain are only loosely coupled
   (DESIGN.md risk 7).
-- Pieces joined (or just un-joined) by a live bundle do not collide at the
-  joint, so a butt can sink through its stump.
+- Pieces joined by a live bundle do not collide at the joint, so a butt can
+  sink through its stump while the hinge holds. Once it lets go they collide
+  again as soon as their colliders overlap by less than `PART_OVERLAP`
+  (1 cm), or sink further into each other than they already were (FM-23).
+  Before 2026-11-23 this used the distance between stem axes, which let a
+  felled butt sink 36 cm into its stump.
 - Fibre colours are faint at everyday loads (a healthy tree is at a few
   percent of its strength). "Load colour contrast" in the menu lifts them.
 - First person: the camera can clip into the trunk when pressed against it;

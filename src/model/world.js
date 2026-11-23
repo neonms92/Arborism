@@ -263,6 +263,12 @@ export class World {
         cont.f.state[k] = CUT; cont.f.zmin[k] = 0; cont.f.zmax[k] = 0; cont.f.ncut++;
       }
     }
+    // a half that hung from the bottom of this wood was joined to the wood that has just split away: it now
+    // hangs from the end of the new half (the split is running up the stem through both)
+    for (const k of this.kids(s.id)) {
+      const c = this.segs.get(k);
+      if (Math.abs(c.a[0] - s.a[0]) + Math.abs(c.a[1] - s.a[1]) + Math.abs(c.a[2] - s.a[2]) < 1e-4) c.parent = h.id;
+    }
     this.segs.set(h.id, h);
     this._dirty();
     info.seg = s.id; info.newSeg = h.id; info.cont = cont ? cont.id : -1;

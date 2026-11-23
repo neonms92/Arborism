@@ -35,6 +35,13 @@ const CSS = `
 #tview .title b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #tview .badge { display: inline-block; padding: 0 7px; border-radius: 8px; font-weight: 700; margin-right: 6px; }
 #tview .badge.pass { background: #3d8a32; } #tview .badge.fail { background: #b8442b; } #tview .badge.invalid { background: #b02a7a; } #tview .badge.run { background: #555; } #tview .badge.skip, #tview .badge.explore { background: #4c6a91; }
+#tview .params { position: absolute; left: 8px; right: 8px; bottom: calc(max(10px, env(safe-area-inset-bottom)) + 56px); max-width: 520px; margin: 0 auto; max-height: 45%; overflow-y: auto; background: rgba(0,0,0,.72); border-radius: 10px; padding: 8px 12px; font-size: 13px; }
+#tview .params .row { display: grid; grid-template-columns: minmax(110px, 40%) 1fr; gap: 10px; align-items: center; min-height: 36px; }
+#tview .params .lab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#tview .params input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 12px; border-radius: 6px; outline: none; touch-action: pan-x; }
+#tview .params input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; border-radius: 50%; background: #fff; border: 2px solid #222; }
+#tview .params input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 2px solid #222; }
+#tview .params .cross { margin-top: 6px; font-size: 12px; color: #ccc; } #tview .params .ok { color: #8fd17f; } #tview .params .no { color: #f08f7a; }
 #tview .hud { pointer-events: none; position: absolute; left: 8px; right: 8px; top: calc(max(8px, env(safe-area-inset-top)) + 60px); max-width: 520px; max-height: calc(100% - 150px); overflow: hidden; background: rgba(0,0,0,.6); padding: 8px 10px; border-radius: 8px; font: 12px/1.4 ui-monospace, monospace; white-space: pre-wrap; }
 `;
 
@@ -108,7 +115,7 @@ class Testing {
         s.invalid ? el('span', { class: 'invalid' }, ` · ${s.invalid} invalid`) : '', s.skip ? el('span', { class: 'skip' }, ` · ${s.skip} skipped`) : '',
         el('span', { class: 'muted' }, ` · ${s.mode}${s.trend ? ' · ' + s.trend + ' than before' : ''}`)) : el('span', { class: 'muted' }, 'not run');
       return el('tr', { class: 't' + (this.focus === t.id ? ' sel' : ''), onclick: () => { this.focus = t.id; this.render(); if (innerWidth < 800) this.detail.scrollIntoView({ behavior: 'smooth' }); } },
-        el('td', {}, cb), el('td', {}, el('b', {}, t.id)), el('td', {}, t.title), el('td', {}, res));
+        el('td', {}, cb), el('td', {}, el('b', {}, t.id)), el('td', {}, t.title, t.dependsOn ? el('span', { class: 'muted' }, ` (needs ${t.dependsOn.join(', ')})`) : ''), el('td', {}, res));
     });
     this.list.replaceChildren(el('table', {}, el('tr', {}, el('th', {}, ''), el('th', {}, 'Test'), el('th', {}, ''), el('th', {}, 'Latest batch')), rows));
     this.renderDetail();
@@ -126,6 +133,13 @@ class Testing {
     const t = this.focus && TEST_BY_ID.get(this.focus);
     if (!t) { this.detail.replaceChildren(el('p', { class: 'muted' }, 'Pick a test to see its results.')); return; }
     const s = summarise(this.recs, t.id), kids = [el('h3', {}, `${t.id} ${t.title}`)];
+    if (t.dependsOn) {
+      // a test that relies on another one to check part of the story (FM-19 needs FM-10's ordinary fell not to split)
+      kids.push(el('div', {}, 'Depends on: ', ...t.dependsOn.map((id) => {
+        const d = summarise(this.recs, id);
+        return el('span', {}, el('b', {}, id + ' '), d ? el('span', { class: d.fail || d.invalid ? 'fail' : 'pass' }, `${d.pass} / ${d.judged} pass `) : el('span', { class: 'muted' }, 'not run '));
+      })));
+    }
     kids.push(el('div', { class: 'muted' }, 'Parameters: ', Object.entries(t.params).map(([k, d]) => `${k} ${fmtRange(d.must)} (explore ${fmtRange(d.explore)}) ${d.unit || ''}`).join(' · ') || 'none'));
     kids.push(el('div', { class: 'bar' }, el('button', { class: 'go', onclick: () => this.viewDefault(t.id) }, 'View the default point')));
     if (!s) { this.detail.replaceChildren(...kids); return; }
@@ -170,6 +184,8 @@ class Testing {
 
   async runTests(ids, mode, opts = {}) {
     if (this.progress.running) return null;
+    // a test's dependencies run with it, so its result can be read together with theirs
+    for (let i = 0; i < ids.length; i++) for (const d of TEST_BY_ID.get(ids[i])?.dependsOn || []) if (!ids.includes(d)) ids = [...ids, d];
     const batch = Date.now().toString(36) + Math.random().toString(36).slice(2, 5), commit = commitOf();
     this.pool = this.pool || new Pool(opts.workers || 0);
     this.pool.onChange = () => this.renderStatus();
@@ -253,9 +269,77 @@ class Testing {
     let showHud = innerWidth >= 800;
     const ib = el('button', { class: showHud ? 'on' : '', title: 'Show the run details', onclick: () => { showHud = !showHud; ib.classList.toggle('on', showHud); hud.style.display = showHud ? '' : 'none'; } }, 'Info');
     hud.style.display = showHud ? '' : 'none';
-    const wrapEl = el('div', { id: 'tview' }, canvas, hud,
+    // ---- sliders: every parameter of the test, and its steps (one of the runs a comparison test makes).
+    // Each track is coloured by the stored runs near the other sliders' values: green passed, red failed,
+    // grey not run. Letting go of a slider restarts the run there.
+    rec.params = { ...rec.params };
+    if (T.steps) for (const [k, vals] of Object.entries(T.steps)) if (rec.params[k] === undefined) rec.params[k] = vals[0];
+    const panel = el('div', { class: 'params' }), sliders = [];
+    const runs = this.recs.filter((r) => r.test === rec.test && r.params && r.mode !== 'view');
+    const latest = runs.length ? runs.reduce((a, b) => (b.time > a.time ? b : a)) : null;
+    const span = (d) => { const r = d.explore || d.must; return Array.isArray(r) ? r : null; };
+    // distance between a stored run and the sliders' current point, each parameter scaled to its range
+    const gap = (r, k, v) => {
+      let d2 = 0;
+      for (const [j, d] of Object.entries(T.params)) {
+        const a = r.params[j], b = j === k ? v : rec.params[j]; if (a === undefined || b === undefined) continue;
+        const sp = span(d), x = sp ? (a - b) / (sp[1] - sp[0] || 1) : (a === b ? 0 : 1 / Math.max(1, d.must.list.length - 1) * Math.abs(d.must.list.indexOf(a) - d.must.list.indexOf(b)));
+        d2 += x * x;
+      }
+      return Math.sqrt(d2);
+    };
+    // each stretch of a track takes the result of the stored run nearest to it; faded where none is near
+    const track = (k, d) => {
+      const sp = span(d), vals = sp ? null : d.must.list, B = sp ? 40 : vals.length, stops = [];
+      const judged = runs.filter((r) => r.verdict !== 'skip');
+      for (let i = 0; i < B; i++) {
+        const v = sp ? sp[0] + (sp[1] - sp[0]) * (i + 0.5) / B : vals[i];
+        let best = null, bd = Infinity;
+        for (const r of judged) { const g = gap(r, k, v); if (g < bd) { bd = g; best = r; } }
+        let c = '#555';
+        if (best && bd < 0.45) {
+          const ok = best.verdict === 'pass' || (best.verdict === 'explore' && best.wouldPass);
+          c = best.verdict === 'invalid' ? '#b02a7a' : ok ? '#3d9a32' : '#c0442b';
+          if (bd > 0.2) c = ok ? '#2f5f2a' : '#6d3328';            // only a distant run to go on
+        }
+        stops.push(`${c} ${(100 * i / B).toFixed(1)}% ${(100 * (i + 1) / B).toFixed(1)}%`);
+      }
+      return `linear-gradient(90deg, ${stops.join(', ')})`;
+    };
+    const fmtV = (v) => (typeof v === 'number' ? +v.toPrecision(3) : v);
+    const addSlider = (k, vals, sp, unit, d) => {
+      const lab = el('span', { class: 'lab' }), inp = el('input', { type: 'range' });
+      const show = () => { lab.textContent = `${k} ${fmtV(rec.params[k])}${unit ? ' ' + unit : ''}`; };
+      if (vals) { inp.min = 0; inp.max = vals.length - 1; inp.step = 1; inp.value = Math.max(0, vals.indexOf(rec.params[k])); }
+      else { inp.min = sp[0]; inp.max = sp[1]; inp.step = (sp[1] - sp[0]) / 200; inp.value = rec.params[k]; }
+      const val = () => (vals ? vals[+inp.value] : +inp.value);
+      inp.oninput = () => { rec.params[k] = val(); show(); };
+      inp.onchange = () => { rec.params[k] = val(); show(); recolour(); replay(); };
+      sliders.push({ k, d, inp });
+      show();
+      panel.append(el('div', { class: 'row' }, lab, inp));
+    };
+    for (const [k, d] of Object.entries(T.params)) {
+      if (rec.params[k] === undefined) rec.params[k] = d.def;
+      addSlider(k, span(d) ? null : d.must.list, span(d), d.unit, d);
+    }
+    for (const [k, vals] of Object.entries(T.steps || {})) addSlider(k, vals, null, '', null);
+    const recolour = () => { for (const { k, d, inp } of sliders) inp.style.background = d ? track(k, d) : '#555'; };
+    recolour();
+    if (T.steps && latest) {
+      // the checks that compare several runs can only be judged over a whole batch
+      panel.append(el('div', { class: 'cross' }, 'Across runs, latest batch: ',
+        ...(latest.criteria || []).map((c) => el('span', { class: c.ok ? 'ok' : 'no' }, `${c.ok ? '✓' : '✗'} ${c.text}  `))));
+    }
+    if (T.dependsOn) panel.append(el('div', { class: 'cross' }, `Depends on ${T.dependsOn.join(', ')} (run it from the list).`));
+    let showPanel = false;
+    panel.style.display = 'none';
+    const pbtn = el('button', { title: 'Parameters', onclick: () => { showPanel = !showPanel; pbtn.classList.toggle('on', showPanel); panel.style.display = showPanel ? '' : 'none'; } }, 'Params');
+    if (!sliders.length) pbtn.style.display = 'none';
+
+    const wrapEl = el('div', { id: 'tview' }, canvas, hud, panel,
       el('div', { class: 'top' }, el('button', { title: 'Back to the test list', onclick: () => close() }, '‹ Tests'), title),
-      el('div', { class: 'bot' }, el('button', { onclick: () => replay() }, 'Replay'), pb, spb, ib));
+      el('div', { class: 'bot' }, el('button', { onclick: () => replay() }, 'Replay'), pb, spb, pbtn, ib));
     document.body.append(wrapEl);
 
     // ---- camera: an orbit about a target; dolly moves the camera, and carries the target along once it gets close
@@ -319,9 +403,10 @@ class Testing {
       c.lookAt(t[0], t[1], t[2]);
       const sim = ctx.sim, U = ctx.worstU();
       vw.update(1 / 60, { pose: (id) => sim.pose(id), get flex() { return sim.structure.flex; } }, sim.aux(), -1, null);
-      const v = done ? (done.verdict === 'explore' ? (done.wouldPass ? 'pass' : 'fail') : done.verdict) : null;
+      // one step of a comparison test may have nothing of its own to judge: its checks are across the batch
+      const v = done ? (done.metrics && done.metrics.one && !done.criteria.length ? 'one step' : done.verdict === 'explore' ? (done.wouldPass ? 'pass' : 'fail') : done.verdict) : null;
       title.replaceChildren(el('b', {}, `${rec.test} ${T.title}`),
-        el('span', { class: 'badge ' + (v || 'run') }, v ? (v === 'pass' ? '✓ pass' : v === 'fail' ? '✗ fail' : v) : paused ? 'paused' : 'running'),
+        el('span', { class: 'badge ' + (v === 'one step' ? 'skip' : v || 'run') }, v ? (v === 'pass' ? '✓ pass' : v === 'fail' ? '✗ fail' : v) : paused ? 'paused' : 'running'),
         `t = ${ctx.t.toFixed(1)} s${done && done.failed && done.failed.length ? ` · ${done.failed.length} failed` : ''}`);
       if (!showHud) return;
       hud.textContent = `${paramText(params)}${rec.seed !== null && rec.seed !== undefined ? ' seed=' + rec.seed : ''}\n` +

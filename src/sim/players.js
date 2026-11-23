@@ -403,7 +403,7 @@ export class Players {
       out.push({
         id: p.id, m: p.mode, inj: p.inj, gr: p.grab ? [p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pr: p.prompt,
         cl: p.cl ? [p.cl.seg, +p.cl.t.toFixed(3), p.cl.side.map((x) => +x.toFixed(3))] : 0,
-        saw: s.on ? [...s.A.toArray(), ...s.b.toArray(), ...s.f.toArray(), s.stuck ? 1 : 0, s.cutting ? 1 : 0].map((x) => +x.toFixed(3)) : 0,
+        saw: s.on ? [...s.A.toArray(), ...s.b.toArray(), ...s.f.toArray(), s.stuck ? 1 : 0, s.cutting ? 1 : 0, CFG.BAR_LEN].map((x) => +x.toFixed(3)) : 0,
       });
     }
     return out;
