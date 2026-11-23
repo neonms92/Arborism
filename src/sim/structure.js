@@ -215,6 +215,23 @@ export class Structure {
     const dOx = Ob.x - Ow.x, dOy = Ob.y - Ow.y, dOz = Ob.z - Ow.z;
     const E = _E, RX = _RX, RY = _RY, RZ = _RZ, SX = _SX, SY = _SY, SZ = _SZ, mode = _mode, capF = _capF;
     let alive = 0, kOwn = 0, mOwn = 0;
+    // Fibres are bonded to their neighbours (the wood between them). A bonded strip folds as one piece, so a
+    // fibre's fold strain grows with its distance from the middle of its strip, not just its own thickness:
+    // thick hinges are quicker to tear, thin strips still fold far (D49).
+    const nb = neighbours(j.N), bond = j.bond || (j.bond = new Uint8Array(2 * n).fill(1));
+    const grp = groupStrips(n, nb, bond, j.st);
+    // fold direction across the face: a fibre at s = r . (n x axis) > 0 is on the stretched side of the fold
+    let fu = 0, fv = 0;
+    if (bend > 1e-9) {
+      const bx = thp[0] / bend, by = thp[1] / bend, bz = thp[2] / bend;
+      const dx = nv[1] * bz - nv[2] * by, dy = nv[2] * bx - nv[0] * bz, dz = nv[0] * by - nv[1] * bx;
+      fu = dx * uw.x + dy * uw.y + dz * uw.z; fv = dx * vw.x + dy * vw.y + dz * vw.z;
+    }
+    const SF = _SF, GC = _GC, GN = _GN;
+    for (let g = 0; g < grp.count; g++) { GC[g] = 0; GN[g] = 0; }
+    for (let i = 0; i < n; i++) { SF[i] = (X[i] * fu + Y[i] * fv) * R; const g = grp.of[i]; if (g >= 0) { GC[g] += SF[i]; GN[g]++; } }
+    for (let g = 0; g < grp.count; g++) GC[g] /= GN[g];
+    const snapped = _snapped; let nSnap = 0;
     for (let i = 0; i < n; i++) {
       const x = X[i] * R, y = Y[i] * R;
       // d = where this fibre's end on the distal body is, relative to its root on the parent
@@ -222,8 +239,30 @@ export class Structure {
       const del = dx * nv[0] + dy * nv[1] + dz * nv[2];          // elongation along the grain
       SX[i] = dx - del * nv[0]; SY[i] = dy - del * nv[1]; SZ[i] = dz - del * nv[2];   // sideways slip
       RX[i] = dOx + x * ub.x + y * vb.x; RY[i] = dOy + x * ub.y + y * vb.y; RZ[i] = dOz + x * ub.z + y * vb.z;   // lever from O
-      if (j.st[i] === ELASTIC && (del - j.p[i] > CFG.FIBRE_STRETCH - bend * h / 2 || del + bend * h / 2 > CFG.FIBRE_STRETCH
-        || Math.hypot(SX[i], SY[i], SZ[i]) > CFG.FIBRE_SLIP || bend > CFG.BEND_MAX)) j.st[i] = BROKEN;
+      DEL[i] = del;
+      if (j.st[i] !== ELASTIC) continue;
+      const fold = bend * (h / 2 + (grp.of[i] >= 0 ? Math.max(0, SF[i] - GC[grp.of[i]]) : 0));
+      if (del - j.p[i] > CFG.FIBRE_STRETCH - fold || del + fold > CFG.FIBRE_STRETCH
+        || Math.hypot(SX[i], SY[i], SZ[i]) > CFG.FIBRE_SLIP || bend > CFG.BEND_MAX) { j.st[i] = BROKEN; snapped[nSnap++] = i; }
+    }
+    // A fibre that snaps unloads into the fibres bonded to it. If a bond cannot carry what that fibre was
+    // pulling, it splits and the crack turns along the grain (the neighbour lives on: green wood tears
+    // fibrously); if it can, the stress goes into the neighbour and the crack runs across it, as long as that
+    // neighbour is itself in tension.
+    const cap = CFG.SHEAR * h * CFG.BOND_LEN;
+    for (let q = 0; q < nSnap; q++) {
+      const i = snapped[q], Fi = Math.max(0, (j.force[i] || 0) * Ft);
+      for (let e = 0; e < 4; e++) {
+        const k = e === 0 ? nb.px[i] : e === 1 ? nb.py[i] : e === 2 ? nb.mx[i] : nb.my[i];
+        if (k < 0) continue;
+        const bi = e === 0 ? 2 * i : e === 1 ? 2 * i + 1 : e === 2 ? 2 * k : 2 * k + 1;
+        if (!bond[bi]) continue;
+        if (j.st[k] !== ELASTIC || Fi > cap) { bond[bi] = 0; continue; }
+        if ((j.force[k] || 0) > 0) { j.st[k] = BROKEN; snapped[nSnap++] = k; }
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      const del = DEL[i];
       if (j.st[i] === ELASTIC) {
         alive++; kOwn += kt * h * h / 12; mOwn += Ft * h / 4;
         // a fibre found beyond its elastic range has already stretched or crushed that far: it takes a set
@@ -236,7 +275,7 @@ export class Structure {
         E[i] = del + j.gap[i];
       }
       mode[i] = j.st[i] === ELASTIC || E[i] <= 0 ? LIN : OFF;    // OFF = not touching
-      DEL[i] = del; KF[i] = j.st[i] === ELASTIC && E[i] > 0 ? kt : kc;      // stiffer or softer depending on which way it is strained
+      KF[i] = j.st[i] === ELASTIC && E[i] > 0 ? kt : kc;      // stiffer or softer depending on which way it is strained
     }
     if (!alive) { this.endJoint(id, j); if (j.age > 1) sim.toast('it came free'); return; }
 
@@ -424,8 +463,49 @@ const _J = new Float64Array(18), _M = new Float64Array(18);
 const NF = 520;   // >= the most fibres in a bundle
 const KF = new Float64Array(NF);
 const _E = new Float64Array(NF), DEL = new Float64Array(NF), RATE = new Float64Array(NF), _RX = new Float64Array(NF), _RY = new Float64Array(NF), _RZ = new Float64Array(NF);
+const _SF = new Float64Array(NF), _GC = new Float64Array(NF), _GN = new Float64Array(NF), _snapped = new Int32Array(NF), _UF = new Int32Array(NF), _GID = new Int32Array(NF), _ROOT = new Int32Array(NF);
 const _SX = new Float64Array(NF), _SY = new Float64Array(NF), _SZ = new Float64Array(NF), _mode = new Uint8Array(NF), _capF = new Float64Array(NF), _flips = new Uint8Array(NF);
 _J[0] = 1; _J[7] = 1; _J[14] = 1;
 const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion();
 const _O = new THREE.Vector3(), _n = new THREE.Vector3(), _u = new THREE.Vector3(), _v = new THREE.Vector3();
 const _Ob = new THREE.Vector3(), _ub = new THREE.Vector3(), _vb = new THREE.Vector3();
+
+/** Grid neighbours of each fibre in an N-across bundle: +x, +y, -x, -y (index or -1). */
+const NBRS = new Map();
+function neighbours(N) {
+  let r = NBRS.get(N);
+  if (r) return r;
+  const L = layout(N), n = L.n, at = new Map(), key = (x, y) => Math.round((x + 1) * N / 2 - 0.5) + ',' + Math.round((y + 1) * N / 2 - 0.5);
+  for (let i = 0; i < n; i++) at.set(key(L.X[i], L.Y[i]), i);
+  r = { px: new Int32Array(n), py: new Int32Array(n), mx: new Int32Array(n), my: new Int32Array(n) };
+  for (let i = 0; i < n; i++) {
+    const gx = Math.round((L.X[i] + 1) * N / 2 - 0.5), gy = Math.round((L.Y[i] + 1) * N / 2 - 0.5), g = (a, b) => at.get(a + ',' + b) ?? -1;
+    r.px[i] = g(gx + 1, gy); r.py[i] = g(gx, gy + 1); r.mx[i] = g(gx - 1, gy); r.my[i] = g(gx, gy - 1);
+  }
+  NBRS.set(N, r);
+  return r;
+}
+
+/** Strips of intact fibres still bonded together: of[i] = strip index (-1 for a broken or cut fibre). */
+function groupStrips(n, nb, bond, st) {
+  const uf = _UF, of = _GID;
+  const find = (a) => { while (uf[a] !== a) { uf[a] = uf[uf[a]]; a = uf[a]; } return a; };
+  for (let i = 0; i < n; i++) uf[i] = i;
+  for (let i = 0; i < n; i++) {
+    if (st[i] !== 0) continue;
+    const a = nb.px[i], b = nb.py[i];
+    if (a >= 0 && bond[2 * i] && st[a] === 0) uf[find(a)] = find(i);
+    if (b >= 0 && bond[2 * i + 1] && st[b] === 0) uf[find(b)] = find(i);
+  }
+  let count = 0;
+  const root = _ROOT;
+  for (let i = 0; i < n; i++) { of[i] = -1; root[i] = -1; }
+  for (let i = 0; i < n; i++) {
+    if (st[i] !== 0) continue;
+    const r = find(i);
+    if (root[r] < 0) root[r] = count++;
+    of[i] = root[r];
+  }
+  return { of, count };
+}
+

@@ -120,10 +120,12 @@ const openTests = async (headless) => {
   testing = true; $('lobby').style.display = 'none';
   const ui = await import('./test/ui.js');
   const back = () => { testing = false; $('lobby').style.display = ''; };
-  if (headless) ui.headless(q, back); else ui.openTesting(back);
+  if (headless) ui.headless(q, back);
+  else { const t = ui.openTesting(back); if (q.get('view')) t.viewDefault(q.get('view')); }
 };
 $('bTest').onclick = () => openTests(false);
 if (q.has('test')) openTests(true);
+else if (q.has('view')) openTests(false);         // ?view=FM-10: straight to that test's default point
 $('code').value = (q.get('join') || localStorage.getItem('arb-room') || '').toUpperCase();
 if (q.has('solo')) startHost(false);
 else if (q.has('host')) startHost(true);

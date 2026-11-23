@@ -148,7 +148,7 @@ async function overload(env, p, o = {}) {
   const m = ctx.limb(p.L, p.D, 0);
   const Py = limbYield(p.L, p.D), Pmax = 2 * Math.max(Py, 50), t0 = ctx.t;
   const P = (c) => Math.min(o.cap ?? Infinity, Pmax * Math.min(1, (c.t - t0) / 10));
-  ctx.addLoad(m, p.L, (c) => [0, -P(c), 0]);
+  ctx.addLoad(m, p.L, (c) => [0, -P(c), 0], { hang: true });
   let Plive = null, liveT = null, freeT = null, droopFree = null;
   const e0 = elev({ y: m.axis[1] });
   ctx.hooks.push((c) => {
@@ -279,8 +279,10 @@ export const TESTS = [
         bimodT: Et() * M / EI * (R - c), bimodC: Ec() * M / EI * (R + c), monotonic: mono, levels: steps.map((s) => s[0]), splits: ctx.splits.length };
     },
     judge: (m) => [
-      ge('maxT >= 0.6 McI', m.ratioT, 0.6), le('maxT <= 1.6 McI', m.ratioT, 1.6),
-      ge('|minC| >= 0.6 McI', m.ratioC, 0.6), le('|minC| <= 1.6 McI', m.ratioC, 1.6),
+      // the owner's call (FM-02 card): against the bimodular section, whose tension and compression stiffness
+      // differ, not the symmetric M c / I
+      ge('maxT >= 0.6 x bimodular', m.maxT / m.bimodT, 0.6), le('maxT <= 1.6 x bimodular', m.maxT / m.bimodT, 1.6),
+      ge('|minC| >= 0.6 x bimodular', -m.minC / m.bimodC, 0.6), le('|minC| <= 1.6 x bimodular', -m.minC / m.bimodC, 1.6),
       is('maxT rises monotonically with P', m.monotonic), is('no split', m.splits === 0, m.splits),
     ],
     view: (p) => ({ target: [0, p.L + 1.5, 0], dist: 1.2, yaw: 0.6, pitch: 0.2 }),
@@ -494,17 +496,85 @@ export const TESTS = [
       await ctx.run(1);
       const hc = 0.5;
       m.cut(() => [hc, hc]);
+      // The owner's call (FM-16 card): a stem balanced on its stump gets a small push. Half a second after the
+      // cut, a level push at the top, the way it leans (+x), ramping up by 2 % of the stem's weight per
+      // second, and let go once it tilts 10° past its lean: the least push that tips it (a rocking stem that
+      // swings back is pushed again).
+      const t0 = ctx.t + 0.5, Wt = m.segs().reduce((a, e) => a + segMass(e.s), 0) * CFG.GRAVITY;
+      let pushing = true, pushPeak = 0;
+      ctx.hooks.push((c) => {
+        if (!pushing || c.t < t0) return;
+        const tp = m.top();
+        const d = m.dirOf(m.topPiece()), tilt = d ? Math.acos(Math.max(-1, Math.min(1, d.y / Math.hypot(d.x, d.y, d.z)))) / DEG : 0;
+        if (tilt > p.lean + 10 || tp.p.y < 1.5) { pushing = false; return; }
+        const F = 0.02 * Wt * (c.t - t0); pushPeak = F;
+        c.sim.applyForce(tp.seg.id, tp.p, { x: F, y: 0, z: 0 });
+      });
       await ctx.run(20, () => m.top().p.y < 1.5 && st.settled);
       const piece = m.topPiece(), d = m.dirOf(piece), heading = d ? Math.atan2(d.z, d.x) / DEG : null, butt = m.butt(piece);
       const stump = m.axis.map((a) => a * hc);
       return { splits: ctx.splits.length, clean: ctx.splits.length > 0 && !ctx.splits[0].live, topY: +m.top().p.y.toFixed(3), heading,
-        slide: butt ? +Math.hypot(butt.x - stump[0], butt.z - stump[2]).toFixed(3) : null };
+        slide: butt ? +Math.hypot(butt.x - stump[0], butt.z - stump[2]).toFixed(3) : null, pushPeak: +pushPeak.toFixed(1), pushOfWeight: +(pushPeak / Wt).toFixed(4) };
     },
     judge: (m, p) => [
       is('one clean split', m.splits === 1 && m.clean, m.splits), le('falls (top < 1.5 m)', m.topY, 1.5),
       ...(p.lean >= 3 ? [le('falls within 30° of the lean', Math.abs(wrap(m.heading ?? 180)), 30)] : []),
       le('butt slides <= 2 m', m.slide ?? NaN, 2),
     ],
+    view: (p) => ({ target: [0, p.H / 3, 0], dist: p.H * 1.4, yaw: -Math.PI / 2, pitch: 0.35 }),
+  },
+  {
+    // The owner's (2026-11-23): a dead-straight stem cut dead level has nothing to tip it over.
+    id: 'FM-17', title: 'Straight stem, level cut: it stands', time: 20,
+    params: { H: P([4, 20], [2, 35], 11, 'm'), D: P([0.2, 0.8], [0.05, 1.5], 0.5, 'm') },
+    fix(p) { p.D = Math.min(Math.max(p.D, p.H / 200), p.H / 5); return p; },
+    async run(env, p) {
+      const ctx = await env.ctx(), m = ctx.stem(p.H, p.D, 0, 0);
+      await ctx.run(1);
+      const hc = 0.5, top0 = m.top().p.clone();
+      m.cut(() => [hc, hc]);
+      await ctx.run(20);
+      const t = m.top().p;
+      return { splits: ctx.splits.length, clean: ctx.splits.length > 0 && !ctx.splits[0].live, topY: +t.y.toFixed(3), H: p.H,
+        drift: +Math.hypot(t.x - top0.x, t.z - top0.z).toFixed(4) };
+    },
+    judge: (m) => [is('one clean split', m.splits === 1 && m.clean, m.splits), ge('still standing (top >= 0.95 H)', m.topY / m.H, 0.95), le('top drifts < 0.1 m', m.drift, 0.1)],
+    view: (p) => ({ target: [0, p.H / 3, 0], dist: p.H * 1.4, yaw: -Math.PI / 2, pitch: 0.35 }),
+  },
+  {
+    // The owner's (2026-11-23): a notch alone, deepened step by step, takes away wood on one side, so the
+    // wood above should sit off-centre on what is left and lean the notch's way before anything lets go.
+    // Four notch directions, each in its own world.
+    id: 'FM-18', title: 'Straight stem, notch only: it leans into the notch (4 directions)', time: 160,
+    params: { H: P([4, 20], [2, 35], 11, 'm'), D: P([0.2, 0.8], [0.05, 1.5], 0.5, 'm'), alpha: P([45, 70], [30, 90], 55, '°') },
+    fix(p) { p.D = Math.min(Math.max(p.D, p.H / 200), p.H / 5); return p; },
+    async run(env, p) {
+      const out = [];
+      for (const psi of [0, 90, 180, 270]) {
+        const ctx = await env.ctx(), m = ctx.stem(p.H, p.D, 0, 0);
+        await ctx.run(1);
+        const hc = 0.5, R = m.R(hc), tanA = Math.tan(p.alpha * DEG), dN = perpTo([Math.cos(psi * DEG), 0, Math.sin(psi * DEG)], m.axis);
+        const top0 = m.top().p.clone(), lean = () => { const t = m.top().p; return [t.x - top0.x, t.z - top0.z]; };
+        let rel = null, before = null, depth = 0;
+        for (let dn = 0.05; dn <= 0.9 + 1e-9 && rel === null; dn += 0.05) {
+          const qA = R - dn * 2 * R;
+          m.cut((ov) => { const q = dot(ov, dN) * R; return q > qA ? [hc, hc + (q - qA) * tanA] : null; });
+          await ctx.run(1);
+          if (ctx.splits.length) { rel = { dn: +dn.toFixed(2), lean: lean() }; break; }
+          before = lean(); depth = dn;
+        }
+        await ctx.run(rel ? 10 : 0);
+        const d = m.dirOf(m.topPiece()), fell = d ? Math.atan2(d.z, d.x) / DEG : null;
+        const head = (v) => (v && Math.hypot(v[0], v[1]) > 1e-6 ? Math.atan2(v[1], v[0]) / DEG : null);
+        out.push({ psi, depthBefore: +depth.toFixed(2), leanBefore: before ? +Math.hypot(before[0], before[1]).toFixed(5) : 0,
+          headingBefore: head(before), releaseDepth: rel ? rel.dn : null, fellHeading: rel && d && d.y < 0.7 ? +fell.toFixed(1) : null });
+      }
+      return { dirs: out };
+    },
+    judge: (m) => m.dirs.flatMap((o) => [
+      ge(`notch at ${o.psi}°: leans before release (> 1 mm)`, o.leanBefore, 0.001),
+      le(`notch at ${o.psi}°: leans toward the notch (within 30°)`, Math.abs(wrap((o.headingBefore ?? o.psi + 180) - o.psi)), 30),
+    ]),
     view: (p) => ({ target: [0, p.H / 3, 0], dist: p.H * 1.4, yaw: -Math.PI / 2, pitch: 0.35 }),
   },
   {
@@ -553,7 +623,7 @@ export const TESTS = [
     view: () => ({ target: [0, 3, 0], dist: 14, yaw: -Math.PI / 2, pitch: 0.35 }),
   },
   {
-    id: 'FM-22', title: 'Step cost stays in budget', time: 60,
+    id: 'FM-22', title: 'Step cost stays in budget', time: 60, alone: true,
     params: {},
     async run(env) {
       const ctx = await env.ctx();

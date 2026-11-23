@@ -146,9 +146,9 @@ bending (DESIGN 3.2, 3.2a). This pins them to a textbook answer.
   breaking load; explore 0 – 95 %.
 - **Measured:** root `maxT`, `minC`; the analytic `M·c/I` for a solid circle
   at the root; the neutral-axis offset implied by the strain plane.
-- **Pass if:** `maxT` and `|minC|` are each within 0.6 – 1.6 × `M·c/I`
-  *(proposed: the model is bimodular, so tension and compression differ from
-  the symmetric formula; the band brackets the exact bimodular answer)*;
+- **Pass if:** `maxT` and `|minC|` are each within 0.6 – 1.6 × the
+  bimodular section's answer (owner's decision: tension and compression
+  stiffness differ, so the symmetric `M·c/I` is the wrong reference);
   `maxT` increases monotonically with P across the sweep; no `split`.
 - **Time:** 5 s.
 - **View:** close-up of the root bundle, fibres coloured, stress values
@@ -385,12 +385,40 @@ underside fibres must act as a hinge that nothing closes on.
 ### FM-16 Straight through: free, no launch
 
 - **Scenario:** Stem(H, D, lean). A single level plane cut through every
-  fibre at once at `h_c`.
+  fibre at once at `h_c`. Half a second later a level push at the top, the
+  way it leans, ramping by 2 % of the stem's weight per second until it has
+  tilted 10° past its lean (owner's decision: a stem balanced on its stump
+  gets a small push; one that overhangs needs none).
 - **Parameters:** H 4 – 20, D 0.2 – 0.8, lean 0 – 10°.
 - **Pass if:** one clean (not live) `split`; the stem falls (top < 1.5 m at
   the end) and, if lean ≥ 3°, within 30° of the lean; butt slides ≤ 2 m;
   INV-3 holds.
 - **Time:** 20 s.
+
+### FM-17 Straight stem, level cut: it stands
+
+*Why (owner, 2026-11-23):* with nothing off-centre, nothing should tip it.
+
+- **Scenario:** Stem(H, D, 0°). One level cut through every fibre at 0.5 m.
+- **Parameters:** H 4 – 20, D 0.2 – 0.8.
+- **Pass if:** one clean split; the top stays above 0.95 H and drifts
+  less than 0.1 m over 20 s.
+
+### FM-18 Straight stem, notch only: it leans into the notch
+
+*Why (owner, 2026-11-23):* wood above a notch sits off-centre on what is
+left, so the stem must lean the notch's way before anything lets go. Checks
+that a partly cut bundle carries the weight of the wood above at that
+wood's own centre of gravity.
+
+- **Scenario:** Stem(H, D, 0°). A notch (upper face at `alpha`) at 0.5 m,
+  deepened by 5 % of D every second until the stem goes live; repeated with
+  the notch facing 0°, 90°, 180° and 270°, each in a fresh world.
+- **Parameters:** H 4 – 20, D 0.2 – 0.8, alpha 45 – 70°.
+- **Measured:** the top's sideways movement just before release, its
+  heading, the depth at release, the fall heading.
+- **Pass if:** for each direction, the top has moved more than 1 mm before
+  release, within 30° of the way the notch faces.
 
 ---
 
@@ -626,6 +654,18 @@ map, so `src/sim/` imports three and Rapier by relative path (D41).
   at hundreds of m/s), or INV-3 would catch the test, not the engine. The
   cost: once live, a limb feels less than the full load, so "comes free" in
   FM-04 and the held load in FM-05 are weaker than a real hanging weight.
+- **Viewer:** re-runs the case on the main thread with the view attached.
+  It works on a phone: one finger orbits, a pinch dollies the camera
+  forward or back (the camera moves, the lens does not zoom; once it reaches
+  the target it carries the target ahead), two fingers pan, a double tap
+  resets the camera to the test's view. Replay starts the run again and
+  keeps the camera where you put it; "‹ Tests" or the phone's back gesture
+  returns to the list. `?view=FM-10` opens a test's default point directly.
+- **FM-04 / FM-05 load** is a real hanging weight once the limb goes live:
+  a point mass of P / g on a ball joint at the tip (still ramping with P),
+  released when the limb comes free. The capped force before it faded as
+  the limb moved, so FM-04's limbs hung and never tore off. FM-22 runs last,
+  alone, so other workers do not inflate its timings.
 - **Cuts** go through the saw's own `sever()`. Fibres within
   `max(2 r, 0.15 m)` of a live joint's plane are that joint's fibres (cut with
   `cutLive`), the same distance `sever()` uses to keep one cut plane.

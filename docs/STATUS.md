@@ -66,6 +66,8 @@ solver launches, rolling resistance).
 | FM-14 top cut strap | 2 / 81 | 2 / 81 | thick straps stay stiff (never live); thin ones droop ~15° and stop |
 | FM-15 undercut + top cut | 80 / 81 (+1) | 81 / 81 | — |
 | FM-16 straight through | 5 / 25 | 16 / 25 | a stem with no lean balances on its stump |
+| FM-17 straight, level cut (new) | — | 21 / 21 | — |
+| FM-18 straight, notch only, 4 ways (new) | — | 25 / 25 | — |
 | FM-20 discretisation | 0 / 1 | 0 / 1 | fall heading, hinge angle and P_live all move with SEG_LEN / FIBRE_PITCH |
 | FM-21 determinism | 1 / 1 | 1 / 1 | identical event logs and transforms |
 | FM-22 step cost | 1 / 1 | 0 / 1 | idle p95 1.2 ms against a 1 ms bound while 3 other workers ran; alone it measures 0.7 – 1.0 ms with or without rolling resistance, so this one is timing noise at the edge of its bound |
