@@ -18,7 +18,7 @@
 import * as THREE from '../../vendor/three/three.module.js';
 import { CFG } from '../config.js';
 import { segAxis, segLen, segMass, segCentroidT, segParam, segRadius, lerp3 } from '../model/world.js';
-import { analyse, bundleBasis, layout, gapOf, INTACT, CUT } from '../model/fibres.js';
+import { analyse, bundleBasis, layout, gapOf, makeBundle, fibreForces, isGone, INTACT, CUT } from '../model/fibres.js';
 import { segDist } from './saw.js';
 import { Flex, frameApply, frameDir } from '../model/flex.js';
 
@@ -115,9 +115,76 @@ export class Structure {
     const fr = this.flex.at(s.id, f.at), a0 = segAxis(s), b0 = bundleBasis(a0);
     const ax = frameDir(fr, a0), u = frameDir(fr, b0.u), v = frameDir(fr, b0.v), C = frameApply(fr, lerp3(s.a, s.b, f.at)), cxF = cross(C, F);
     const Mc = [M[0] - cxF[0], M[1] - cxF[1], M[2] - cxF[2]];
-    if (!analyse(f, segRadius(s, f.at), dot(F, ax), dot(Mc, u), dot(Mc, v))) { this.separate(s, false); return; }
+    const R = segRadius(s, f.at), Nax = dot(F, ax), Mu = dot(Mc, u), Mv = dot(Mc, v);
+    if (!analyse(f, R, Nax, Mu, Mv)) { this.separate(s, false); return; }
+    if (f.ncut > 0 && this.ripCheck(s, R, Nax, Mu, Mv)) return;
     // a fibre past its elastic limit: from here on the fibres themselves decide
     if (f.maxT > CFG.MOR && (s.parent >= 0 || f.ncut > 0)) this.separate(s, true);
+  }
+
+  // ---- splitting along the grain (DECISIONS D50) ----
+  // Where fibres have been severed, the ones left carry what the severed ones did. Away from the cut the
+  // load spreads back over the whole section, so along any lengthwise plane through the wood the difference
+  // has to cross from one side to the other as shear, within BOND_LEN of the cut. If that shear is more
+  // than the wood's SHEAR strength, the wood splits along that plane: the side that was carrying less comes
+  // away from the side carrying the load, and stays joined only to the wood above. Nothing here knows about
+  // notches, back cuts or barber chairs: it is the same check for any pattern of severed fibres.
+  ripCheck(s, R, Nax, Mu, Mv) {
+    const f = s.f, n = f.n, Ly = layout(f.N), X = Ly.X, Y = Ly.Y;
+    let real = 0, zlo = Infinity;
+    for (let i = 0; i < n; i++) if (f.state[i] === CUT && !isGone(f, i)) { real++; if (f.zmin[i] < zlo) zlo = f.zmin[i]; }
+    f.ripTau = 0;
+    if (!real) return false;
+    // the same wood and load with nothing severed (what it is like a little way above the cut)
+    let ref = REF.get(f.N); if (!ref) REF.set(f.N, ref = makeBundle(f.N));
+    ref.ncut = 0;
+    for (let i = 0; i < n; i++) { const g = isGone(f, i); ref.state[i] = g ? CUT : INTACT; ref.zmin[i] = f.zmin[i]; ref.zmax[i] = f.zmax[i]; if (g) ref.ncut++; }
+    if (ref.sgn) ref.sgn.fill(0);
+    if (!analyse(ref, R, Nax, Mu, Mv)) return false;
+    const T = fibreForces(f, R, _T), Tr = fibreForces(ref, R, _Tr), cs = Ly.cs;
+    let best = 0, big = 0, bc = 0, bs = 0, bd = 0;
+    for (let o = 0; o < 8; o++) {
+      const c = Math.cos(o * Math.PI / 8), sn = Math.sin(o * Math.PI / 8);
+      for (let k = 1; k < f.N; k++) {
+        const d = -1 + cs * k;
+        let dA = 0, nA = 0, nB = 0, on = 0;
+        for (let i = 0; i < n; i++) {
+          if (isGone(f, i)) continue;
+          const p = X[i] * c + Y[i] * sn;
+          if (p > d) { dA += T[i] - Tr[i]; nA++; } else nB++;
+          if (Math.abs(p - d) < cs / 2) on++;            // fibres along the plane: about one per fibre pitch of its width
+        }
+        if (!nA || !nB || !on) continue;
+        const tau = Math.abs(dA) / (on * cs * R * CFG.BOND_LEN);
+        if (tau > best) best = tau;
+        // of the planes that give way, the crack is the one that frees the most load (a sliver along the bark
+        // can be the most stressed plane without being where the wood comes apart)
+        if (tau > CFG.SHEAR && Math.abs(dA) > big) { big = Math.abs(dA); bc = c; bs = sn; bd = d; }
+      }
+    }
+    f.ripTau = best;
+    if (best <= CFG.SHEAR) return false;
+    const sim = this.sim, w = sim.world, L = segLen(s);
+    if (zlo > 0.1) {
+      // the cut is partway along this segment: first give the wood above it a segment of its own (next tick it splits)
+      sim.emit({ t: 'divide', seg: s.id, at: Math.min(0.95, (zlo - 0.02) / L), newSeg: w.newId() });
+      return true;
+    }
+    // the side of the plane that was carrying less load comes away
+    let la = 0, lb = 0; const ia = [], ib = [];
+    for (let i = 0; i < n; i++) {
+      if (isGone(f, i)) continue;
+      if (X[i] * bc + Y[i] * bs > bd) { la += Math.abs(T[i]); ia.push(i); } else { lb += Math.abs(T[i]); ib.push(i); }
+    }
+    // the stem carries on above this segment into its biggest child that starts at its top
+    let cont = -1, cr = 0;
+    for (const k of w.kids(s.id)) {
+      const c = w.segs.get(k);
+      if (Math.abs(c.a[0] - s.b[0]) + Math.abs(c.a[1] - s.b[1]) + Math.abs(c.a[2] - s.b[2]) < 1e-3 && c.r0 > cr) { cr = c.r0; cont = k; }
+    }
+    sim.emit({ t: 'rip', seg: s.id, h: la <= lb ? ia : ib, newSeg: w.newId(), cont });
+    sim.toast('the wood is splitting along the grain');
+    return true;
   }
 
   /** Called by the saw after it severs fibres. */
@@ -458,9 +525,11 @@ function solve6(A, b) {
   return b;
 }
 
+const REF = new Map();             // N -> scratch bundle for ripCheck
 const _K = new Float64Array(36), _W = new Float64Array(36), _D = new Float64Array(36), _A = new Float64Array(36);
 const _J = new Float64Array(18), _M = new Float64Array(18);
 const NF = 520;   // >= the most fibres in a bundle
+const _T = new Float64Array(NF), _Tr = new Float64Array(NF);
 const KF = new Float64Array(NF);
 const _E = new Float64Array(NF), DEL = new Float64Array(NF), RATE = new Float64Array(NF), _RX = new Float64Array(NF), _RY = new Float64Array(NF), _RZ = new Float64Array(NF);
 const _SF = new Float64Array(NF), _GC = new Float64Array(NF), _GN = new Float64Array(NF), _snapped = new Int32Array(NF), _UF = new Int32Array(NF), _GID = new Int32Array(NF), _ROOT = new Int32Array(NF);

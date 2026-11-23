@@ -420,6 +420,24 @@ wood's own centre of gravity.
 - **Pass if:** for each direction, the top has moved more than 1 mm before
   release, within 30° of the way the notch faces.
 
+### FM-19 Barber chair: a hard lean back-cut without a proper notch splits
+
+*Why (owner, 2026-11-23):* a hard-leaning trunk back-cut without a proper
+notch splits up the stem ahead of the saw. The engine has no barber-chair
+rule: wood splits along the grain wherever severed fibres leave more shear
+across a lengthwise plane than the wood can carry (DECISIONS D50), so this
+test checks the general mechanism on its best-known case.
+
+- **Scenario:** Stem(H, D, lean toward +x). A shallow notch (depth `dn`;
+  none when 0) facing the lean at 0.5 m, then FM-10's back cut fed in from
+  behind, level with the notch floor. Control, in a fresh world: FM-10's
+  default fell (5° lean, 0.25 D notch).
+- **Parameters:** lean 15 – 25°, dn 0.05 – 0.12 D, H 12 – 20, D 0.4 – 0.7.
+- **Measured:** lengthwise splits, how high above the cut the highest one
+  reaches, how far the back cut had got when the first came.
+- **Pass if:** the stem splits lengthwise at least 1 m above the cut, before
+  the back cut is finished; the control does not split at all.
+
 ---
 
 ## 4. Solver robustness

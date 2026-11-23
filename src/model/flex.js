@@ -125,7 +125,9 @@ export class Flex {
           const d = e.extV * h; e.ext += d; moved += Math.abs(d);
         }
         const pe = s.parent >= 0 ? this.st.get(s.parent) : null;
-        e.base = pe ? pe.tip : IDENT;
+        // a child grows from its parent's tip, except the half of a lengthwise split, which hangs from its parent's base
+        const ps = pe ? w.segs.get(s.parent) : null, atBase = ps && Math.abs(s.a[0] - ps.a[0]) + Math.abs(s.a[1] - ps.a[1]) + Math.abs(s.a[2] - ps.a[2]) < 1e-4;
+        e.base = pe ? (atBase ? this.at(s.parent, 0) : pe.tip) : IDENT;
         e.tip = this.at(s.id, 1);
       }
     }

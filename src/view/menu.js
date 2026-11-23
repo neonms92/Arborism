@@ -37,6 +37,7 @@ const ROWS = [
   ['FLEX_DAMP', 'Bounce damping (1 = none)', 0.05, 1.5, 0.05, 1],
   ['FIBRE_STRETCH', 'Stretch at which a fibre snaps (mm)', 2, 80, 1, 0.001, true],
   ['FIBRE_SLIP', 'Sideways slip at which a fibre shears (mm)', 5, 100, 1, 0.001, true],
+  ['SHEAR', 'Shear strength along the grain (MPa). Lower = wood splits lengthwise more readily', 1, 30, 0.5, 1e6, true],
   ['BOND_LEN', 'Fibre bond length (mm). Longer = cracks run across, shorter = wood splits along the grain', 5, 300, 5, 0.001],
   ['BEND_MAX', 'Fold angle no fibre survives (rad)', 0.2, 3.1, 0.05, 1, true],
   ['DENSITY', 'Wood density (kg/m3)', 200, 1400, 10, 1, true],

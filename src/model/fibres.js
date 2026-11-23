@@ -11,6 +11,14 @@
 import { CFG } from '../config.js';
 
 export const INTACT = 0, CUT = 1;
+// A fibre that is not in this segment at all: the wood split lengthwise and it went with the other half.
+// It is stored as CUT with the removed wood spanning everything, so it carries nothing, never bears, is
+// not drawn and does not stop a saw.
+export const GONE_Z = 1e3;
+export const isGone = (b, i) => b.state[i] === CUT && b.zmin[i] <= -GONE_Z;
+export function setGone(b, i) { if (b.state[i] !== CUT) b.ncut++; b.state[i] = CUT; b.zmin[i] = -GONE_Z; b.zmax[i] = GONE_Z; }
+/** Fraction of a bundle's fibres that are really there (1 unless it has split lengthwise). */
+export function presence(b) { let g = 0; for (let i = 0; i < b.n; i++) if (isGone(b, i)) g++; return 1 - g / b.n; }
 
 const LAYOUTS = new Map();
 /** Fibre positions for a bundle N fibres across, in unit-radius coordinates. */
@@ -163,6 +171,18 @@ export function analyse(b, R, Nax, Mu, Mv) {
   }
   b.maxT = hi * Et; b.minC = lo * Ec;
   return true;
+}
+
+/** Axial force (N, + = pulling) in each fibre of a bundle from its last analyse(), into out[]. */
+export function fibreForces(b, R, out) {
+  const L = layout(b.N), n = L.n, dA = L.dA * R * R;
+  const Et = CFG.MOR / CFG.TENS_STRAIN, Ec = CFG.COMP / CFG.COMP_STRAIN, Ek = CFG.KERF_CONTACT * Ec;
+  for (let c = 0; c < n; c++) {
+    const eps = b.e0 + b.e1 * L.X[c] * R + b.e2 * L.Y[c] * R;
+    const w = b.state[c] === INTACT ? (eps < 0 ? Ec : Et) : (b.act[c] ? Ek : 0);
+    out[c] = w * eps * dA;
+  }
+  return out;
 }
 
 let FLIPS = new Uint8Array(64);
