@@ -115,7 +115,7 @@ export class Structure {
     const ax = frameDir(fr, a0), u = frameDir(fr, b0.u), v = frameDir(fr, b0.v), C = frameApply(fr, lerp3(s.a, s.b, f.at)), cxF = cross(C, F);
     const Mc = [M[0] - cxF[0], M[1] - cxF[1], M[2] - cxF[2]];
     const R = segRadius(s, f.at), Nax = dot(F, ax), Mu = dot(Mc, u), Mv = dot(Mc, v);
-    if (!analyse(f, R, Nax, Mu, Mv)) { this.separate(s, false); return; }
+    if (!analyse(f, R, Nax, Mu, Mv, segLen(s))) { this.separate(s, false); return; }
     if (f.ncut > 0 && this.ripCheck(s, R, Nax, Mu, Mv)) return;
     // a fibre past its elastic limit: from here on the fibres themselves decide
     if (f.maxT > CFG.MOR && (s.parent >= 0 || f.ncut > 0)) this.separate(s, true);

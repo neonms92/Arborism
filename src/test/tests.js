@@ -7,7 +7,7 @@
 
 import { CFG, CFG_DEFAULTS } from '../config.js';
 import { segLen, segAxis, segMass, lerp3 } from '../model/world.js';
-import { layout, gridFor } from '../model/fibres.js';
+import { layout, gridFor, kerfStrain } from '../model/fibres.js';
 import { generateTree } from '../model/treegen.js';
 import { frameApply } from '../model/flex.js';
 import { DEG, Member, dot, sub, norm } from './harness.js';
@@ -413,7 +413,7 @@ export const TESTS = [
       ctx.hooks.push((c) => {
         const s = m.segAt(p.hc).s, f = s.f, lay = layout(f.N), r = m.R(p.hc), Ek = CFG.KERF_CONTACT * Ec();
         let pinch = 0;
-        for (let i = 0; i < f.n; i++) if (f.act[i]) pinch += Math.max(0, -Ek * (f.e0 + f.e1 * lay.X[i] * r + f.e2 * lay.Y[i] * r)) * lay.dA * r * r;
+        for (let i = 0; i < f.n; i++) if (f.act[i]) pinch += Math.max(0, -Ek * kerfStrain(f, i, f.e0 + f.e1 * lay.X[i] * r + f.e2 * lay.Y[i] * r)) * lay.dA * r * r;
         pinchMax = Math.max(pinchMax, pinch);
         if (depthPinch === null && pinch > CFG.PINCH_STUCK) depthPinch = depth();
         if (depthLive === null && c.allJoints().length) depthLive = depth();

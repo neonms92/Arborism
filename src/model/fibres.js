@@ -67,6 +67,10 @@ export function makeBundle(N) {
 }
 
 export function gapOf(b, i) { return b.zmax[i] - b.zmin[i] + CFG.KERF_WIDTH; }
+/** Strain a severed fibre's kerf faces are pressed together by, given the plane strain eps at its place:
+ *  a kerf closed by crushing (act 1) carries the whole strain, one the stem has rotated shut (act 2)
+ *  only what is left after its gap has closed (DECISIONS D51). */
+export function kerfStrain(b, c, eps) { return b.act[c] === 2 ? eps + gapOf(b, c) / b.Lf : eps; }
 
 /** Sever fibres idx[] at axial positions z[] (m from the segment base). */
 export function cutFibres(b, idx, z) {
@@ -102,7 +106,7 @@ export function cutFibres(b, idx, z) {
  * b.maxT / b.minC: worst tension / compression stress at a fibre's edge (Pa).
  * The plane is also the bend: see model/flex.js.
  */
-export function analyse(b, R, Nax, Mu, Mv) {
+export function analyse(b, R, Nax, Mu, Mv, Lf = 0) {
   const L = layout(b.N), n = L.n, X = L.X, Y = L.Y, dA = L.dA * R * R;
   const Et = CFG.MOR / CFG.TENS_STRAIN, Ec = CFG.COMP / CFG.COMP_STRAIN, Ek = CFG.KERF_CONTACT * Ec;
   const closedGap = CFG.KERF_WIDTH * 1.5, half = L.cs * R / 2;
@@ -115,13 +119,17 @@ export function analyse(b, R, Nax, Mu, Mv) {
   // that keeps toggling is settled the same way (left closed).
   const flips = flipScratch(n);
   let e0 = 0, e1 = 0, e2 = 0, cx = 0, cy = 0, ok = false;
-  act.fill(0); b.closed = false;
+  act.fill(0); b.closed = false; b.Lf = Lf;
+  let crushed = false;
   for (let it = 0; it < 16; it++) {
-    let A = 0, Sx = 0, Sy = 0;
+    let A = 0, Sx = 0, Sy = 0, Pn = 0, Pu = 0, Px = 0;
     for (let c = 0; c < n; c++) {
       const w = st[c] === INTACT ? (sgn[c] < 0 ? Ec : sgn[c] > 0 ? Et : Em) : (act[c] ? Ek : 0);
       if (w) { A += w; Sx += w * X[c]; Sy += w * Y[c]; }
+      if (act[c] === 2) { const pw = w * gapOf(b, c) / Lf; Pn += pw; Pu += pw * Y[c] * R; Px += pw * X[c] * R; }
     }
+    // faces of a rotated-shut kerf push only once their gap is gone: that offset acts like a load
+    const NaxE = Nax - Pn * dA, MuE = Mu - Pu * dA, MvE = Mv + Px * dA;
     if (A < 1e-9) { ok = false; break; }
     cx = Sx / A * R; cy = Sy / A * R;
     let Ixx = 0, Iyy = 0, Ixy = 0;
@@ -135,9 +143,9 @@ export function analyse(b, R, Nax, Mu, Mv) {
     const own = A * (2 * half) * (2 * half) / 12;       // each fibre's own width
     Ixx += own; Iyy += own;
     const det = Ixx * Iyy - Ixy * Ixy;
-    const Mup = Mu - cy * Nax, Mxp = -Mv - cx * Nax;
+    const Mup = MuE - cy * NaxE, Mxp = -MvE - cx * NaxE;
     e1 = (Mxp * Ixx - Mup * Ixy) / det; e2 = (Mup * Iyy - Mxp * Ixy) / det;
-    e0 = Nax / A - e1 * cx - e2 * cy;
+    e0 = NaxE / A - e1 * cx - e2 * cy;
     ok = true;
     // which fibres are stretched and which squeezed? (their stiffness depends on it)
     let changed = false, minE = 0;
@@ -151,14 +159,19 @@ export function analyse(b, R, Nax, Mu, Mv) {
           changed = true;
         }
         if (eps - edge < minE) minE = eps - edge;
-      } else if (b.closed) {
-        const want = gapOf(b, c) <= closedGap && eps < 0 ? 1 : 0;
-        if (want !== act[c] && flips[c] < 2) { act[c] = want; if (++flips[c] >= 2) act[c] = 1; changed = true; }
+      } else if (st[c] === CUT) {
+        // the faces touch when the wood around the kerf shortens by more than its gap (the stem rotating
+        // over the cut), or when the wood beside it crushes
+        const gap = gapOf(b, c);
+        const want = Lf > 0 && eps * Lf + gap < 0 ? 2 : crushed && gap <= closedGap && eps < 0 ? 1 : 0;
+        if (want !== act[c] && flips[c] < 2) { const was = act[c]; act[c] = want; if (++flips[c] >= 2) act[c] = was || want; changed = true; }
       }
     }
-    if (!b.closed && b.ncut > 0 && minE < -CFG.COMP_STRAIN) { b.closed = true; changed = true; }
+    if (!crushed && b.ncut > 0 && minE < -CFG.COMP_STRAIN) { crushed = true; changed = true; }
     if (!changed) break;
   }
+  b.closed = crushed;
+  for (let c = 0; c < n && !b.closed; c++) if (act[c]) b.closed = true;
   if (!ok) { b.e0 = b.e1 = b.e2 = 0; b.maxT = b.minC = 0; return false; }
   b.e0 = e0; b.e1 = e1; b.e2 = e2;
   b.load = [R, Nax, Mu, Mv];          // what it was solved for (the test harness checks equilibrium against it)
@@ -180,7 +193,7 @@ export function fibreForces(b, R, out) {
   for (let c = 0; c < n; c++) {
     const eps = b.e0 + b.e1 * L.X[c] * R + b.e2 * L.Y[c] * R;
     const w = b.state[c] === INTACT ? (eps < 0 ? Ec : Et) : (b.act[c] ? Ek : 0);
-    out[c] = w * eps * dA;
+    out[c] = w * (w === Ek ? kerfStrain(b, c, eps) : eps) * dA;
   }
   return out;
 }

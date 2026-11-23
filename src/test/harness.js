@@ -9,7 +9,7 @@
 
 import { CFG } from '../config.js';
 import { World, segLen, segAxis, segRadius, lerp3 } from '../model/world.js';
-import { layout, bundleBasis, gridFor, INTACT } from '../model/fibres.js';
+import { layout, bundleBasis, gridFor, INTACT, kerfStrain } from '../model/fibres.js';
 import { frameApply } from '../model/flex.js';
 import { Sim } from '../sim/sim.js';
 import RAPIER from '../../vendor/rapier/rapier.mjs';
@@ -527,7 +527,7 @@ export function equilibriumError(f) {
   for (let c = 0; c < n; c++) {
     const wgt = f.state[c] === INTACT ? (f.sgn[c] < 0 ? Ec : f.sgn[c] > 0 ? Et : (Et + Ec) / 2) : (f.act[c] ? Ek : 0);
     if (!wgt) continue;
-    const x = X[c] * R, y = Y[c] * R, eps = f.e0 + f.e1 * x + f.e2 * y, s = wgt * eps * dA;
+    const x = X[c] * R, y = Y[c] * R, e = f.e0 + f.e1 * x + f.e2 * y, eps = f.state[c] === INTACT ? e : kerfStrain(f, c, e), s = wgt * eps * dA;
     N += s; MU += s * y; MX += s * x; A += wgt * dA;
   }
   const own = A * (2 * half) * (2 * half) / 12;

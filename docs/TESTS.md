@@ -338,7 +338,7 @@ notch is not what steers.
 
 ### FM-12 Cutting into the lean pinches and the tree stands
 
-*Why:* DESIGN 4.4 and D13: a kerf on the compression side closes, carries
+*Why:* DESIGN 4.4, D13 and D51: a kerf on the compression side closes, carries
 load, and clamps the bar.
 
 - **Scenario:** Stem(H, D, lean). A level progressive cut entering from the

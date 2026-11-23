@@ -67,7 +67,7 @@ way to request a lossy channel. `vendor/peerjs/peerjs.min.js` is patched so
 Stale snapshots must be dropped, not queued. Re-apply the patch if PeerJS is
 ever updated (the `sed` line is in CLAUDE.md).
 
-**D13 — Kerfs close only when the wood beside them crushes.** First version
+**D13 — Kerfs close only when the wood beside them crushes.** (Extended by D51.) First version
 let every closed kerf share compression elastically; that pinched every cut
 on a big trunk just from the tree's weight. A real kerf is an 8 mm gap and
 elastic strain is microns. Now the intact wood carries everything until it
@@ -413,4 +413,26 @@ Limits: the split runs whole segments at a time (0.8 m on the test stems), a
 segment that has split is not joined again, and a half that hangs from a
 live (moving) piece is not checked again because live bundles have no shear
 check yet.
+
+**D51 — A kerf also closes when the stem rotates its gap shut.** The owner
+asked for cuts into the lean to pinch the bar (FM-12). Under D13 that never
+happened: the wood beside the kerf has to crush first, and at FM-12's leans
+it sits under a tenth of `COMP`. Now `fibres.analyse` is given the
+segment's length, the same length `flex.js` bends over, and a severed fibre
+touches across its kerf when the plane strain at its place shortens it by
+more than its gap (`eps · L + gap < 0`). Such a face (`act` 2) pushes only
+with what is left once the gap has closed (`kerfStrain`: `eps + gap / L`),
+so contact starts from zero instead of jumping. The crushing rule of D13
+stays as it was (`act` 1). The saw's pinch probe, the FM-12 hook and the
+INV-6 equilibrium check all go through `kerfStrain`.
+Measured on FM-12's stem (H 11 m, D 0.5 m): the bar now pinches when the
+back cut reaches about 0.68 D at 4–10° leans (0.62 D at 15–20°, 0.74 D at
+2°), before the stem goes live at about 0.79 D. Before this it never pinched.
+At 0.4 D and 6° the kerf closes only 0.9 mm of its 8 mm, so FM-12's bound
+of 0.5 D still fails; that bound is the owner's call. The engine's wood is
+already about six times softer than real wood (`COMP / COMP_STRAIN`
+≈ 1.3 GPa), so a real stem would close even less by bending alone: what
+makes real kerfs close early (creep, crushing right at the notch tip) is not
+modelled. FM-10 must-pass went from 41 to 39 / 113 (three softer-wood fells
+at 8° lean now hold on their closed kerfs, one other now passes).
 
