@@ -1,0 +1,194 @@
+// Draws the concrete pavers (model/pavers.js): one instanced slab each, and
+// for each damaged paver a mesh of cracks, chips and (past PAVER_GRAVEL) a
+// heap of gravel in its place. Everything is derived from the damage counter
+// and the hit points in the model with a seeded generator, so every machine
+// draws the same cracks, and a crack only ever grows: more damage lengthens
+// the cracks already there and adds new ones from the same sequence.
+
+import * as THREE from 'three';
+import { CFG } from '../config.js';
+
+const TOP = 0.012;        // m, drawn top of a slab (the physics surface is the ground at y = 0)
+const THICK = 0.07;
+const GAP = 0.006;        // m, joint between slabs
+const RAYS = 14;          // most cracks from one hit
+const CONCRETE = [0.66, 0.65, 0.62], CRACK = [0.08, 0.08, 0.08], SAND = 0xa89b80;
+const _m = new THREE.Matrix4(), _c = new THREE.Color(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _q = new THREE.Quaternion();
+
+function rng(seed) {      // mulberry32
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const hash = (a, b) => (Math.imul(a + 1, 73856093) ^ Math.imul(b + 1, 19349663)) >>> 0;
+
+export class PaverView {
+  constructor(scene, world) {
+    this.scene = scene; this.world = world;
+    this.group = new THREE.Group(); scene.add(this.group);
+    this.slabMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    this.dmgMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    this.slabs = null; this.bed = null;
+    this.broken = new Map();    // paver -> {mesh, dmg drawn}
+  }
+
+  onEvent(ev) {
+    if (ev.t === 'pavers' || ev.t === 'load') this.build();
+    else if (ev.t === 'crack') for (const h of ev.h) this.redraw(h[0]);
+  }
+
+  /** The gravel threshold or a view setting changed. */
+  refresh() { if (this.world.paving) for (let i = 0; i < this.world.paving.dmg.length; i++) if (this.world.paving.dmg[i] > 0) this.redraw(i, true); }
+
+  clear() {
+    for (const o of [...this.group.children]) { this.group.remove(o); o.geometry?.dispose(); }
+    this.slabs = null; this.broken.clear();
+  }
+
+  build() {
+    this.clear();
+    const pv = this.world.paving; if (!pv) return;
+    const list = pv.L.list, n = list.length;
+    // a bed of jointing sand under the paved square, with the tree pit left open
+    const e = pv.L.n * pv.c, k = pv.L.k * pv.c, sh = new THREE.Shape([new THREE.Vector2(-e, -e), new THREE.Vector2(e, -e), new THREE.Vector2(e, e), new THREE.Vector2(-e, e)]);
+    sh.holes.push(new THREE.Path([new THREE.Vector2(-k, -k), new THREE.Vector2(-k, k), new THREE.Vector2(k, k), new THREE.Vector2(k, -k)]));
+    this.bed = new THREE.Mesh(new THREE.ShapeGeometry(sh).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: SAND }));
+    this.bed.position.y = 0.003; this.bed.receiveShadow = true;
+    this.group.add(this.bed);
+
+    this.slabs = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), this.slabMat, n);
+    this.slabs.receiveShadow = true;
+    for (let i = 0; i < n; i++) { this.place(i); this.tint(i); }
+    this.group.add(this.slabs);
+    for (let i = 0; i < n; i++) if (pv.dmg[i] > 0) this.redraw(i);
+  }
+
+  place(i, hidden = false) {
+    const p = this.world.paving.L.list[i];
+    _s.set(hidden ? 0 : 2 * p.hx - GAP, hidden ? 0 : THICK, hidden ? 0 : 2 * p.hz - GAP);
+    _m.compose(_p.set(p.x, TOP - THICK / 2, p.z), _q.identity(), _s);
+    this.slabs.setMatrixAt(i, _m); this.slabs.instanceMatrix.needsUpdate = true;
+  }
+  tint(i) {
+    const r = rng(hash(i, 999))(), lvl = Math.min(1, this.world.paving.dmg[i] / Math.max(1, CFG.PAVER_GRAVEL));
+    const f = (0.92 + 0.12 * r) * (1 - 0.25 * lvl);
+    _c.setRGB(CONCRETE[0] * f, CONCRETE[1] * f, CONCRETE[2] * f);
+    this.slabs.setColorAt(i, _c); this.slabs.instanceColor.needsUpdate = true;
+  }
+
+  redraw(i, force = false) {
+    const pv = this.world.paving; if (!pv || !this.slabs) return;
+    const D = pv.dmg[i], old = this.broken.get(i);
+    if (old && old.dmg === D && !force) return;
+    if (old) { this.group.remove(old.mesh); old.mesh.geometry.dispose(); }
+    const G = Math.max(1, CFG.PAVER_GRAVEL), gravel = D >= G;
+    this.place(i, gravel); this.tint(i);
+    const geo = gravel ? gravelGeo(pv.L.list[i], i, D, G) : crackGeo(pv.L.list[i], i, pv.hits[i], D, G);
+    const mesh = new THREE.Mesh(geo, this.dmgMat); mesh.receiveShadow = true;
+    this.group.add(mesh);
+    this.broken.set(i, { mesh, dmg: D });
+  }
+}
+
+// ---- geometry ----
+
+class Tris {
+  constructor() { this.pos = []; this.col = []; }
+  tri(a, b, c, col) { this.pos.push(...a, ...b, ...c); for (let k = 0; k < 3; k++) this.col.push(...col); }
+  quad(a, b, c, d, col) { this.tri(a, b, c, col); this.tri(a, c, d, col); }
+  /** A flat strip of width w along (x0,z0)-(x1,z1) at height y. */
+  strip(x0, z0, x1, z1, w, y, col) {
+    const dx = x1 - x0, dz = z1 - z0, l = Math.hypot(dx, dz) || 1, nx = -dz / l * w / 2, nz = dx / l * w / 2;
+    this.quad([x0 - nx, y, z0 - nz], [x1 - nx, y, z1 - nz], [x1 + nx, y, z1 + nz], [x0 + nx, y, z0 + nz], col);
+  }
+  /** A small rough box (a chip of concrete), centre (x,y,z), size s, turned a about y. */
+  chip(x, y, z, s, a, col, r) {
+    const h = s * (0.35 + 0.4 * r()), ca = Math.cos(a), sa = Math.sin(a), sx = s / 2, sz = s * (0.3 + 0.4 * r());
+    const v = [];
+    for (const [px, py, pz] of [[-1, 0, -1], [1, 0, -1], [1, 0, 1], [-1, 0, 1], [-1, 1, -1], [1, 1, -1], [1, 1, 1], [-1, 1, 1]]) {
+      const lx = px * sx * (py ? 0.6 + 0.3 * r() : 1), lz = pz * sz * (py ? 0.6 + 0.3 * r() : 1);
+      v.push([x + lx * ca - lz * sa, y + py * h, z + lx * sa + lz * ca]);
+    }
+    const dark = col.map((c) => c * 0.8);
+    this.quad(v[4], v[7], v[6], v[5], col);
+    this.quad(v[0], v[1], v[5], v[4], dark); this.quad(v[1], v[2], v[6], v[5], dark);
+    this.quad(v[2], v[3], v[7], v[6], dark); this.quad(v[3], v[0], v[4], v[7], dark);
+  }
+  geometry() {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
+    g.computeVertexNormals();
+    return g;
+  }
+}
+
+/** Cracks from each hit, growing with that hit's share of damage; chips and spalls as the paver nears gravel. */
+function crackGeo(p, i, hits, D, G) {
+  const T = new Tris(), lvl = D / G, y = TOP + 0.0006;
+  const hx = p.hx - GAP / 2, hz = p.hz - GAP / 2, inside = (u, v) => Math.abs(u) < hx && Math.abs(v) < hz;
+  const w = 0.004 + 0.008 * Math.min(1, lvl);
+  const crack = (r, u, v, a, len, width) => {          // a wandering crack from (u,v) heading a, len long
+    if (!inside(u, v)) return;
+    let s = 0;
+    while (s < len) {
+      const step = 0.015 + 0.025 * r(), a2 = a + (r() - 0.5) * 0.9;
+      const u2 = u + Math.cos(a2) * step, v2 = v + Math.sin(a2) * step;
+      const out = !inside(u2, v2);
+      const cu = Math.max(-hx, Math.min(hx, u2)), cv = Math.max(-hz, Math.min(hz, v2));
+      T.strip(p.x + u, p.z + v, p.x + cu, p.z + cv, width, y, CRACK);
+      if (out) return;
+      u = u2; v = v2; a = a2 * 0.6 + a * 0.4; s += step;
+    }
+  };
+  hits.forEach(([u, v, amt], hi) => {
+    const u0 = Math.max(-0.95 * hx, Math.min(0.95 * hx, u)), v0 = Math.max(-0.95 * hz, Math.min(0.95 * hz, v));
+    const r = rng(hash(i, hi)), a = Math.max(0, amt), full = 2 * Math.max(hx, hz);
+    const rays = Math.min(RAYS, 2 + Math.floor(3 * Math.sqrt(a)));
+    const reach = Math.min(1, 0.25 + 0.3 * Math.sqrt(a));
+    const a0 = r() * Math.PI * 2;
+    for (let k = 0; k < RAYS; k++) {
+      // draw the same RAYS seeded cracks in the same order every time; damage decides how many and how far
+      const rk = rng(hash(i * 31 + hi, k)), dir = a0 + k * 2.39996 + (rk() - 0.5) * 0.6, len = full * reach * (0.5 + 0.6 * rk());
+      if (k >= rays) continue;
+      crack(rk, u0, v0, dir, len, w);
+      if (lvl > 0.3 && rk() < lvl) crack(rk, u0 + Math.cos(dir) * len * 0.5, v0 + Math.sin(dir) * len * 0.5, dir + (rk() < 0.5 ? 1 : -1) * (0.7 + rk()), len * 0.5, w * 0.7);
+    }
+    if (lvl > 0.25) {                                    // crushed spot where it was struck
+      const rs = 0.02 + 0.08 * Math.min(1, lvl) * Math.min(1, Math.sqrt(a) / 3), m = 9;
+      for (let k = 0; k < m; k++) {
+        const t0 = k / m * Math.PI * 2, t1 = (k + 1) / m * Math.PI * 2, f0 = 0.7 + 0.5 * r(), f1 = 0.7 + 0.5 * r();
+        const c = (u, v) => [p.x + Math.max(-hx, Math.min(hx, u)), y + 0.0004, p.z + Math.max(-hz, Math.min(hz, v))];
+        T.tri(c(u0, v0), c(u0 + Math.cos(t1) * rs * f1, v0 + Math.sin(t1) * rs * f1), c(u0 + Math.cos(t0) * rs * f0, v0 + Math.sin(t0) * rs * f0), [0.32, 0.31, 0.29]);
+      }
+    }
+  });
+  if (lvl > 0.4) {                                       // loose chips
+    const r = rng(hash(i, 4242)), n = Math.floor((lvl - 0.4) / 0.6 * 40);
+    for (let k = 0; k < n; k++) {
+      const h = hits[Math.floor(r() * hits.length)] || [0, 0];
+      const d = r() * 0.15, a = r() * Math.PI * 2;
+      const u = Math.max(-hx, Math.min(hx, h[0] + Math.cos(a) * d)), v = Math.max(-hz, Math.min(hz, h[1] + Math.sin(a) * d));
+      const g = 0.5 + 0.15 * r();
+      T.chip(p.x + u, TOP, p.z + v, 0.012 + 0.03 * r(), r() * 6.3, [g, g * 0.98, g * 0.95], r);
+    }
+  }
+  return T.geometry();
+}
+
+/** Past PAVER_GRAVEL: the slab is gone, and its footprint is a low heap of concrete chips. */
+function gravelGeo(p, i, D, G) {
+  const T = new Tris(), r = rng(hash(i, 777));
+  const n = Math.round(Math.min(400, 160 + 60 * Math.log2(D / G + 1)) * p.hx * p.hz / 0.045);
+  const fine = Math.min(1, (D / G - 1) / 3);            // keeps getting finer past the threshold
+  for (let k = 0; k < n; k++) {
+    const u = (r() * 2 - 1) * p.hx, v = (r() * 2 - 1) * p.hz;
+    const edge = Math.min(1, (p.hx - Math.abs(u)) / 0.08, (p.hz - Math.abs(v)) / 0.08);
+    const g = 0.42 + 0.25 * r();
+    T.chip(p.x + u, -0.004 + 0.014 * edge * r(), p.z + v, (0.025 + 0.05 * r()) * (1 - 0.5 * fine), r() * 6.3, [g, g * 0.97, g * 0.93], r);
+  }
+  return T.geometry();
+}

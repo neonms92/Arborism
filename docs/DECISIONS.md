@@ -239,3 +239,23 @@ length over which a cut weakens the stem. Shorter segments localise damage
 depend on their own density setting. Generation is capped at `SEG_CAP`
 segments, and long twigs are thickened so a tree does not break under its
 own weight at extreme slider values.
+
+## Concrete pavers
+
+**D50 — Pavers crack by impact energy, are flush with the ground, and are
+re-laid with each tree.** (Numbered 50 to stay clear of the decisions in the
+open engine-test and controls branches.) The owner asked for a "tunable
+threshold" on impacts from wood or a player; energy (½·m_eff·v_n² at the
+contact) was picked over Δv or force because it separates a twig from a log
+at the same speed and ignores wood that is only resting, and m_eff makes an
+end-first landing count for less than a flat one. Above the threshold a hit
+adds energy / threshold, so one unit of damage is one cracking impact.
+Defaults: 800 J (a jump or a half-metre drop does nothing, 1 m is right at
+the threshold, a fall from about
+3 m does about 3 units), gravel at 30 units. The slabs are drawn on top of the
+existing ground collider instead of being colliders of their own, so nothing
+about how wood rolls or slides changes (the engine branch's rolling
+resistance works on the ground collider) and there are no internal edges
+between slabs to snag on. The paved square is 24 m across by default because
+the demo tree's crown lands ≈ 11 m out. Basket weave was picked as the
+pattern; damage is lost when a new tree is grown.

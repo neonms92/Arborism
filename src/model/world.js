@@ -7,6 +7,7 @@
 
 import { makeBundle, cutFibres, packBundle, unpackBundle, gridFor, CUT } from './fibres.js';
 import { CFG } from '../config.js';
+import { newPaving, crackPaver, packPaving, unpackPaving } from './pavers.js';
 
 export const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 export const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -63,6 +64,7 @@ export class World {
     this.pieces = new Map();
     this.rope = { state: 0 };
     this.players = new Map();     // id -> {id, name}
+    this.paving = null;           // concrete pavers round the tree (model/pavers.js)
     this.nextId = 1;              // host allocates all ids
     this.listeners = [];
     this._kids = null; this._order = null;
@@ -145,6 +147,10 @@ export class World {
         break;
       }
       case 'rope': this.rope = ev.rope; break;
+      case 'pavers': this.paving = newPaving(ev.c, ev.ext, ev.pit); break;   // laid fresh (no damage)
+      case 'crack':                 // impacts on pavers this tick: h = [[paver, x, z, damage added], ...]
+        if (this.paving) for (const [i, x, z, add] of ev.h) crackPaver(this.paving, i, x, z, add);
+        break;
       case 'player':
         if (ev.leave) this.players.delete(ev.id); else this.players.set(ev.id, { id: ev.id, name: ev.name });
         break;
@@ -215,7 +221,7 @@ export class World {
   serialize() {
     return {
       segs: [...this.segs.values()].map((s) => ({ ...s, f: packBundle(s.f) })), pieces: [...this.pieces.values()],
-      rope: this.rope, players: [...this.players.values()],
+      rope: this.rope, players: [...this.players.values()], paving: packPaving(this.paving),
     };
   }
   load(o) {
@@ -224,6 +230,7 @@ export class World {
     for (const p of o.pieces) this.pieces.set(p.id, p);
     for (const p of o.players) this.players.set(p.id, p);
     this.rope = o.rope;
+    this.paving = unpackPaving(o.paving);
     this._dirty();
     for (const fn of this.listeners) fn({ t: 'load' }, {});
   }
