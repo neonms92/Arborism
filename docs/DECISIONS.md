@@ -381,9 +381,10 @@ severed fibres, `Structure.ripCheck` compares each fibre's force with the
 same load on the same section uncut. It does this over chords in 8
 directions between every pair of fibre rows: τ = |Σ one side (F − F_uncut)| /
 (chord length × `BOND_LEN`). Past `SHEAR`, the wood splits on the worst
-chord. Of the chords past `SHEAR`, the crack is the one that frees the most
-load; the most stressed chord alone is often a sliver along the bark. The
-side carrying less load leaves the segment as a new segment that
+chord, if one side of it is severed right across (wood held at both ends
+by intact fibres can crack, but nothing moves; and in the tree a segment
+has one parent). Of those chords, the crack is the one that frees the most
+load. The severed side leaves the segment as a new segment that
 hangs from the top end (new `rip` event). Its parent is the segment the stem
 carries on into. That segment's fibres over the split-off part now end at its
 base, so the next segment up can split in turn, and the crack runs up the
@@ -396,11 +397,18 @@ diameter, which is how the stress concentrating at a kerf's end shows up.
 With `SHEAR` it decides how readily wood splits; both are in the menu.
 Measured (must-pass): FM-19's default (20° lean, 0.1 D notch) splits
 1.7 m up the stem with the back cut 38 % in, and FM-10's default fell
-never splits. FM-19 passes 17 / 33: thin stems (D 0.4) at the lighter leans
-never split, and in most other misses the crack stops after the first
-segment (0.3 – 0.9 m). FM-10 41 / 113 (42 before): 9 runs split, all at
-the 8° lean edge, and most of those still pass. FM-11 68 / 81 and FM-18
-25 / 25 are unchanged, though a few deep notches in FM-18 now split.
+never splits. FM-19 passes 16 / 33: thin stems (D 0.4) at the lighter leans
+never split, and in most other misses the crack stops under 1 m. FM-10
+42 / 113, FM-11 68 / 81 and FM-18 25 / 25 are unchanged, and none of their
+runs split.
+
+The owner wants a passing barber chair to leave a lean-side slab standing on
+the stump. It does not yet: the front strip left beside the split carries
+the whole trunk, and it is the same section from the cut to the top of the
+split, so it gives way at the cut, where the bending is largest. The trunk
+then falls with the slab attached. What decides it in a real tree is how
+the crack runs while the trunk is already moving; here only standing wood
+can split. This is an open question for the owner.
 Limits: the split runs whole segments at a time (0.8 m on the test stems), a
 segment that has split is not joined again, and a half that hangs from a
 live (moving) piece is not checked again because live bundles have no shear
