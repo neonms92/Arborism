@@ -294,7 +294,6 @@ Each tick every awake dynamic piece touching the ground gets a torque
 more than stops it. 2 cm is a soft forest floor; 0 restores the old
 behaviour. In the Tab menu.
 
-
 ## Fifth round: controls
 
 **D47 — ESDF, no tools, context-aware buttons, held actions for anything that
