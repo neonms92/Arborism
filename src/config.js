@@ -26,6 +26,7 @@ export const CFG = {
   GRAVITY: 9.81,
   CONTACT_TAU: 0.04,       // s, low-pass on contact-force loads
   CONTACT_MIN: 150,        // N, contact-force event threshold
+  ROLL_RESIST: 0.02,       // m, rolling resistance of loose wood on the ground: lever arm of the normal force
   DEBRIS_MASS: 2,          // kg, pieces lighter than this are removed...
   DEBRIS_LIFE: 10,         // ...this many seconds after creation
 
@@ -97,10 +98,22 @@ export const CFG = {
   REACH: 2.6,              // m, interact reach
   DV_SHAKEN: 4, DV_HURT: 7, DV_DOWN: 11,   // m/s impact thresholds
   SHAKEN_TIME: 2,
+  // --- controls that take time (hold the button; let go to cancel) ---
+  LANYARD_TIME: 4,         // s of holding {interact} to spur in or move the lanyard
+  LETGO_TIME: 4,           // s of holding {drop} to let go of the tree
+  // --- punch ({punch}): every press adds a short shove; presses faster than it fades stack up ---
+  PUNCH_FORCE: 400,        // N added by one punch, along the look direction at the point hit
+  PUNCH_DECAY: 0.12,       // s, time constant the shove fades with (one punch is about FORCE * DECAY N*s)
+  PUNCH_MAX: 4000,         // N, most that stacked punches add up to
+  // --- grabbing wood on the ground ({interact} toggles): a short rope from the hands to the point grabbed ---
+  GRAB_K: 20000,           // N/m, stiffness of that rope (capped for stability on light pieces)
+  GRAB_MAX: 600,           // N, pull at which the wood is pulled out of the player's hands
+  GRAB_HEIGHT: 0.3,        // m, hands above the body centre
 };
+
+// The values above as shipped, before the Tab menu loads saved settings over them (the test runner starts from these).
+export const CFG_DEFAULTS = Object.freeze({ ...CFG });
 
 export const INJ = { OK: 0, SHAKEN: 1, HURT: 2, DOWN: 3 };
 export const INJ_NAME = ['ok', 'shaken', 'HURT', 'DOWN'];
-export const TOOL = { HANDS: 0, SAW: 1, ROPE: 2 };
-export const TOOL_NAME = ['hands', 'chainsaw', 'rigging rope'];
 export const MODE = { GROUND: 0, CLIMB: 1, ROPE: 2 };

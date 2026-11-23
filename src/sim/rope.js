@@ -3,7 +3,7 @@
 // scalars here (L0, tension, wraps, holder) go out in aux packets.
 // See docs/DESIGN.md section 5.
 
-import * as THREE from 'three';
+import * as THREE from '../../vendor/three/three.module.js';
 import { CFG, MODE } from '../config.js';
 import { segRadius, segParam, lerp3, segAxis } from '../model/world.js';
 
@@ -15,7 +15,7 @@ export class Rope {
 
   node(n) { return this.sim.segToWorld(this.sim.world.segs.get(n.seg), n.p); }
 
-  // ---- placing (rope tool) ----
+  // ---- placing ({rig}: block, then tie, then untie at the knot) ----
   target(p, aim) {
     if (!aim || aim.dist > CFG.REACH) return null;
     const sim = this.sim, s = sim.world.segs.get(aim.seg);
@@ -24,10 +24,11 @@ export class Rope {
   }
   prompt(p, aim) {
     const st = this.sim.world.rope.state, t = this.target(p, aim);
-    if (st === 0) return t && t.fixed ? '{interact}: hang the rigging block here' : 'Look at a limb to hang the block';
-    if (st === 1) return t ? '{interact}: tie the rope here' : 'Look at the limb to tie off   {drop} (on the ground): take the block down';
-    if (t && this.node(this.sim.world.rope.anchor).distanceTo(t.point) < 0.7) return '{interact}: untie';
-    return 'Rope is tied. Look at the knot to untie';
+    if (st === 0) return t && t.fixed ? '{rig}: hang the rigging block here' : '';
+    if (st === 1) return !t ? 'Look at the wood to tie the rope to, or at the block to take it down'
+      : this.node(this.sim.world.rope.block).distanceTo(t.point) < 0.7 ? '{rig}: take the block down' : '{rig}: tie the rope here';
+    if (t && this.node(this.sim.world.rope.anchor).distanceTo(t.point) < 0.7) return '{rig}: untie';
+    return '';
   }
   place(p, aim) {
     const sim = this.sim, w = sim.world, r = w.rope, t = this.target(p, aim);
@@ -39,6 +40,8 @@ export class Rope {
       const c = lerp3(root.a, root.b, Math.min(0.9, 1 / Math.max(0.5, root.b[1] - root.a[1])));
       const dev = { seg: root.id, p: [c[0] + segRadius(root, 0.5) + 0.05, c[1], c[2]] };
       sim.emit({ t: 'rope', rope: { state: 1, block: { seg: t.seg, p: t.p }, device: dev } });
+    } else if (r.state === 1 && this.node(r.block).distanceTo(t.point) < 0.7) {
+      this.clear(p);                                     // looking at the block: take it down
     } else if (r.state === 1) {
       sim.emit({ t: 'rope', rope: { ...r, state: 2, anchor: { seg: t.seg, p: t.p } } });
       this.L0 = this.pathLength() + 0.15; this.prev = 0; this.T = 0;

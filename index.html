@@ -15,6 +15,7 @@
   #toasts { top: 40px; left: 0; right: 0; text-align: center; font-size: 17px; }
   #toasts div { margin: 2px auto; background: rgba(0,0,0,.45); display: table; padding: 3px 12px; border-radius: 4px; }
   #cross { top: 50%; left: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: #fff; opacity: .8; }
+  #ring { top: 50%; left: 50%; width: 40px; height: 40px; margin: -20px; transform: rotate(-90deg); }
   #keys { left: 10px; bottom: 8px; font-size: 12px; opacity: .8; }
   #menu { position: fixed; top: 0; right: 0; bottom: 0; width: min(96vw, 560px); overflow-y: auto; display: none;
           background: rgba(18,24,16,.93); padding: 14px 18px; box-sizing: border-box; font-size: 13.5px; }
@@ -30,6 +31,7 @@
   #lobby p { opacity: .8; margin: 6px 0 18px; }
   #lobby button, #lobby input { font: inherit; font-size: 20px; padding: 12px 16px; margin: 6px; border-radius: 8px; border: 0; }
   #lobby button { background: #e8a23a; color: #201400; font-weight: 700; cursor: pointer; min-width: 150px; }
+  #lobby button.alt { background: #4a5d42; color: #fff; font-size: 16px; padding: 8px 14px; min-width: 0; }
   #lobby button:focus, #lobby input:focus { outline: 3px solid #fff; }
   #lobby input { width: 130px; text-transform: uppercase; text-align: center; }
   #msg { min-height: 1.4em; color: #ffd27a; }
@@ -44,6 +46,7 @@
 <div id="status" class="hud"></div>
 <div id="toasts" class="hud"></div>
 <div id="cross" class="hud"></div>
+<svg id="ring" class="hud" viewBox="0 0 40 40"><circle id="ringArc" cx="20" cy="20" r="16" fill="none" stroke="#fff" stroke-width="3" stroke-opacity=".85" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" style="display:none;filter:drop-shadow(0 0 1.5px #000)"/></svg>
 <div id="prompt" class="hud"></div>
 <div id="rope" class="hud"></div>
 <div id="keys" class="hud"></div>
@@ -52,6 +55,7 @@
   <h1>ARBORISM</h1>
   <p>co-op tree work &middot; physics prototype</p>
   <div><button id="bHost">Host</button> <button id="bSolo">Solo</button></div>
+  <div><button id="bTest" class="alt">Testing</button></div>
   <div><input id="code" maxlength="5" placeholder="CODE" autocomplete="off"> <button id="bJoin">Join</button></div>
   <div id="msg"></div>
   <div id="help"></div>

@@ -349,8 +349,10 @@ export class View {
     bar.position.z = -0.035; eng.position.set(-CFG.BAR_LEN / 2 - 0.1, 0, -0.06); saw.add(eng, bar); saw.visible = false;
     const lanyard = new THREE.Mesh(new THREE.BufferGeometry(), this.lanyardMat);
     lanyard.frustumCulled = false; lanyard.visible = false;
-    this.scene.add(group, saw, lanyard);
-    p = { group, saw, bar, lanyard };
+    const grab = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat);
+    grab.frustumCulled = false; grab.visible = false;
+    this.scene.add(group, saw, lanyard, grab);
+    p = { group, saw, bar, lanyard, grab };
     this.players.set(id, p);
     return p;
   }
@@ -386,8 +388,9 @@ export class View {
       if (a.id === me) mePos = pm.group.position;
       this.poseSaw(pm, a);
       this.poseLanyard(pm, a);
+      this.poseGrab(pm, a);
     }
-    for (const [id, pm] of [...this.players]) if (!seen.has(id)) { this.scene.remove(pm.group, pm.saw, pm.lanyard); this.players.delete(id); }
+    for (const [id, pm] of [...this.players]) if (!seen.has(id)) { this.scene.remove(pm.group, pm.saw, pm.lanyard, pm.grab); this.players.delete(id); }
     this.updateRope(aux);
 
     if (mePos) {                                      // first person
@@ -416,6 +419,16 @@ export class View {
     const pts = lanyardLoop(s, cl[1], cl[2], CFG.STANDOFF).map((q) => { const b = frameApply(fr, q); return new THREE.Vector3(b[0], b[1], b[2]).applyQuaternion(piece.group.quaternion).add(piece.group.position); });
     pm.lanyard.geometry.dispose();
     pm.lanyard.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.3), 20, 0.012, 5);
+  }
+
+  // wood held on the ground: a short rope from the hands to the point grabbed
+  poseGrab(pm, a) {
+    const g = a.gr, W = g ? this.nodeWorld({ seg: g[0], p: [g[1], g[2], g[3]] }, new THREE.Vector3()) : null;
+    pm.grab.visible = !!W;
+    if (!W) return;
+    const H = pm.group.position.clone().addScaledVector(Y, CFG.GRAB_HEIGHT);
+    pm.grab.geometry.dispose();
+    pm.grab.geometry = new THREE.TubeGeometry(new THREE.LineCurve3(H, W), 1, 0.012, 5);
   }
 
   nodeWorld(n, out) {
