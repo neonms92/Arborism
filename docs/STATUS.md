@@ -61,8 +61,8 @@ for it).
 | FM-03 plain stem | 75 / 81 | 75 / 81 | extra lean at rest > 2 % H for slender, soft corners |
 | FM-04 overload | 0 / 49 | 0 / 49 | mostly: the limb goes live near the analytic load (good) but then hangs and never comes free, so no fibre ever snaps; where it does come free, every fibre often goes in one tick (no ordered tearing) |
 | FM-05 cracked, holding | 19 / 19 | 19 / 19 | — |
-| FM-10 notch steers | 11 / 113 (+9 invalid) | 42 / 113 | hinge often lets go below 10°; heading error > 15° in many corners; 3+ rows of hinge never release at all (logs now settle) |
-| FM-11 no notch | 61 / 81 (+3) | 65 / 81 | some corners do not come free or go > 25° off the lean |
+| FM-10 notch steers | 11 / 113 (+9 invalid) | 41 / 113 | hinge often lets go below 10°; heading error > 15° in many corners; 3+ rows of hinge never release at all (logs now settle) |
+| FM-11 no notch | 61 / 81 (+3) | 69 / 81 | some corners do not come free or go > 25° off the lean |
 | FM-12 pinch | 0 / 49 | 0 / 49 | a kerf only "closes" when the wood beside it crushes (D13), which never happens at these leans and depths |
 | FM-13 hinge trend | 0 / 9 | 0 / 9 | 1 and 2 rows behave alike; 3 – 4 rows never release |
 | FM-14 top cut strap | 2 / 81 | 2 / 81 | thick straps stay stiff (never live); thin ones droop ~15° and stop |
