@@ -25,10 +25,10 @@ export class Pavers {
     this.vel = new Map();            // body handle -> [vx,vy,vz, wx,wy,wz] at the end of last tick (= before this step)
   }
 
-  /** Lay fresh pavers round a trunk of CFG.TREE_DIAMETER. */
+  /** Lay fresh pavers round a tree of CFG.TREE_HEIGHT and CFG.TREE_DIAMETER. */
   lay() {
     const c = CFG.PAVER_SIZE, pit = CFG.TREE_DIAMETER / 2 + CFG.PAVER_PIT;
-    this.sim.emit({ t: 'pavers', c, ext: CFG.PAVER_EXTENT, pit });
+    this.sim.emit({ t: 'pavers', c, r: CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, pit });
   }
 
   /** From sim.onContact: a contact force event between colliders h1 and h2. */

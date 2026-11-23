@@ -147,7 +147,7 @@ export class World {
         break;
       }
       case 'rope': this.rope = ev.rope; break;
-      case 'pavers': this.paving = newPaving(ev.c, ev.ext, ev.pit); break;   // laid fresh (no damage)
+      case 'pavers': this.paving = newPaving(ev.c, ev.r, ev.pit); break;   // laid fresh (no damage)
       case 'crack':                 // impacts on pavers this tick: h = [[paver, x, z, damage added], ...]
         if (this.paving) for (const [i, x, z, add] of ev.h) crackPaver(this.paving, i, x, z, add);
         break;

@@ -52,11 +52,10 @@ export class PaverView {
     this.clear();
     const pv = this.world.paving; if (!pv) return;
     const list = pv.L.list, n = list.length;
-    // a bed of jointing sand under the paved square, with the tree pit left open
-    const e = pv.L.n * pv.c, k = pv.L.k * pv.c, sh = new THREE.Shape([new THREE.Vector2(-e, -e), new THREE.Vector2(e, -e), new THREE.Vector2(e, e), new THREE.Vector2(-e, e)]);
-    sh.holes.push(new THREE.Path([new THREE.Vector2(-k, -k), new THREE.Vector2(-k, k), new THREE.Vector2(k, k), new THREE.Vector2(k, -k)]));
-    this.bed = new THREE.Mesh(new THREE.ShapeGeometry(sh).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: SAND }));
-    this.bed.position.y = 0.003; this.bed.receiveShadow = true;
+    // jointing sand under each paver (shows in the joints), so the bed follows the paved circle and leaves the pit open
+    this.bed = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: SAND }), n);
+    this.bed.receiveShadow = true;
+    for (let i = 0; i < n; i++) { const p = list[i]; this.bed.setMatrixAt(i, _m.compose(_p.set(p.x, 0.003, p.z), _q.identity(), _s.set(2 * p.hx, 1, 2 * p.hz))); }
     this.group.add(this.bed);
 
     this.slabs = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), this.slabMat, n);

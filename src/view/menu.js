@@ -56,7 +56,7 @@ const ROWS = [
   ['PAVER_CRACK_E', 'Impact energy that cracks a paver (J)', 50, 10000, 50, 1, true],
   ['PAVER_GRAVEL', 'Damage at which a paver is gravel (1 = one cracking impact)', 2, 200, 1, 1],
   ['PAVER_SIZE', 'Paver length (m; applies when you grow a new tree)', 0.2, 1.5, 0.05, 1, true],
-  ['PAVER_EXTENT', 'Paved area: trunk to edge (m; applies when you grow a new tree)', 1, 20, 0.2, 1, true],
+  ['PAVER_RADIUS', 'Paved circle radius (fraction of tree height; applies when you grow a new tree)', 0.1, 2, 0.05, 1, true],
 ];
 
 export class Menu {

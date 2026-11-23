@@ -256,6 +256,7 @@ the threshold, a fall from about
 existing ground collider instead of being colliders of their own, so nothing
 about how wood rolls or slides changes (the engine branch's rolling
 resistance works on the ground collider) and there are no internal edges
-between slabs to snag on. The paved square is 24 m across by default because
-the demo tree's crown lands ≈ 11 m out. Basket weave was picked as the
-pattern; damage is lost when a new tree is grown.
+between slabs to snag on. The owner picked basket weave and a
+paved circle of radius half the tree height (`PAVER_RADIUS`, whole pavers
+only), so a felled tree's crown lands past the paving; damage is lost when a
+new tree is grown.

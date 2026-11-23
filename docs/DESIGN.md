@@ -617,8 +617,9 @@ gripping hands, saw pinch release, cutting your own lanyard.
 
 ### 6.4 Concrete pavers
 
-The tree stands in a paved square (`model/pavers.js`): a basket weave of
-`PAVER_SIZE` × `PAVER_SIZE`/2 slabs out to `PAVER_EXTENT` from the trunk, with
+The tree stands in a paved circle (`model/pavers.js`): a basket weave of
+`PAVER_SIZE` × `PAVER_SIZE`/2 slabs, whole slabs only, within
+`PAVER_RADIUS` × `TREE_HEIGHT` of the trunk (half the height by default), with
 a square pit of open soil at least `PAVER_PIT` wider than the trunk. The
 layout is generated from three numbers in the `pavers` event, so a client
 never depends on its own settings. They are laid fresh with every new tree.

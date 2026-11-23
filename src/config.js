@@ -40,7 +40,7 @@ export const CFG = {
 
   // --- concrete pavers round the tree (laid again, undamaged, with every new tree) ---
   PAVER_SIZE: 0.6,         // m, a paver is PAVER_SIZE x PAVER_SIZE / 2 (two to a basket-weave cell)
-  PAVER_EXTENT: 12,        // m from the trunk to the edge of the paved square (a felled tree lands on it)
+  PAVER_RADIUS: 0.5,       // paved circle round the trunk, as a fraction of TREE_HEIGHT (whole pavers only)
   PAVER_PIT: 0.3,          // m of open soil left between the trunk and the nearest paver (at least)
   PAVER_CRACK_E: 800,      // J of impact energy on one paver that cracks it; each hit adds (its energy / this) damage
   PAVER_GRAVEL: 30,        // damage at which a paver is drawn as gravel (the counter goes on past it)

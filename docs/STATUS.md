@@ -32,7 +32,7 @@ yet swung the saw with a real mouse.
 | Lanyard (through input) | Spur in = lanyard on. Stops at unions. Hands + interact on another stem moves it there. Let go = fall. |
 | Rigging | Block, tie-off, friction device as before. 55 kg limb with 1 m slack peaks ≈ 5.3 kN, is caught, and lowers when the tail is eased. Rope is a 3-D tube. |
 | Network | Host, client and a late joiner agree on fibres cut, pieces, live bundles and rope. Tested against a **local** PeerJS server only. |
-| Concrete pavers (D50) | Basket weave round the tree out to 12 m, 3 192 slabs. A player dropped from 1 m: no damage; from ≈ 4 m: 4 units on one paver and DOWN. A 93 kg limb cut at 4 m: 2 units. Felled demo tree: the crown tip hit one paver for 28 units. Cracks at 1, 2, 4, 8, 14, 20, 27 units grow as intended; 35 and 80 are gravel. Host, client and a late joiner agree on damage and draw the same cracks. Headless only. |
+| Concrete pavers (D50) | Basket weave in a circle of half the tree height (5.5 m on the demo tree). Numbers below were measured on an earlier, larger square: A player dropped from 1 m: no damage; from ≈ 4 m: 4 units on one paver and DOWN. A 93 kg limb cut at 4 m: 2 units. Felled demo tree: the crown tip hit one paver for 28 units. Cracks at 1, 2, 4, 8, 14, 20, 27 units grow as intended; 35 and 80 are gravel. Host, client and a late joiner agree on damage and draw the same cracks. Headless only. |
 | Controls text | Lobby help, HUD hint line, prompts and toasts name keys or buttons for the device last touched. |
 | Look | First person. Vertical look inverted (`INVERT_Y`). |
 
