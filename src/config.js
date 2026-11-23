@@ -97,6 +97,10 @@ export const CFG = {
   PUNCH_FORCE: 400,        // N added by one punch, along the look direction at the point hit
   PUNCH_DECAY: 0.12,       // s, time constant the shove fades with (one punch is about FORCE * DECAY N*s)
   PUNCH_MAX: 4000,         // N, most that stacked punches add up to
+  // --- grabbing wood on the ground ({interact} toggles): a short rope from the hands to the point grabbed ---
+  GRAB_K: 20000,           // N/m, stiffness of that rope (capped for stability on light pieces)
+  GRAB_MAX: 600,           // N, pull at which the wood is pulled out of the player's hands
+  GRAB_HEIGHT: 0.3,        // m, hands above the body centre
 };
 
 export const INJ = { OK: 0, SHAKEN: 1, HURT: 2, DOWN: 3 };

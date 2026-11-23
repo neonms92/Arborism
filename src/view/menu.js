@@ -20,6 +20,8 @@ const ROWS = [
   ['PUNCH_FORCE', 'Punch: force added per press (N)', 0, 3000, 10, 1, true],
   ['PUNCH_DECAY', 'Punch: how long each one lasts (s)', 0.02, 1, 0.01, 1, true],
   ['PUNCH_MAX', 'Punch: most force stacked presses reach (N)', 0, 20000, 100, 1, true],
+  ['GRAB_MAX', 'Grabbed wood: pull that tears it out of your hands (N)', 50, 3000, 10, 1, true],
+  ['GRAB_K', 'Grabbed wood: stiffness of the hold (N/m)', 500, 100000, 500, 1, true],
   ['View'],
   ['BARK_OPACITY', 'Bark visibility', 0, 1, 0.05, 1],
   ['SHOW_FIBRES', 'Draw fibres'],

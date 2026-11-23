@@ -35,6 +35,7 @@ export class Players {
       ride: null, prompt: '',
       ch: null, chLock: new Set(),   // channel in progress {kind, t, need, seen}; kinds done and not yet let go of
       punch: null,                   // {seg, p: piece-local point, d: world direction, F: N}, fading
+      grab: null,                    // holding wood on the ground: {seg, p: piece-local point, L0: rope length, prev}
     };
     this.list.set(id, p);
     sim.emit({ t: 'player', id, name });
@@ -86,7 +87,7 @@ export class Players {
   /** On spurs with the lanyard round segment segId. Climbing and being lanyarded are the same thing. */
   toClimb(p, segId, t, side) {
     p.body.setBodyType(this.sim.R.RigidBodyType.KinematicPositionBased, true);
-    p.mode = MODE.CLIMB; p.cl = { seg: segId, t, side }; p.lan = true; p.ride = null;
+    p.mode = MODE.CLIMB; p.cl = { seg: segId, t, side }; p.lan = true; p.ride = null; p.grab = null;
     p.col.setSensor(false);
   }
   cutLanyard(p, by) {
@@ -96,7 +97,7 @@ export class Players {
   /** All wood is gone: everyone is on the ground with empty hands on the tree. */
   onReset() {
     for (const p of this.list.values()) {
-      sawOff(this.sim, p);
+      sawOff(this.sim, p); p.grab = null;
       if (p.mode === MODE.ROPE) this.leaveRope(p);
       if (p.mode === MODE.CLIMB) this.toGround(p);
     }
@@ -131,6 +132,30 @@ export class Players {
     if (p.ch.t < need) return false;
     p.ch = null; p.chLock.add(kind);
     return true;
+  }
+
+  // ---- grabbing wood on the ground: a short rope from the hands to the point grabbed (tension only) ----
+  hands(p, out) { const t = p.body.translation(); return out.set(t.x, t.y + CFG.GRAB_HEIGHT, t.z); }
+  grabStart(p, aim) {
+    const sim = this.sim, s = sim.world.segs.get(aim.seg);
+    p.grab = { seg: s.id, p: sim.segToLocal(s, aim.point), L0: Math.max(0.2, this.hands(p, _a).distanceTo(aim.point)), prev: 0 };
+  }
+  grabStep(p, dt) {
+    const g = p.grab, sim = this.sim; if (!g) return;
+    const s = sim.world.segs.get(g.seg);
+    if (!s) { p.grab = null; return; }
+    const h = this.hands(p, _a), w = sim.segToWorld(s, g.p, _b);
+    const dir = _c.copy(h).sub(w), len = dir.length();
+    const stretch = len - g.L0, rate = (stretch - g.prev) / dt; g.prev = stretch;
+    if (stretch <= 0 || len < 1e-6) return;
+    const piece = sim.world.pieces.get(s.piece);
+    const m = piece.fixed ? CFG.P_MASS : Math.min(CFG.P_MASS, sim.bodies.get(s.piece).mass());
+    const k = Math.min(CFG.GRAB_K, CFG.ROPE_KCAP * m / (dt * dt)), c = 2 * CFG.ROPE_DAMP * Math.sqrt(k * m);
+    const T = Math.max(0, k * stretch + c * rate);
+    if (T > CFG.GRAB_MAX) { p.grab = null; this.say(p, 'The wood pulled out of your hands'); return; }
+    dir.divideScalar(len);
+    sim.applyForce(s.id, w, dir.clone().multiplyScalar(T));               // wood pulled toward the hands
+    p.body.applyImpulse({ x: -dir.x * T * dt, y: -dir.y * T * dt, z: -dir.z * T * dt }, true);   // and the hands toward the wood
   }
 
   // ---- punch: each press adds a shove along the look direction that fades; spamming stacks it ----
@@ -182,6 +207,7 @@ export class Players {
     sawStep(sim, p, inp, dt, canSaw, aim);
     if (control && p.mode !== MODE.ROPE && pressed.punch) this.punchPress(p, aim);
     this.punchStep(p, dt);
+    if (p.mode !== MODE.GROUND || !control) p.grab = null;
 
     if (p.mode === MODE.ROPE) {
       p.prompt = '{throttle}: ease   {raise}: haul   {wraps}: wraps   {interact}: let go (ties off)';
@@ -224,16 +250,23 @@ export class Players {
     const nearDev = rope.nearDevice(p);
     let first = '';
     if (pressed.rig) rope.place(p, aim);
-    if (pressed.drop) rope.clear(p);
-    if (nearDev && rope.holder < 0) {
+    const reach = aim && aim.dist < CFG.REACH;
+    if (nearDev && rope.holder < 0 && !p.grab) {
       first = '{interact}: take the rope tail';
       if (pressed.interact) { p.mode = MODE.ROPE; rope.holder = p.id; }
-    } else if (aim && aim.dist < CFG.REACH) {
+    } else {
+      // {interact} toggles holding the wood. Letting go does not start a lanyard throw until the button is
+      // released; a press that grabs standing wood and keeps being held goes on to throw the lanyard.
+      if (pressed.interact && p.grab) { p.grab = null; p.chLock.add('lanyard'); }
+      else if (pressed.interact && reach) this.grabStart(p, aim);
+      first = p.grab ? '{interact}: let go of the wood' : reach ? '{interact}: grab the wood' : '';
+    }
+    if (reach && !(nearDev && rope.holder < 0 && !p.grab)) {
       const s = sim.world.segs.get(aim.seg), piece = sim.world.pieces.get(s.piece);
       if (piece.fixed && p.inj < INJ.HURT) {
         const loc = sim.segToLocal(s, aim.point), tt = Math.min(1, Math.max(0, segParam(s, loc)));
         if (segRadius(s, tt) >= CFG.SPUR_MIN_R) {
-          first = 'hold {interact}: spur in and throw the lanyard round';
+          if (!p.chLock.has('lanyard')) first += '   hold {interact}: spur in and throw the lanyard round';
           if (this.hold(p, 'lanyard', inp.hi, CFG.LANYARD_TIME, dt)) {
             const ax = segAxis(s), c = lerp3(s.a, s.b, tt);
             // side = from the stem toward the player, perpendicular to the stem
@@ -244,8 +277,10 @@ export class Players {
             this.toClimb(p, s.id, tt, side);
           }
         }
-      } else if (piece.fixed) first = 'Too hurt to climb';
+      } else if (piece.fixed) first += '   (too hurt to climb)';
     }
+    if (p.ch && p.ch.kind === 'lanyard') first = 'keep holding {interact}: spur in and throw the lanyard round';
+    this.grabStep(p, dt);
     p.prompt = this.extras(p, aim, first);
   }
 
@@ -366,7 +401,7 @@ export class Players {
     for (const p of this.list.values()) {
       const s = p.saw;
       out.push({
-        id: p.id, m: p.mode, inj: p.inj, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pr: p.prompt,
+        id: p.id, m: p.mode, inj: p.inj, gr: p.grab ? [p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pr: p.prompt,
         cl: p.cl ? [p.cl.seg, +p.cl.t.toFixed(3), p.cl.side.map((x) => +x.toFixed(3))] : 0,
         saw: s.on ? [...s.A.toArray(), ...s.b.toArray(), ...s.f.toArray(), s.stuck ? 1 : 0, s.cutting ? 1 : 0].map((x) => +x.toFixed(3)) : 0,
       });

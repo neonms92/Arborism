@@ -630,10 +630,10 @@ The HUD and lobby name controls for whichever device was touched last
 | Move; climb along / around the stem | ESDF (E forward, S left, D back, F right) | left stick |
 | Look | mouse (click to capture) | right stick |
 | Lanyard (hold `LANYARD_TIME`, 4 s): spur in on the wood looked at, or move the lanyard there | R | X |
-| Interact (press): grab or let go of the rope tail | R | X |
-| Rigging (press): hang the block on the wood looked at; with a block hung, tie the rope to the wood looked at; looking at the knot, untie | W | Y |
+| On the ground (press): grab the wood looked at / let go of it (a short rope from the hands to that point; pulled harder than `GRAB_MAX`, it tears out of the hands). Near the lowering device: grab or let go of the rope tail | R | X |
+| Rigging (press): hang the block on the wood looked at; with a block hung, tie the rope to the wood looked at, or take the block down when looking at it; looking at the knot, untie | W | Y |
 | Punch the wood looked at (press; presses faster than `PUNCH_DECAY` stack up to `PUNCH_MAX`) | G | RB |
-| Let go of the tree (hold `LETGO_TIME`, 4 s); on the ground with a block hung and not tied, take the block down (press) | C | B |
+| Let go of the tree (hold `LETGO_TIME`, 4 s) | C | B |
 | Jump | Space | A |
 | Plant the saw on the wood looked at (hold); the look controls then pivot the bar | right mouse | LT |
 | Press the bar forward (chain runs) | left mouse | RT |

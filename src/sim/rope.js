@@ -25,8 +25,8 @@ export class Rope {
   prompt(p, aim) {
     const st = this.sim.world.rope.state, t = this.target(p, aim);
     if (st === 0) return t && t.fixed ? '{rig}: hang the rigging block here' : '';
-    const down = p.mode === MODE.GROUND ? '   {drop}: take the block down' : '';
-    if (st === 1) return (t ? '{rig}: tie the rope here' : 'Look at the wood to tie the rope to') + down;
+    if (st === 1) return !t ? 'Look at the wood to tie the rope to, or at the block to take it down'
+      : this.node(this.sim.world.rope.block).distanceTo(t.point) < 0.7 ? '{rig}: take the block down' : '{rig}: tie the rope here';
     if (t && this.node(this.sim.world.rope.anchor).distanceTo(t.point) < 0.7) return '{rig}: untie';
     return '';
   }
@@ -40,6 +40,8 @@ export class Rope {
       const c = lerp3(root.a, root.b, Math.min(0.9, 1 / Math.max(0.5, root.b[1] - root.a[1])));
       const dev = { seg: root.id, p: [c[0] + segRadius(root, 0.5) + 0.05, c[1], c[2]] };
       sim.emit({ t: 'rope', rope: { state: 1, block: { seg: t.seg, p: t.p }, device: dev } });
+    } else if (r.state === 1 && this.node(r.block).distanceTo(t.point) < 0.7) {
+      this.clear(p);                                     // looking at the block: take it down
     } else if (r.state === 1) {
       sim.emit({ t: 'rope', rope: { ...r, state: 2, anchor: { seg: t.seg, p: t.p } } });
       this.L0 = this.pathLength() + 0.15; this.prev = 0; this.T = 0;

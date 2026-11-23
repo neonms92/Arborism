@@ -257,3 +257,16 @@ Punch: each press adds `PUNCH_FORCE` along the look direction at the point
 hit, fading with time constant `PUNCH_DECAY`; a new press adds to what is
 left, capped at `PUNCH_MAX`. It goes through `sim.applyForce` like the
 climber's weight, so it loads standing wood's fibres and shoves loose pieces.
+
+**D41 — Block removal on W; R on the ground grabs wood.** Owner's answers to
+D40's open points. W while looking at the hung block (within reach, 0.7 m of
+it) takes it down; C no longer does anything on the ground. A press of R on
+the ground grabs the wood looked at and a second press lets go. The hold is
+a tension-only rope from the hands to the grabbed point (`GRAB_K`, damped
+like the rigging line, stiffness capped on light pieces); past `GRAB_MAX`
+the wood tears out of the hands rather than the hold acting as an anchor.
+The force goes into the wood through `sim.applyForce`, and back into the
+player as an impulse (which walking mostly overrides: feet win). A press
+that grabs standing wood and is held on goes on into the 4 s lanyard throw,
+so spurring in is still "hold R"; the press that lets go locks the throw
+until R is released.
