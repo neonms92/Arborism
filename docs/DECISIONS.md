@@ -436,3 +436,19 @@ makes real kerfs close early (creep, crushing right at the notch tip) is not
 modelled. FM-10 must-pass went from 41 to 39 / 113 (three softer-wood fells
 at 8° lean now hold on their closed kerfs, one other now passes).
 
+**D52 — A folded fibre bends like thin plies, and keeps its fold.** The
+owner found FM-14's strap rigid. Measured on its default limb: the whole
+120 N·m the limb hangs by was carried by the three strap fibres' own
+bending, each treated as a solid 2.2 cm block (no axial force at all), and
+that fold sprang back elastically, so the limb bounced back to 9°. Now:
+(a) a fibre's own fold is as stiff and as strong as layers `FIBRE_PLY`
+thick (real fibres slide on each other when a bundle folds), and its outer
+fold strain is taken over the ply too; (b) the fold's plastic moment uses
+tension on the outside and crushing (`COMP`) on the inside; (c) a fold past
+that moment takes a permanent set, like a fibre's stretch (D20).
+`FIBRE_PLY` 10 mm (menu). Must-pass, solid → 10 mm → 5 mm: FM-10
+39 → 50 → 53, FM-11 69 → 61 → 56, FM-14 2 → 1 → 1, FM-15 81 → 81 → 80.
+FM-14's limb now folds to about 92° (it stopped at 14° before), where
+`BEND_MAX` snaps every fibre at once, so it holds ~0.3 s instead of 1 s.
+The FM-11 losses are trunks left hanging on a folded hinge.
+

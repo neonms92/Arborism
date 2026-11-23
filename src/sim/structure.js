@@ -272,7 +272,7 @@ export class Structure {
     const A = L.dA * R * R, h = L.cs * R;
     // a fibre reaches MOR having stretched TENS_STRAIN of its length, and COMP having shortened COMP_STRAIN of it
     const Ft = CFG.MOR * A, Fc = CFG.COMP * A, ey = CFG.TENS_STRAIN * j.Lg, ec = CFG.COMP_STRAIN * j.Lg;
-    const kt = Ft / ey, kc = Fc / ec, ks = 0.4 * kt;
+    const kt = Ft / ey, kc = Fc / ec, ks = 0.4 * kt, ply = Math.min(h, CFG.FIBRE_PLY);
     // frames: the bundle face on the parent (O, u, v, nrm) and the same face carried by the distal body
     // the parent's side of the bundle rides on the (possibly bent) segment it grows from
     const ps = sim.world.segs.get(j.parentSeg) || { id: -1, piece: j.parent };
@@ -287,6 +287,9 @@ export class Structure {
     const tn = dot(th, nv), thp = [th[0] - tn * nv[0], th[1] - tn * nv[1], th[2] - tn * nv[2]];
     const bend = Math.hypot(thp[0], thp[1], thp[2]);
     j.angle = bend;
+    // the part of the fold the fibres have taken as a set (kept in the parent face's u, v so it turns with it)
+    const fs = j.fold || (j.fold = [0, 0]);
+    const set = [fs[0] * uw.x + fs[1] * vw.x, fs[0] * uw.y + fs[1] * vw.y, fs[0] * uw.z + fs[1] * vw.z];
 
     // Fibre force law over this step (implicit):  f = k (e + (dt + damp) * rate),  clamped to [-Fc, Ft]
     // (severed faces: [-Fc, 0]).  e = elongation now (less plastic set), rate = elongation rate at the END
@@ -321,7 +324,7 @@ export class Structure {
       RX[i] = dOx + x * ub.x + y * vb.x; RY[i] = dOy + x * ub.y + y * vb.y; RZ[i] = dOz + x * ub.z + y * vb.z;   // lever from O
       DEL[i] = del;
       if (j.st[i] !== ELASTIC) continue;
-      const fold = bend * (h / 2 + (grp.of[i] >= 0 ? Math.max(0, SF[i] - GC[grp.of[i]]) : 0));
+      const fold = bend * (ply / 2 + (grp.of[i] >= 0 ? Math.max(0, SF[i] - GC[grp.of[i]]) : 0));
       if (del - j.p[i] > CFG.FIBRE_STRETCH - fold || del + fold > CFG.FIBRE_STRETCH
         || Math.hypot(SX[i], SY[i], SZ[i]) > CFG.FIBRE_SLIP || bend > CFG.BEND_MAX) { j.st[i] = BROKEN; snapped[nSnap++] = i; }
     }
@@ -344,7 +347,10 @@ export class Structure {
     for (let i = 0; i < n; i++) {
       const del = DEL[i];
       if (j.st[i] === ELASTIC) {
-        alive++; kOwn += kt * h * h / 12; mOwn += Ft * h / 4;
+        // its own fold: a fibre bundle is many thin plies of real fibre that slide on each other when it is
+        // folded, so it is as stiff and strong in bending as FIBRE_PLY-thick layers (stretched on the outside of
+        // each ply, crushed on the inside), not as one solid block h thick (D52)
+        alive++; kOwn += kt * h * ply / 12; mOwn += Ft * ply * Fc / (2 * (Ft + Fc));
         // a fibre found beyond its elastic range has already stretched or crushed that far: it takes a set
         if (del - j.p[i] > ey) j.p[i] = del - ey; else if (del - j.p[i] < -ec) j.p[i] = del + ec;
         E[i] = del - j.p[i];
@@ -387,7 +393,7 @@ export class Structure {
       // each fibre also resists being bent over its own thickness (what a thin hinge strip has left)
       if (ownCap) { wr[3] += mcx; wr[4] += mcy; wr[5] += mcz; }
       else {
-        wr[3] -= kOwn * thp[0]; wr[4] -= kOwn * thp[1]; wr[5] -= kOwn * thp[2];
+        wr[3] -= kOwn * (thp[0] - set[0]); wr[4] -= kOwn * (thp[1] - set[1]); wr[5] -= kOwn * (thp[2] - set[2]);
         for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) K[(3 + a) * 6 + 3 + b] += kOwn * ((a === b ? 1 : 0) - nv[a] * nv[b]);
       }
       //   lambda = dt (w0 - D (u + W lambda))    =>   (I + dt D W) lambda = dt (w0 - D u),   D = (dt + damp) K
@@ -428,7 +434,7 @@ export class Structure {
         }
       }
       if (!ownCap && mOwn > 0) {
-        const ex = thp[0] + coef * ue[3], ey = thp[1] + coef * ue[4], ez = thp[2] + coef * ue[5];
+        const ex = thp[0] - set[0] + coef * ue[3], ey = thp[1] - set[1] + coef * ue[4], ez = thp[2] - set[2] + coef * ue[5];
         const en = ex * nv[0] + ey * nv[1] + ez * nv[2], px = ex - en * nv[0], py = ey - en * nv[1], pz = ez - en * nv[2];
         const mm = kOwn * Math.hypot(px, py, pz);
         if (mm > mOwn) { const q = -mOwn / Math.hypot(px, py, pz); mcx = px * q; mcy = py * q; mcz = pz * q; ownCap = true; changed = true; }
@@ -441,6 +447,16 @@ export class Structure {
       const f = mode[i] === LIN ? KF[i] * (E[i] + coef * RATE[i]) : mode[i] === CAP ? capF[i] : 0;
       j.force[i] = j.st[i] === BROKEN ? NaN : f / Ft;
       if (j.st[i] === ELASTIC && mode[i] === CAP) j.p[i] = DEL[i] + dt * RATE[i] - capF[i] / (capF[i] > 0 ? kt : kc);
+    }
+    // a fold past what the fibres can hold elastically stays folded (D20, D52)
+    if (ownCap && kOwn > 0) {
+      const tx = thp[0] + dt * ue[3], ty = thp[1] + dt * ue[4], tz = thp[2] + dt * ue[5];
+      const tn2 = tx * nv[0] + ty * nv[1] + tz * nv[2], qx = tx - tn2 * nv[0], qy = ty - tn2 * nv[1], qz = tz - tn2 * nv[2];
+      const ex = qx - set[0], ey = qy - set[1], ez = qz - set[2], el = Math.hypot(ex, ey, ez);
+      if (el > 1e-12) {
+        const keep = mOwn / kOwn / el, sx = qx - ex * keep, sy = qy - ey * keep, sz = qz - ez * keep;
+        fs[0] = sx * uw.x + sy * uw.y + sz * uw.z; fs[1] = sx * vw.x + sy * vw.y + sz * vw.z;
+      }
     }
     B.applyImpulseAtPoint({ x: lam[0], y: lam[1], z: lam[2] }, Ow, true);
     B.applyTorqueImpulse({ x: lam[3], y: lam[4], z: lam[5] }, true);
