@@ -24,10 +24,18 @@ const CSS = `
 #testing .cells { display: inline-grid; gap: 1px; vertical-align: middle; } #testing .cells span { width: 14px; height: 14px; display: block; }
 #testing .prog { height: 6px; background: #2a3527; border-radius: 3px; overflow: hidden; width: 260px; } #testing .prog div { height: 100%; background: #e8a23a; width: 0; }
 #testing code { font-size: 12px; opacity: .85; }
-#tview { position: fixed; inset: 0; z-index: 30; background: #000; } #tview canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-#tview .hud { pointer-events: none; position: absolute; left: 10px; top: 10px; max-width: min(520px, 90vw); background: rgba(0,0,0,.55); padding: 8px 10px; border-radius: 6px; font: 12.5px/1.4 ui-monospace, monospace; white-space: pre-wrap; color: #fff; }
-#tview .ctl { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; } #tview .ctl button { font: inherit; padding: 6px 10px; border-radius: 6px; border: 0; cursor: pointer; }
-#tview .ctl button.on { background: #e8a23a; }
+#testing td b { white-space: nowrap; }
+#tview { position: fixed; inset: 0; z-index: 30; background: #000; color: #fff; font: 14px/1.35 system-ui, sans-serif; -webkit-user-select: none; user-select: none; }
+#tview canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+#tview .top, #tview .bot { position: absolute; left: 0; right: 0; display: flex; gap: 8px; align-items: center; padding: 8px max(8px, env(safe-area-inset-right)) 8px max(8px, env(safe-area-inset-left)); pointer-events: none; }
+#tview .top { top: 0; padding-top: max(8px, env(safe-area-inset-top)); } #tview .bot { bottom: 0; justify-content: center; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+#tview button { pointer-events: auto; font: inherit; font-weight: 600; min-width: 48px; min-height: 44px; padding: 0 14px; border-radius: 22px; border: 0; background: rgba(20,27,18,.82); color: #fff; cursor: pointer; touch-action: manipulation; }
+#tview button.on { background: #e8a23a; color: #201400; }
+#tview .title { flex: 1; min-width: 0; background: rgba(0,0,0,.5); border-radius: 10px; padding: 4px 10px; font-size: 13px; }
+#tview .title b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#tview .badge { display: inline-block; padding: 0 7px; border-radius: 8px; font-weight: 700; margin-right: 6px; }
+#tview .badge.pass { background: #3d8a32; } #tview .badge.fail { background: #b8442b; } #tview .badge.invalid { background: #b02a7a; } #tview .badge.run { background: #555; } #tview .badge.skip, #tview .badge.explore { background: #4c6a91; }
+#tview .hud { pointer-events: none; position: absolute; left: 8px; right: 8px; top: calc(max(8px, env(safe-area-inset-top)) + 60px); max-width: 520px; max-height: calc(100% - 150px); overflow: hidden; background: rgba(0,0,0,.6); padding: 8px 10px; border-radius: 8px; font: 12px/1.4 ui-monospace, monospace; white-space: pre-wrap; }
 `;
 
 const el = (tag, attrs = {}, ...kids) => {
@@ -99,7 +107,7 @@ class Testing {
       const res = s ? el('span', {}, el('span', { class: s.fail || s.invalid ? 'fail' : 'pass' }, `${s.pass} / ${s.judged} pass`),
         s.invalid ? el('span', { class: 'invalid' }, ` · ${s.invalid} invalid`) : '', s.skip ? el('span', { class: 'skip' }, ` · ${s.skip} skipped`) : '',
         el('span', { class: 'muted' }, ` · ${s.mode}${s.trend ? ' · ' + s.trend + ' than before' : ''}`)) : el('span', { class: 'muted' }, 'not run');
-      return el('tr', { class: 't' + (this.focus === t.id ? ' sel' : ''), onclick: () => { this.focus = t.id; this.render(); } },
+      return el('tr', { class: 't' + (this.focus === t.id ? ' sel' : ''), onclick: () => { this.focus = t.id; this.render(); if (innerWidth < 800) this.detail.scrollIntoView({ behavior: 'smooth' }); } },
         el('td', {}, cb), el('td', {}, el('b', {}, t.id)), el('td', {}, t.title), el('td', {}, res));
     });
     this.list.replaceChildren(el('table', {}, el('tr', {}, el('th', {}, ''), el('th', {}, 'Test'), el('th', {}, ''), el('th', {}, 'Latest batch')), rows));
@@ -119,7 +127,7 @@ class Testing {
     if (!t) { this.detail.replaceChildren(el('p', { class: 'muted' }, 'Pick a test to see its results.')); return; }
     const s = summarise(this.recs, t.id), kids = [el('h3', {}, `${t.id} ${t.title}`)];
     kids.push(el('div', { class: 'muted' }, 'Parameters: ', Object.entries(t.params).map(([k, d]) => `${k} ${fmtRange(d.must)} (explore ${fmtRange(d.explore)}) ${d.unit || ''}`).join(' · ') || 'none'));
-    kids.push(el('div', { class: 'bar' }, el('button', { onclick: () => this.view({ test: t.id, params: defaultsOf(t), seed: t.seed ? t.seed.must[0] : null, mode: 'view' }) }, 'View the default point')));
+    kids.push(el('div', { class: 'bar' }, el('button', { class: 'go', onclick: () => this.viewDefault(t.id) }, 'View the default point')));
     if (!s) { this.detail.replaceChildren(...kids); return; }
     kids.push(el('h3', {}, `Latest batch (${s.mode}, ${new Date(s.time).toLocaleString()})`));
     kids.push(el('table', {}, el('tr', {}, el('th', {}, 'Criterion'), el('th', {}, 'Failed'), el('th', {}, 'Worst margin')),
@@ -214,25 +222,92 @@ class Testing {
   }
 
   // ---------- graphical view of one run ----------
+  /** Open the viewer on a test's default point (also what ?view=FM-10 does). */
+  viewDefault(id) {
+    const t = TEST_BY_ID.get(String(id).toUpperCase());
+    if (!t) return;
+    this.focus = t.id; this.render();
+    this.view({ test: t.id, params: defaultsOf(t), seed: t.seed ? t.seed.must[0] : null, mode: 'view' });
+  }
+
+  /**
+   * Watch one run in 3D. Touch: one finger orbits, two fingers pinch to dolly the camera forward / back
+   * (it moves; the lens does not zoom) and drag to pan, double tap resets the camera. Mouse: drag, wheel.
+   * Replay starts the run again from the beginning; the phone's back gesture returns to the list.
+   */
   async view(rec) {
     const T = TEST_BY_ID.get(rec.test);
     const { View } = await import('../view/view.js');
     const THREE = await import('three');
-    const wrapEl = el('div', { id: 'tview' }), canvas = el('canvas'), hud = el('div', { class: 'hud' });
-    let speed = 1, paused = false, aborted = false, vw = null, ctxNow = null, params = null, wall0 = performance.now(), sim0 = 0, lastDraw = 0, done = null;
-    const speeds = [[0.25, '¼×'], [1, '1×'], [4, '4×'], [Infinity, 'max']];
-    const sb = speeds.map(([v, label]) => el('button', { onclick: () => { speed = v; wall0 = performance.now(); sim0 = ctxNow ? ctxNow.t : 0; sb.forEach((b, i) => b.classList.toggle('on', speeds[i][0] === v)); } }, label));
-    sb[1].classList.add('on');
-    const pb = el('button', { onclick: () => { paused = !paused; pb.textContent = paused ? 'Resume' : 'Pause'; } }, 'Pause');
-    wrapEl.append(canvas, hud, el('div', { class: 'ctl' }, ...sb, pb, el('button', { onclick: () => { aborted = true; finish(); } }, 'Close')));
+    const canvas = el('canvas'), hud = el('div', { class: 'hud' }), title = el('div', { class: 'title' });
+    let speed = 1, paused = false, closed = false, gen = 0, vw = null, ctxNow = null, params = null;
+    let wall0 = performance.now(), sim0 = 0, lastDraw = 0, done = null, camView = null, camTouched = false;
+    const speeds = [[1, '1×'], [4, '4×'], [Infinity, 'Max'], [0.25, '¼×']];
+    const spb = el('button', { title: 'Playback speed', onclick: () => {
+      const i = (speeds.findIndex(([v]) => v === speed) + 1) % speeds.length;
+      speed = speeds[i][0]; spb.textContent = speeds[i][1]; wall0 = performance.now(); sim0 = ctxNow ? ctxNow.t : 0;
+    } }, '1×');
+    const pb = el('button', { onclick: () => { paused = !paused; pb.textContent = paused ? 'Play' : 'Pause'; } }, 'Pause');
+    let showHud = innerWidth >= 800;
+    const ib = el('button', { class: showHud ? 'on' : '', title: 'Show the run details', onclick: () => { showHud = !showHud; ib.classList.toggle('on', showHud); hud.style.display = showHud ? '' : 'none'; } }, 'Info');
+    hud.style.display = showHud ? '' : 'none';
+    const wrapEl = el('div', { id: 'tview' }, canvas, hud,
+      el('div', { class: 'top' }, el('button', { title: 'Back to the test list', onclick: () => close() }, '‹ Tests'), title),
+      el('div', { class: 'bot' }, el('button', { onclick: () => replay() }, 'Replay'), pb, spb, ib));
     document.body.append(wrapEl);
+
+    // ---- camera: an orbit about a target; dolly moves the camera, and carries the target along once it gets close
     const cam = { target: [0, 3, 0], dist: 12, yaw: 0, pitch: 0.3 };
-    let drag = null;
-    canvas.onpointerdown = (e) => { drag = [e.clientX, e.clientY]; canvas.setPointerCapture(e.pointerId); };
-    canvas.onpointermove = (e) => { if (!drag) return; cam.yaw -= (e.clientX - drag[0]) * 0.006; cam.pitch = Math.max(-1.4, Math.min(1.5, cam.pitch + (e.clientY - drag[1]) * 0.006)); drag = [e.clientX, e.clientY]; };
-    canvas.onpointerup = () => { drag = null; };
-    canvas.onwheel = (e) => { e.preventDefault(); cam.dist = Math.max(0.5, cam.dist * Math.exp(e.deltaY * 0.001)); };
-    const finish = () => { if (vw) { vw.renderer.dispose(); vw.renderer.forceContextLoss?.(); } wrapEl.remove(); };
+    const setView = (v) => { cam.target = [...(v.target || cam.target)]; for (const k of ['dist', 'yaw', 'pitch']) if (v[k] !== undefined) cam[k] = v[k]; };
+    const fwd = () => { const cp = Math.cos(cam.pitch); return [-cp * Math.sin(cam.yaw), -Math.sin(cam.pitch), -cp * Math.cos(cam.yaw)]; };
+    const MIN_D = 0.6;
+    const dolly = (ratio) => {
+      const d = cam.dist * ratio;
+      if (d >= MIN_D) { cam.dist = Math.min(300, d); return; }
+      const f = fwd(), step = cam.dist - d;            // keep going forward: the target moves ahead of the camera
+      cam.target = cam.target.map((x, i) => x + f[i] * step); cam.dist = MIN_D;
+    };
+    const pan = (dx, dy) => {
+      const h = canvas.clientHeight || 1, fov = vw ? vw.camera.fov : 60, k = 2 * cam.dist * Math.tan(fov * Math.PI / 360) / h;
+      const right = [Math.cos(cam.yaw), 0, -Math.sin(cam.yaw)], sp = Math.sin(cam.pitch), cp = Math.cos(cam.pitch);
+      const up = [-sp * Math.sin(cam.yaw), cp, -sp * Math.cos(cam.yaw)];
+      cam.target = cam.target.map((x, i) => x - right[i] * dx * k + up[i] * dy * k);
+    };
+    const orbit = (dx, dy) => { cam.yaw -= dx * 0.007; cam.pitch = Math.max(-1.4, Math.min(1.5, cam.pitch + dy * 0.007)); };
+    const pts = new Map();
+    let lastTap = 0, moved = 0;
+    const two = () => { const [a, b] = [...pts.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
+    canvas.onpointerdown = (e) => { try { canvas.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ } pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = 0; };
+    canvas.onpointermove = (e) => {
+      const p = pts.get(e.pointerId); if (!p) return;
+      if (pts.size === 1) { orbit(e.clientX - p.x, e.clientY - p.y); moved += Math.abs(e.clientX - p.x) + Math.abs(e.clientY - p.y); p.x = e.clientX; p.y = e.clientY; camTouched = true; return; }
+      const before = two(); p.x = e.clientX; p.y = e.clientY; const after = two();
+      if (before.d > 10 && after.d > 10) dolly(before.d / after.d);     // fingers apart: forward
+      pan(after.x - before.x, after.y - before.y);
+      moved += 99; camTouched = true;
+    };
+    const up = (e) => {
+      if (!pts.delete(e.pointerId)) return;
+      if (pts.size || e.type === 'pointercancel') return;
+      const now = performance.now();
+      if (moved < 12) { if (now - lastTap < 320) { if (camView) setView(camView); camTouched = false; lastTap = 0; } else lastTap = now; }
+    };
+    canvas.onpointerup = up; canvas.onpointercancel = up;
+    canvas.onwheel = (e) => { e.preventDefault(); dolly(Math.exp(e.deltaY * 0.001)); camTouched = true; };
+
+    // ---- the phone's back gesture closes the viewer, not the page
+    history.pushState({ tview: 1 }, '');
+    const onPop = () => close(true);
+    addEventListener('popstate', onPop);
+    const close = (fromPop) => {
+      if (closed) return;
+      closed = true; gen++;
+      removeEventListener('popstate', onPop);
+      if (vw) { vw.renderer.dispose(); vw.renderer.forceContextLoss?.(); }
+      wrapEl.remove();
+      if (!fromPop) history.back();
+    };
+
     const raf = () => new Promise((r) => requestAnimationFrame(r));
     const draw = (ctx) => {
       if (!vw) return;
@@ -242,36 +317,54 @@ class Testing {
       c.lookAt(t[0], t[1], t[2]);
       const sim = ctx.sim, U = ctx.worstU();
       vw.update(1 / 60, { pose: (id) => sim.pose(id), get flex() { return sim.structure.flex; } }, sim.aux(), -1, null);
-      hud.textContent = `${rec.test} ${T.title}\n${paramText(params)}${rec.seed !== null && rec.seed !== undefined ? ' seed=' + rec.seed : ''}\n` +
+      const v = done ? (done.verdict === 'explore' ? (done.wouldPass ? 'pass' : 'fail') : done.verdict) : null;
+      title.replaceChildren(el('b', {}, `${rec.test} ${T.title}`),
+        el('span', { class: 'badge ' + (v || 'run') }, v ? (v === 'pass' ? '✓ pass' : v === 'fail' ? '✗ fail' : v) : paused ? 'paused' : 'running'),
+        `t = ${ctx.t.toFixed(1)} s${done && done.failed && done.failed.length ? ` · ${done.failed.length} failed` : ''}`);
+      if (!showHud) return;
+      hud.textContent = `${paramText(params)}${rec.seed !== null && rec.seed !== undefined ? ' seed=' + rec.seed : ''}\n` +
         `run ${ctx === ctxNow ? '' : '(earlier) '}t = ${ctx.t.toFixed(2)} s   pieces ${sim.world.pieces.size}   live bundles ${sim.structure.live.size}   splits ${ctx.splits.length}\n` +
         `worst U ${U.U.toFixed(3)}   step ${ctx.stepMs.length ? ctx.stepMs[ctx.stepMs.length - 1].toFixed(2) : 0} ms` +
         (done ? `\n\nverdict: ${done.verdict}${done.failed.length ? '\nfailed: ' + done.failed.join('\n        ') : ''}${done.breach ? '\n' + done.breach.inv + ': ' + done.breach.detail : ''}${done.error ? '\n' + done.error.split('\n')[0] : ''}` : '') +
-        '\n\ndrag to orbit, wheel to zoom';
+        '\n\none finger: orbit · pinch: move forward / back · two fingers: pan · double tap: reset camera';
     };
-    const frame = async (ctx) => {
-      if (aborted) throw { abort: true };
-      for (;;) {
-        const now = performance.now(), due = wall0 + (ctx.t - sim0) * 1000 / speed;
-        if (paused || now < due) { draw(ctx); await raf(); if (aborted) throw { abort: true }; if (paused) { wall0 = performance.now(); sim0 = ctx.t; } continue; }
-        if (now - lastDraw > (speed === Infinity ? 250 : 30)) { draw(ctx); await raf(); if (aborted) throw { abort: true }; }   // behind: still show it now and then
-        return;
-      }
+    const start = async () => {
+      const my = ++gen;
+      done = null; ctxNow = null;
+      const frame = async (ctx) => {
+        if (my !== gen) throw { abort: true };
+        for (;;) {
+          const now = performance.now(), due = wall0 + (ctx.t - sim0) * 1000 / speed;
+          if (paused || now < due) { draw(ctx); await raf(); if (my !== gen) throw { abort: true }; if (paused) { wall0 = performance.now(); sim0 = ctx.t; } continue; }
+          if (now - lastDraw > (speed === Infinity ? 250 : 30)) { draw(ctx); await raf(); if (my !== gen) throw { abort: true }; }   // behind: still show it now and then
+          return;
+        }
+      };
+      const onCtx = (ctx, p) => {
+        if (my !== gen) return;
+        params = p; ctxNow = ctx; sim0 = 0; wall0 = performance.now();
+        if (vw) { vw.renderer.dispose(); }
+        vw = new View(canvas, ctx.world);
+        const v = T.view ? T.view(p) : null;
+        camView = v || camView || { ...cam, target: [...cam.target] };
+        if (v && !camTouched) setView(v);
+        if (v && v.arrows) {
+          const arrow = (az, col) => vw.scene.add(new THREE.ArrowHelper(new THREE.Vector3(Math.cos(az), 0, Math.sin(az)), new THREE.Vector3(0, 0.05, 0), 6, col, 0.6, 0.35));
+          arrow(0, 0xff4040);                                                   // lean (+x)
+          if (p.delta !== undefined && T.id === 'FM-10') arrow(p.delta * Math.PI / 180, 0xffe040);   // the way the notch faces
+        }
+      };
+      const r = await runCase({ test: rec.test, params: rec.params, seed: rec.seed, mode: 'view' }, { frame, onCtx });
+      if (my !== gen) return;
+      done = r;
+      while (my === gen && !closed) { if (ctxNow) draw(ctxNow); await raf(); }
     };
-    const onCtx = (ctx, p) => {
-      params = p; ctxNow = ctx; sim0 = 0; wall0 = performance.now();
-      if (vw) { vw.renderer.dispose(); }
-      vw = new View(canvas, ctx.world);
-      const v = T.view ? T.view(p) : null;
-      if (v) Object.assign(cam, v);
-      if (v && v.arrows) {
-        const arrow = (az, col) => vw.scene.add(new THREE.ArrowHelper(new THREE.Vector3(Math.cos(az), 0, Math.sin(az)), new THREE.Vector3(0, 0.05, 0), 6, col, 0.6, 0.35));
-        arrow(0, 0xff4040);                                                   // lean (+x)
-        if (p.delta !== undefined && T.id === 'FM-10') arrow(p.delta * Math.PI / 180, 0xffe040);   // the way the notch faces
-      }
+    const replay = () => {
+      if (closed) return;
+      paused = false; pb.textContent = 'Pause';
+      start();
     };
-    const job = { test: rec.test, params: rec.params, seed: rec.seed, mode: 'view' };
-    done = await runCase(job, { frame, onCtx });
-    if (!aborted && ctxNow) { while (!aborted) { draw(ctxNow); await raf(); } }
+    start();
   }
 }
 

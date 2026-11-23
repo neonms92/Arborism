@@ -626,6 +626,13 @@ map, so `src/sim/` imports three and Rapier by relative path (D41).
   at hundreds of m/s), or INV-3 would catch the test, not the engine. The
   cost: once live, a limb feels less than the full load, so "comes free" in
   FM-04 and the held load in FM-05 are weaker than a real hanging weight.
+- **Viewer:** re-runs the case on the main thread with the view attached.
+  It works on a phone: one finger orbits, a pinch dollies the camera
+  forward or back (the camera moves, the lens does not zoom; once it reaches
+  the target it carries the target ahead), two fingers pan, a double tap
+  resets the camera to the test's view. Replay starts the run again and
+  keeps the camera where you put it; "‹ Tests" or the phone's back gesture
+  returns to the list. `?view=FM-10` opens a test's default point directly.
 - **Cuts** go through the saw's own `sever()`. Fibres within
   `max(2 r, 0.15 m)` of a live joint's plane are that joint's fibres (cut with
   `cutLive`), the same distance `sever()` uses to keep one cut plane.

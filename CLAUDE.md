@@ -17,7 +17,8 @@ No build, no npm install. ES modules are served as-is; libraries are in
 URL parameters: `?solo` (start immediately), `?host=CODE`, `?join=CODE`,
 `?seed=N` (tree), `?signal=host:port` (own PeerJS server), `?ice=<json>`
 (extra STUN/TURN servers), `?test=FM-10,...|all&mode=smoke|must|explore|sweep`
-(engine tests, headless; docs/TESTS.md section 8).
+(engine tests, headless; docs/TESTS.md section 8), `?view=FM-10` (watch that
+test's default point, touch controls for phones).
 
 Two-player test on one machine without the public signaling server:
 
