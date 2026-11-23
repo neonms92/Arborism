@@ -5,6 +5,7 @@ import RAPIER from '../../vendor/rapier/rapier.mjs';
 import * as THREE from '../../vendor/three/three.module.js';
 import { CFG } from '../config.js';
 import { segLen, segAxis, segMass, segParam, lerp3 } from '../model/world.js';
+import { layout, bundleBasis, isGone } from '../model/fibres.js';
 import { generateTree } from '../model/treegen.js';
 import { frameApply, frameDir, frameInverse } from '../model/flex.js';
 import { Players } from './players.js';
@@ -86,6 +87,11 @@ export class Sim {
       this.dropCollider(ev.seg); this.addCollider(s, body);
       this.addCollider(this.world.segs.get(ev.newSeg), body);
       this.players.onDivide(ev);
+    } else if (ev.t === 'rip') {
+      if (!info.newSeg) return;
+      const s = this.world.segs.get(ev.seg), body = this.bodies.get(s.piece);
+      this.dropCollider(ev.seg); this.addCollider(s, body);
+      this.addCollider(this.world.segs.get(info.newSeg), body);
     } else if (ev.t === 'split') {
       if (!info.moved) return;
       const old = this.bodies.get(info.oldPiece);
@@ -121,8 +127,21 @@ export class Sim {
   }
 
   addCollider(s, body) {
-    const L = segLen(s), r = Math.max(0.01, (s.r0 + s.r1) / 2), ax = segAxis(s);
+    const L = segLen(s), ax = segAxis(s);
+    let r = Math.max(0.01, (s.r0 + s.r1) / 2);
     const mid = lerp3(s.a, s.b, 0.5);
+    if (s.f.ncut) {
+      // part of a lengthwise split: a thinner rod through the middle of the wood that is left, clear of the other part
+      const Ly = layout(s.f.N), { u, v } = bundleBasis(ax);
+      let cx = 0, cy = 0, m = 0;
+      for (let i = 0; i < s.f.n; i++) if (!isGone(s.f, i)) { cx += Ly.X[i]; cy += Ly.Y[i]; m++; }
+      if (m < s.f.n && m) {
+        cx /= m; cy /= m;
+        const off = Math.hypot(cx, cy);
+        for (let k = 0; k < 3; k++) mid[k] += (u[k] * cx + v[k] * cy) * r;
+        r = Math.max(0.01, r * Math.min(Math.sqrt(m / s.f.n), off));
+      }
+    }
     _q.setFromUnitVectors(Y, _v.set(ax[0], ax[1], ax[2]));
     const desc = RAPIER.ColliderDesc.cylinder(Math.max(0.01, L / 2 - 0.004), r)
       .setTranslation(mid[0], mid[1], mid[2]).setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w })

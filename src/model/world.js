@@ -5,7 +5,7 @@
 // piece: {id, fixed}
 // rope:  {state: 0 none | 1 block set | 2 tied, block, anchor, device}  nodes = {seg, p:[3] piece-local}
 
-import { makeBundle, cutFibres, packBundle, unpackBundle, gridFor, CUT } from './fibres.js';
+import { makeBundle, cutFibres, packBundle, unpackBundle, gridFor, layout, bundleBasis, CUT, isGone, setGone, presence } from './fibres.js';
 import { CFG } from '../config.js';
 import { newPaving, crackPaver, packPaving, unpackPaving } from './pavers.js';
 
@@ -19,7 +19,7 @@ export function segRadius(s, t) { return s.r0 + (s.r1 - s.r0) * t; }
 /** Wood mass of the part of a segment between fractions t0..t1 (no leaves). */
 export function segMass(s, t0 = 0, t1 = 1) {
   const ra = segRadius(s, t0), rb = segRadius(s, t1), L = segLen(s) * (t1 - t0);
-  return CFG.DENSITY * Math.PI * L / 3 * (ra * ra + ra * rb + rb * rb);
+  return CFG.DENSITY * Math.PI * L / 3 * (ra * ra + ra * rb + rb * rb) * (s.f && s.f.ncut ? presence(s.f) : 1);   // a lengthwise half weighs its share
 }
 /** Fraction along t0..t1 of the centroid of that frustum. */
 export function segCentroidT(s, t0 = 0, t1 = 1) {
@@ -136,6 +136,7 @@ export class World {
         break;
       }
       case 'split': this._split(ev, info); break;
+      case 'rip': this._rip(ev, info); break;
       case 'rmpiece': {
         for (const s of [...this.segs.values()]) if (s.piece === ev.piece) this.segs.delete(s.id);
         this.pieces.delete(ev.piece);
@@ -175,6 +176,7 @@ export class World {
       P.lo[i] = old.lo ? old.lo[i] : 0; P.hi[i] = zc;
       D.lo[i] = 0; D.hi[i] = (old.hi ? old.hi[i] : L) - zc;
       if (old.state[i] !== CUT) continue;
+      if (isGone(old, i)) { setGone(P, i); setGone(D, i); continue; }      // not in this wood on either side
       const mid = (old.zmin[i] + old.zmax[i]) / 2;
       if (parting) { P.hi[i] = old.zmin[i]; D.lo[i] = old.zmax[i] - zc; }
       else if (mid < zc) { P.state[i] = CUT; P.zmin[i] = old.zmin[i]; P.zmax[i] = old.zmax[i]; P.ncut++; zp += mid; np++; }
@@ -205,8 +207,9 @@ export class World {
       const f = s.f, n = f.n, L = segLen(s);            // sawn fibres start where the saw left them
       if (f.ncut) {
         if (!f.lo) { f.lo = new Float32Array(n); f.hi = new Float32Array(n).fill(L); }
-        for (let i = 0; i < n; i++) if (f.state[i] === CUT) { f.lo[i] = f.zmax[i]; f.state[i] = 0; }
-        f.ncut = 0; f.at = 0;
+        let gone = 0;
+        for (let i = 0; i < n; i++) if (f.state[i] === CUT) { if (isGone(f, i)) { gone++; continue; } f.lo[i] = f.zmax[i]; f.state[i] = 0; }
+        f.ncut = gone; f.at = 0;
       }
     }
     this._dirty();
@@ -215,6 +218,54 @@ export class World {
     this.pieces.set(ev.newPiece, { id: ev.newPiece, fixed: false });
     this._dirty();
     info.oldPiece = oldPiece; info.moved = moved; info.root = root.id; info.cutSeg = s.id;
+  }
+
+  // The wood of segment ev.seg splits lengthwise (DECISIONS D50). Fibres ev.h[] leave it and become a new
+  // segment ev.newSeg over the same length, hanging from the top end (it is still joined to the wood above,
+  // not below): its base is the old top, it runs back down, and its parent is ev.cont (the segment the stem
+  // carries on into; this one if there is none). The stem carries on into ev.cont through the fibres that
+  // stayed, so ev.cont's own fibres over the split-off part no longer reach down: they end at its base.
+  _rip(ev, info) {
+    const s = this.segs.get(ev.seg); if (!s) return;
+    const f = s.f, N = f.N, L = segLen(s), lay = layout(N);
+    const ax = segAxis(s), b0 = bundleBasis(ax), bh = bundleBasis([-ax[0], -ax[1], -ax[2]]);
+    const cont = ev.cont >= 0 ? this.segs.get(ev.cont) : null;
+    const h = { id: ev.newSeg, parent: cont ? cont.id : s.id, piece: s.piece, a: s.b.slice(), b: s.a.slice(), r0: s.r1, r1: s.r0, leaf: 0, f: makeBundle(N) };
+    const H = h.f;
+    for (let i = 0; i < H.n; i++) setGone(H, i);
+    const off = (bb, i) => [bb.u[0] * lay.X[i] + bb.v[0] * lay.Y[i], bb.u[1] * lay.X[i] + bb.v[1] * lay.Y[i], bb.u[2] * lay.X[i] + bb.v[2] * lay.Y[i]];
+    const nearest = (l, bb, o) => {
+      const x = o[0] * bb.u[0] + o[1] * bb.u[1] + o[2] * bb.u[2], y = o[0] * bb.v[0] + o[1] * bb.v[1] + o[2] * bb.v[2];
+      let best = 0, bd = Infinity;
+      for (let k = 0; k < l.n; k++) { const d = (l.X[k] - x) ** 2 + (l.Y[k] - y) ** 2; if (d < bd) { bd = d; best = k; } }
+      return best;
+    };
+    H.lo = new Float32Array(H.n); H.hi = new Float32Array(H.n);
+    for (const i of ev.h) {
+      if (isGone(f, i)) continue;
+      const k = nearest(lay, bh, off(b0, i));
+      // the new segment runs the other way (z' = L - z). A fibre the saw severed near the bottom of this wood
+      // is severed near the free end of the hanging half: it still holds at the top, and stops at the kerf.
+      H.state[k] = 0; H.ncut--;
+      H.lo[k] = L - (f.hi ? f.hi[i] : L); H.hi[k] = L - (f.state[i] === CUT ? f.zmax[i] : f.lo ? f.lo[i] : 0);
+      setGone(f, i);
+    }
+    H.at = 0; f.load = null;          // host scratch: what it was last solved for no longer applies
+    if (cont) {
+      cont.f.load = null;
+      let real = 0;
+      for (let i = 0; i < cont.f.n; i++) if (cont.f.state[i] === CUT && !isGone(cont.f, i)) real++;
+      if (!real) cont.f.at = 0;
+      const cl = layout(cont.f.N), cb = bundleBasis(segAxis(cont)), rr = (cont.r0 || 1) / (s.r1 || 1);
+      for (const i of ev.h) {
+        const o = off(b0, i).map((v) => v / rr), k = nearest(cl, cb, o);
+        if (cont.f.state[k] === CUT) continue;
+        cont.f.state[k] = CUT; cont.f.zmin[k] = 0; cont.f.zmax[k] = 0; cont.f.ncut++;
+      }
+    }
+    this.segs.set(h.id, h);
+    this._dirty();
+    info.seg = s.id; info.newSeg = h.id; info.cont = cont ? cont.id : -1;
   }
 
   // ---- welcome ----

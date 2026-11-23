@@ -50,7 +50,9 @@ All 18 tests of docs/TESTS.md, must-pass box, 5 613 runs, ≈ 7 min on the dev
 container (4 cores, adaptive workers). A failure here is a finding about the
 engine or about the manifest's criteria; nothing was loosened to pass.
 "First" is the first run; "now" is after D44–D46 (solver oscillation, live
-solver launches, rolling resistance).
+solver launches, rolling resistance), D49 (fibre adhesion) and D50
+(lengthwise splitting; FM-10, FM-11, FM-18, FM-19, FM-40 and FM-41 re-run
+for it).
 
 | Test | First | Now | What fails now |
 |---|---|---|---|
@@ -59,7 +61,7 @@ solver launches, rolling resistance).
 | FM-03 plain stem | 75 / 81 | 75 / 81 | extra lean at rest > 2 % H for slender, soft corners |
 | FM-04 overload | 0 / 49 | 0 / 49 | mostly: the limb goes live near the analytic load (good) but then hangs and never comes free, so no fibre ever snaps; where it does come free, every fibre often goes in one tick (no ordered tearing) |
 | FM-05 cracked, holding | 19 / 19 | 19 / 19 | — |
-| FM-10 notch steers | 11 / 113 (+9 invalid) | 42 / 113 | hinge often lets go below 10°; heading error > 15° in many corners; 3+ rows of hinge never release at all (logs now settle) |
+| FM-10 notch steers | 11 / 113 (+9 invalid) | 41 / 113 | hinge often lets go below 10°; heading error > 15° in many corners; 3+ rows of hinge never release at all (logs now settle) |
 | FM-11 no notch | 61 / 81 (+3) | 65 / 81 | some corners do not come free or go > 25° off the lean |
 | FM-12 pinch | 0 / 49 | 0 / 49 | a kerf only "closes" when the wood beside it crushes (D13), which never happens at these leans and depths |
 | FM-13 hinge trend | 0 / 9 | 0 / 9 | 1 and 2 rows behave alike; 3 – 4 rows never release |
@@ -68,6 +70,7 @@ solver launches, rolling resistance).
 | FM-16 straight through | 5 / 25 | 16 / 25 | a stem with no lean balances on its stump |
 | FM-17 straight, level cut (new) | — | 21 / 21 | — |
 | FM-18 straight, notch only, 4 ways (new) | — | 25 / 25 | — |
+| FM-19 barber chair (new, D50) | — | 17 / 33 | thin stems at light leans never split; elsewhere the split often stops after one segment, under 1 m |
 | FM-20 discretisation | 0 / 1 | 0 / 1 | fall heading, hinge angle and P_live all move with SEG_LEN / FIBRE_PITCH |
 | FM-21 determinism | 1 / 1 | 1 / 1 | identical event logs and transforms |
 | FM-22 step cost | 1 / 1 | 0 / 1 | idle p95 1.2 ms against a 1 ms bound while 3 other workers ran; alone it measures 0.7 – 1.0 ms with or without rolling resistance, so this one is timing noise at the edge of its bound |
@@ -118,6 +121,10 @@ mass, TESTS.md section 8).
   closes. `FIBRE_STRETCH` sets this. The notch-closing path (closed faces
   becoming the pivot) is in and stable but has only been seen with the
   earlier, smaller stretch value.
+- **Lengthwise splits (D50)** run a whole segment at a time, only in
+  standing (stiff) wood, and are never joined again. The split-off half is
+  drawn from its fibres but collides as a thinner rod. Only checked headless
+  and by FM-19; nobody has watched a barber chair in game yet.
 - A live bundle never goes back to stiff. A cracked limb stays a separate
   body for good. Several live bundles in a chain are only loosely coupled
   (DESIGN.md risk 7).

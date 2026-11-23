@@ -372,3 +372,37 @@ the 3 – 4 row hinges of FM-13 never go live at all — the hinge is strong
 enough to hold the stem (a 12 cm hinge on FM-10's stem has ≈ 4× the moment
 the lean puts on it), which is a scenario question, not a fibre-law one.
 
+**D50 — Wood splits along the grain, by one general rule.** The owner asked
+for barber chairs without a barber-chair rule. Where some fibres of a bundle
+are severed, the rest carry their share; a little way along the grain the
+load has spread over the whole section again. So across any lengthwise plane
+the difference has to pass as shear. Each tick, for every stiff bundle with
+severed fibres, `Structure.ripCheck` compares each fibre's force with the
+same load on the same section uncut. It does this over chords in 8
+directions between every pair of fibre rows: τ = |Σ one side (F − F_uncut)| /
+(chord length × `BOND_LEN`). Past `SHEAR`, the wood splits on the worst
+chord. Of the chords past `SHEAR`, the crack is the one that frees the most
+load; the most stressed chord alone is often a sliver along the bark. The
+side carrying less load leaves the segment as a new segment that
+hangs from the top end (new `rip` event). Its parent is the segment the stem
+carries on into. That segment's fibres over the split-off part now end at its
+base, so the next segment up can split in turn, and the crack runs up the
+stem until the shear falls below strength. A fibre that left is stored as
+severed over the whole length (`GONE_Z`): it carries nothing, is not drawn
+and does not stop a saw. A half weighs its share, and its collider is a
+thinner rod through the middle of the wood that is left. `BOND_LEN` (5 cm)
+is the length the shear acts over. That is short next to the stem's
+diameter, which is how the stress concentrating at a kerf's end shows up.
+With `SHEAR` it decides how readily wood splits; both are in the menu.
+Measured (must-pass): FM-19's default (20° lean, 0.1 D notch) splits
+1.7 m up the stem with the back cut 38 % in, and FM-10's default fell
+never splits. FM-19 passes 17 / 33: thin stems (D 0.4) at the lighter leans
+never split, and in most other misses the crack stops after the first
+segment (0.3 – 0.9 m). FM-10 41 / 113 (42 before): 9 runs split, all at
+the 8° lean edge, and most of those still pass. FM-11 68 / 81 and FM-18
+25 / 25 are unchanged, though a few deep notches in FM-18 now split.
+Limits: the split runs whole segments at a time (0.8 m on the test stems), a
+segment that has split is not joined again, and a half that hangs from a
+live (moving) piece is not checked again because live bundles have no shear
+check yet.
+

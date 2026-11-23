@@ -141,6 +141,7 @@ export class Ctx {
     this.h0 = new Map();        // piece -> COM height when it became a piece (INV-3)
     this.evCount = 0; this.evHash = 2166136261;
     this.lastDivide = false;
+    this.rips = [];             // lengthwise splits: {tick, seg, newSeg, lo, hi} (lo..hi: heights the split runs over)
     this.notes = [];
     this.maxTicks = Infinity;
     world.on((ev, info) => this.onEvent(ev, info));
@@ -158,6 +159,10 @@ export class Ctx {
     for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
     h ^= this.sim.tick; this.evHash = Math.imul(h, 16777619) >>> 0;
     if (ev.t === 'divide') this.lastDivide = true;
+    if (ev.t === 'rip' && info.newSeg) {
+      const s = this.world.segs.get(ev.seg), pa = this.sim.segToWorld(s, s.a), pb = this.sim.segToWorld(s, s.b);
+      this.rips.push({ tick: this.sim.tick, seg: ev.seg, newSeg: info.newSeg, lo: Math.min(pa.y, pb.y), hi: Math.max(pa.y, pb.y) });
+    }
     if (ev.t === 'tree') this.treeSegs = ev.segs.map((x) => x.id);
     if (ev.t === 'split') {
       const old = this.world.pieces.get(info.oldPiece);

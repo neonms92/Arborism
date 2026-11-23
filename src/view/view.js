@@ -118,7 +118,7 @@ export class View {
         }
         break;
       }
-      case 'cut': case 'divide': { const s = this.world.segs.get(ev.seg); if (s) this.buildPiece(s.piece); break; }
+      case 'cut': case 'divide': case 'rip': { const s = this.world.segs.get(ev.seg); if (s) this.buildPiece(s.piece); break; }
       case 'rmpiece': this.dropPiece(ev.piece); break;
     }
   }

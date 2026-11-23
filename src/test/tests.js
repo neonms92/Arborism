@@ -578,6 +578,38 @@ export const TESTS = [
     view: (p) => ({ target: [0, p.H / 3, 0], dist: p.H * 1.4, yaw: -Math.PI / 2, pitch: 0.35 }),
   },
   {
+    // The owner's (2026-11-23): a hard-leaning trunk with a shallow notch, back-cut straight in from behind,
+    // splits up the stem ahead of the saw (a barber chair). Nothing in the engine knows about barber chairs:
+    // a lengthwise split happens wherever severed fibres leave more shear along the grain than the wood can
+    // carry (DECISIONS D50). The control is FM-10's ordinary fell, which must not split.
+    id: 'FM-19', title: 'Barber chair: a hard lean back-cut without a proper notch splits up the stem', time: 60,
+    params: {
+      lean: P([15, 25], [8, 35], 20, '°'), dn: P([0.05, 0.12], [0, 0.2], 0.1, '× D'),
+      H: P([12, 20], [6, 30], 15, 'm'), D: P([0.4, 0.7], [0.2, 1.2], 0.5, 'm'),
+    },
+    async run(env, p) {
+      const out = {};
+      for (const [k, q, o] of [['chair', { ...FELL, ...p, step: 0 }, p.dn > 0 ? {} : { noNotch: true }], ['control', { ...FELL }, {}]]) {
+        const ctx = await env.ctx(), m = ctx.stem(q.H, q.D, q.lean * DEG, 0);
+        await ctx.run(2);
+        const { back } = await fellCuts(ctx, m, q, 0, o);
+        let backAtRip = null;
+        ctx.hooks.push((c) => { if (backAtRip === null && c.rips.length) backAtRip = back.count; });
+        await ctx.run(90, () => back.done || (ctx.rips.length && ctx.t > ctx.rips[0].tick * CFG.TICK + 5));
+        await ctx.run(5);
+        const hc = q.hc, rise = ctx.rips.length ? Math.max(...ctx.rips.map((r) => r.hi)) - hc : 0;
+        out[k] = { rips: ctx.rips.length, rise: +rise.toFixed(2), backDone: !!back.done, backAtRip, backN: back.list.length };
+      }
+      return out;
+    },
+    judge: (m) => [
+      ge('barber chair: the stem splits lengthwise >= 1 m above the cut (m)', m.chair.rise, 1),
+      is('barber chair: it splits before the back cut is finished', !m.chair.backDone || m.chair.backAtRip !== null),
+      is('control (FM-10 defaults): no lengthwise split', m.control.rips === 0, m.control.rips),
+    ],
+    view: (p) => ({ target: [0, 2, 0], dist: 7, yaw: -Math.PI / 2, pitch: 0.25 }),
+  },
+  {
     id: 'FM-20', title: 'Results do not depend on the discretisation', time: 500,
     params: {},
     async run(env) {

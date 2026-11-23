@@ -57,7 +57,7 @@ export async function runCase(job, opts = {}) {
   return {
     test: job.test, run: uuid(), batch: job.batch || null, mode: job.mode || 'must', commit: job.commit || 'local', machine: machine(), time: Date.now(),
     params: job.params, seed: job.seed ?? null, cfg, verdict, wouldPass: ok, failed, criteria, metrics, breach, error,
-    simTime: +(ticks * cfg.TICK).toFixed(3), wallTime: +((performance.now() - wall0) / 1000).toFixed(3), ticks,
+    rips: ctxs.reduce((a, c) => a + c.rips.length, 0), simTime: +(ticks * cfg.TICK).toFixed(3), wallTime: +((performance.now() - wall0) / 1000).toFixed(3), ticks,
     stepMs: { mean: steps.length ? +(steps.reduce((a, x) => a + x, 0) / steps.length).toFixed(4) : 0, p95: sorted.length ? +sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))].toFixed(4) : 0 },
   };
 }
