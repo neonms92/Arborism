@@ -39,6 +39,7 @@ const ROWS = [
   ['FIBRE_SLIP', 'Sideways slip at which a fibre shears (mm)', 5, 100, 1, 0.001, true],
   ['BEND_MAX', 'Fold angle no fibre survives (rad)', 0.2, 3.1, 0.05, 1, true],
   ['DENSITY', 'Wood density (kg/m3)', 200, 1400, 10, 1, true],
+  ['ROLL_RESIST', 'How hard the ground stops a log rolling (cm; 0 = rolls for ever)', 0, 10, 0.5, 0.01],
   ['New tree (these apply when you press Grow)'],
   ['TREE_HEIGHT', 'Height (m)', 3, 30, 0.5, 1, true],
   ['TREE_DIAMETER', 'Trunk diameter at the base (m)', 0.1, 1.5, 0.02, 1, true],

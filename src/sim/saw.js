@@ -5,7 +5,7 @@
 // CUT_RATE. There is no "cut" object - only fibres that have been severed,
 // each remembering where. Host only. See docs/DESIGN.md 4.
 
-import * as THREE from 'three';
+import * as THREE from '../../vendor/three/three.module.js';
 import { CFG, MODE } from '../config.js';
 import { segLen, segAxis, segParam, lerp3, lanyardLoop } from '../model/world.js';
 import { bundleBasis, layout, INTACT, CUT } from '../model/fibres.js';
@@ -125,7 +125,8 @@ function ropeSpans(sim) {
   return out;
 }
 
-function sever(sim, e) {
+/** Sever fibres e.i at e.z of bundle e.b ({seg} or {live: piece id}). Also used by the test harness's scripted cuts. */
+export function sever(sim, e) {
   const w = sim.world, b = e.b;
   if (b.live) { sim.structure.cutLive(b.live, e.i); return; }
   const s = w.segs.get(b.seg); if (!s) return;

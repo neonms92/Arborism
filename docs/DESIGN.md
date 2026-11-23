@@ -759,5 +759,6 @@ should **not** need to redesign anything. Rules for every task:
 
 ### Not planned, on purpose
 
-Automated tests; a build step; a server; soft-body ropes; a tree that is
+Automated tests outside the browser (in-game tests are proposed in
+`docs/TESTS.md`); a build step; a server; soft-body ropes; a tree that is
 live (per-fibre springs) everywhere all the time; client-side simulation.
