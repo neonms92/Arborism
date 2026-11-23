@@ -18,6 +18,7 @@ export async function runCase(job, opts = {}) {
   if (!T) throw new Error('no such test ' + job.test);
   const saved = { ...CFG };
   Object.assign(CFG, CFG_DEFAULTS);
+  if (job.cfg) Object.assign(CFG, job.cfg);            // the owner's tunings from the viewer's Tune panel; the test's own parameters still win
   const p = { ...(T.fixed || {}), ...job.params };
   for (const [k, d] of Object.entries(T.params)) if (d.cfg && p[k] !== undefined) CFG[d.cfg] = p[k] * d.scale;
   if (T.seed && job.seed !== null && job.seed !== undefined) CFG[T.seed.key] = job.seed;
@@ -56,7 +57,7 @@ export async function runCase(job, opts = {}) {
   const sorted = Float64Array.from(steps).sort();
   return {
     test: job.test, run: uuid(), batch: job.batch || null, mode: job.mode || 'must', commit: job.commit || 'local', machine: machine(), time: Date.now(),
-    params: job.params, seed: job.seed ?? null, cfg, verdict, wouldPass: ok, failed, criteria, metrics, breach, error,
+    params: job.params, seed: job.seed ?? null, tuned: job.cfg || null, cfg, verdict, wouldPass: ok, failed, criteria, metrics, breach, error,
     rips: ctxs.reduce((a, c) => a + c.rips.length, 0), simTime: +(ticks * cfg.TICK).toFixed(3), wallTime: +((performance.now() - wall0) / 1000).toFixed(3), ticks,
     stepMs: { mean: steps.length ? +(steps.reduce((a, x) => a + x, 0) / steps.length).toFixed(4) : 0, p95: sorted.length ? +sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))].toFixed(4) : 0 },
   };

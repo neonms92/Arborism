@@ -12,6 +12,15 @@ import * as store from './store.js';
 import { summarise, boundary } from './report.js';
 import { runCase } from './runcase.js';
 import { segMass, segCentroidT, lerp3 } from '../model/world.js';
+import { ROWS } from '../view/menu.js';
+import { CFG_DEFAULTS } from '../config.js';
+
+// Tunings made in the viewer's Tune panel: CFG values that every run started from this menu uses (viewer
+// replays and batches), unless the test sets that key itself. Kept in this browser.
+const TUNE_KEY = 'arb-test-tune-v1';
+export function loadTune() { try { return JSON.parse(localStorage.getItem(TUNE_KEY) || '{}') || {}; } catch { return {}; } }
+function saveTune(t) { try { if (Object.keys(t).length) localStorage.setItem(TUNE_KEY, JSON.stringify(t)); else localStorage.removeItem(TUNE_KEY); } catch { /* private window */ } }
+const tuned = () => { const t = loadTune(); return Object.keys(t).length ? t : undefined; };
 import { frameApply } from '../model/flex.js';
 
 /**
@@ -74,6 +83,12 @@ const CSS = `
 #tview .params { position: absolute; left: 8px; right: 8px; bottom: calc(max(10px, env(safe-area-inset-bottom)) + 56px); max-width: 520px; margin: 0 auto; max-height: 45%; overflow-y: auto; background: rgba(0,0,0,.72); border-radius: 10px; padding: 8px 12px; font-size: 13px; }
 #tview .params .row { display: grid; grid-template-columns: minmax(110px, 40%) 1fr; gap: 10px; align-items: center; min-height: 36px; }
 #tview .params .lab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#tview .tune .trow { grid-template-columns: 1fr 64px; grid-template-areas: 'lab nb' 'sl sl'; row-gap: 2px; padding: 4px 0; border-top: 1px solid rgba(255,255,255,.08); }
+#tview .tune .trow .lab { grid-area: lab; white-space: normal; } #tview .tune .trow input[type=range] { grid-area: sl; background: #555; }
+#tview .tune .trow input[type=number] { grid-area: nb; width: 64px; font: inherit; padding: 4px; border-radius: 6px; border: 0; background: #2a3427; color: #fff; }
+#tview .tune .lab.changed { color: #ffd166; font-weight: 600; } #tview .tune .grp { margin-top: 10px; font-weight: 700; color: #cfe3c4; }
+#tview .tune { max-height: 55%; }
+@media (max-width: 560px) { #tview .bot { gap: 4px; } #tview .bot button { padding: 0 9px; min-width: 0; font-size: 14px; } } #tview button.small { min-height: 30px; min-width: 0; padding: 0 10px; font-size: 12px; }
 #tview .params input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 12px; border-radius: 6px; outline: none; touch-action: pan-x; }
 #tview .params input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; border-radius: 50%; background: #fff; border: 2px solid #222; }
 #tview .params input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 2px solid #222; }
@@ -244,14 +259,14 @@ class Testing {
         const memo = new Map();
         const runAt = (params, seed) => {
           const key = JSON.stringify([params, seed]);
-          if (!memo.has(key)) { this.progress.total++; const job = { test: t.id, params, seed, mode, batch, commit }; memo.set(key, this.pool.run(job).then(onRec, fail(job)).then((r) => !!(r && r.wouldPass))); }
+          if (!memo.has(key)) { this.progress.total++; const job = { test: t.id, params, seed, mode, batch, commit, cfg: tuned() }; memo.set(key, this.pool.run(job).then(onRec, fail(job)).then((r) => !!(r && r.wouldPass))); }
           return memo.get(key);
         };
         work.push(sweep(t, runAt).then((bd) => onRec({ test: t.id, run: 'sweep-' + batch + t.id, batch, mode: 'summary', time: Date.now(), verdict: 'summary', params: null, seed: null, failed: [], criteria: [], metrics: { boundary: bd }, simTime: 0, wallTime: 0 }).then(() => { this.progress.done--; })).catch(() => {}));
         continue;
       }
       for (const c of cases(t, mode, { n: opts.n })) {
-        const job = { test: t.id, params: c.params, seed: c.seed, mode, batch, commit };
+        const job = { test: t.id, params: c.params, seed: c.seed, mode, batch, commit, cfg: tuned() };
         this.progress.total++;
         if (t.alone) later.push(job); else work.push(this.pool.run(job).then(onRec, fail(job)));
       }
@@ -370,14 +385,57 @@ class Testing {
         ...(latest.criteria || []).map((c) => el('span', { class: c.ok ? 'ok' : 'no' }, `${c.ok ? '✓' : '✗'} ${c.text}  `))));
     }
     if (T.dependsOn) panel.append(el('div', { class: 'cross' }, `Depends on ${T.dependsOn.join(', ')} (run it from the list).`));
+    // ---- Tune: every engine setting from the game's Tab menu, for phones too. A change restarts the run and
+    // is kept for later runs and batches started from this menu.
+    const tunePanel = el('div', { class: 'params tune' }), owned = new Set(Object.values(T.params).map((d) => d.cfg).filter(Boolean));
+    const buildTune = () => {
+      const t = loadTune(); tunePanel.replaceChildren();
+      const n = Object.keys(t).length;
+      tunePanel.append(el('div', { class: 'cross' }, n ? `${n} changed from the defaults; used by every run from the test menu. ` : 'Defaults. A change restarts the run and is used by every run from the test menu. ',
+        n ? el('button', { class: 'small', onclick: () => { saveTune({}); buildTune(); replay(); } }, 'Reset all') : ''));
+      // wood first, then the rest of the simulation, view last; the player's controls are left out
+      const groups = []; for (const r of ROWS) if (r.length === 1) groups.push([r]); else if (groups.length) groups[groups.length - 1].push(r);
+      const rank = (g) => (g[0][0] === 'Wood fibres' ? 0 : g[0][0] === 'View' ? 2 : 1);
+      const rows = groups.filter((g) => g[0][0] !== 'Controls').sort((a, b) => rank(a) - rank(b)).flat();
+      for (const r of rows) {
+        if (r.length === 1) { tunePanel.append(el('div', { class: 'grp' }, r[0])); continue; }
+        const [key, label, min, max, step, scale] = r;
+        if (!(key in CFG_DEFAULTS) || typeof CFG_DEFAULTS[key] !== 'number' || key.startsWith('@')) continue;
+        const cur = () => (key in loadTune() ? loadTune()[key] : CFG_DEFAULTS[key]);
+        const lab = el('span', { class: 'lab', title: label }), inp = el('input', { type: 'range' }), nb = el('input', { type: 'number' });
+        for (const i of [inp, nb]) { i.min = min; i.max = max; i.step = step; }
+        const show = () => { const v = +(cur() / scale).toFixed(4); inp.value = v; nb.value = v; lab.textContent = label; lab.classList.toggle('changed', key in loadTune()); };
+        const set = (v) => {
+          const t2 = loadTune(), x = v * scale;
+          if (Math.abs(x - CFG_DEFAULTS[key]) <= Math.abs(CFG_DEFAULTS[key]) * 1e-9) delete t2[key]; else t2[key] = x;
+          saveTune(t2); buildTune(); replay();
+        };
+        inp.oninput = () => { nb.value = inp.value; };
+        inp.onchange = () => set(+inp.value);
+        nb.onchange = () => { if (nb.value !== '' && Number.isFinite(+nb.value)) set(+nb.value); };   // the box may go outside the slider's range
+        show();
+        if (owned.has(key)) { inp.disabled = nb.disabled = true; lab.textContent = label + ' (set by this test: Params)'; }
+        tunePanel.append(el('div', { class: 'row trow' }, lab, inp, nb));
+      }
+    };
+    buildTune();
+    tunePanel.style.display = 'none';
+    let showTune = false;
+    const tbtn = el('button', { title: 'Engine settings', onclick: () => {
+      showTune = !showTune; tbtn.classList.toggle('on', showTune); tunePanel.style.display = showTune ? '' : 'none';
+      if (showTune && showPanel) pbtn.onclick();
+    } }, 'Tune');
     let showPanel = false;
     panel.style.display = 'none';
-    const pbtn = el('button', { title: 'Parameters', onclick: () => { showPanel = !showPanel; pbtn.classList.toggle('on', showPanel); panel.style.display = showPanel ? '' : 'none'; } }, 'Params');
+    const pbtn = el('button', { title: 'Parameters', onclick: () => {
+      showPanel = !showPanel; pbtn.classList.toggle('on', showPanel); panel.style.display = showPanel ? '' : 'none';
+      if (showPanel && showTune) tbtn.onclick();
+    } }, 'Params');
     if (!sliders.length) pbtn.style.display = 'none';
 
-    const wrapEl = el('div', { id: 'tview' }, canvas, hud, panel,
+    const wrapEl = el('div', { id: 'tview' }, canvas, hud, panel, tunePanel,
       el('div', { class: 'top' }, el('button', { title: 'Back to the test list', onclick: () => close() }, '‹ Tests'), title),
-      el('div', { class: 'bot' }, el('button', { onclick: () => replay() }, 'Replay'), pb, spb, pbtn, plb, ib));
+      el('div', { class: 'bot' }, el('button', { onclick: () => replay() }, 'Replay'), pb, spb, pbtn, tbtn, plb, ib));
     document.body.append(wrapEl);
 
     // ---- camera: an orbit about a target; dolly moves the camera, and carries the target along once it gets close
@@ -535,7 +593,7 @@ class Testing {
           if (p.delta !== undefined && T.id === 'FM-10') arrow(p.delta * Math.PI / 180, 0xffe040);   // the way the notch faces
         }
       };
-      const r = await runCase({ test: rec.test, params: rec.params, seed: rec.seed, mode: 'view' }, { frame, onCtx });
+      const r = await runCase({ test: rec.test, params: rec.params, seed: rec.seed, mode: 'view', cfg: tuned() }, { frame, onCtx });
       if (my !== gen) return;
       done = r;
       while (my === gen && !closed) { if (ctxNow) draw(ctxNow); await raf(); }

@@ -10,7 +10,7 @@ import { CFG } from '../config.js';
 
 const KEY = 'arb-settings-v1';
 // [config key, label, min, max, step, scale (shown value = CFG value / scale), host only]
-const ROWS = [
+export const ROWS = [
   ['Controls'],
   ['SAW_SENS', 'Chainsaw sensitivity (turns of the bar per screen of mouse)', 0.05, 2, 0.05, Math.PI * 2],
   ['LOOK_SENS', 'Look sensitivity (mouse)', 0.5, 10, 0.1, 0.001],
@@ -41,6 +41,11 @@ const ROWS = [
   ['SHEAR', 'Shear strength along the grain (MPa). Lower = wood splits lengthwise more readily', 1, 30, 0.5, 1e6, true],
   ['BOND_LEN', 'Fibre bond length (mm). Longer = cracks run across, shorter = wood splits along the grain', 5, 300, 5, 0.001],
   ['BEND_MAX', 'Fold angle no fibre survives (rad)', 0.2, 3.15, 0.05, 1, true],
+  ['LIVE_COMP_X', 'Moving wood: compression strength × COMP', 1, 2000, 1, 1, true],
+  ['BREAK_STRAIN', 'Moving wood: stretch at which a fibre snaps (fraction of its length, 0 = use the mm value)', 0, 1, 0.01, 1, true],
+  ['SURGE_RATIO', 'Moving wood: snap if a fibre\'s pull grows this many times... (0 = off)', 0, 10, 0.1, 1, true],
+  ['SURGE_TIME', '...within this time (s)', 0.02, 1, 0.01, 1, true],
+  ['SURGE_MIN', '...counting from at least this fraction of its strength', 0, 1, 0.01, 1, true],
   ['FOLD_DAMP', 'Drag on folding fibres (s)', 0, 1, 0.01, 1, true],
   ['DENSITY', 'Wood density (kg/m3)', 200, 1400, 10, 1, true],
   ['ROLL_RESIST', 'How hard the ground stops a log rolling (cm; 0 = rolls for ever)', 0, 10, 0.5, 0.01],
