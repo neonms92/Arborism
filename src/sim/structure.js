@@ -19,7 +19,6 @@ import * as THREE from '../../vendor/three/three.module.js';
 import { CFG } from '../config.js';
 import { segAxis, segLen, segMass, segCentroidT, segParam, segRadius, lerp3 } from '../model/world.js';
 import { analyse, bundleBasis, layout, gapOf, makeBundle, fibreForces, isGone, INTACT, CUT } from '../model/fibres.js';
-import { segDist } from './saw.js';
 import { Flex, frameApply, frameDir } from '../model/flex.js';
 
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
@@ -219,8 +218,10 @@ export class Structure {
     sim.toast('fibres are giving way');
   }
 
-  // The last fibre has gone. The two bodies still overlap where they were joined (colliders know nothing
-  // of notches), so they only start colliding with each other once they have actually moved apart.
+  // The last fibre has gone. The two bodies may still overlap where they were joined (colliders know
+  // nothing of notches), so they only start colliding with each other once the overlap has gone. That is
+  // judged by the colliders themselves: while they are merely touching (a butt lying on its stump) they
+  // must collide, or the wood falls through.
   endJoint(id, j) {
     this.live.delete(id);
     this.parting.push({ id, j });
@@ -235,8 +236,18 @@ export class Structure {
     this.parting = this.parting.filter(({ id, j }) => {
       const a = w.segs.get(j.rootSeg), b = w.segs.get(j.parentSeg);
       if (a && b && sim.bodies.has(a.piece) && sim.bodies.has(b.piece)) {
-        const d = segDist(sim.segToWorld(a, a.a), sim.segToWorld(a, a.b), sim.segToWorld(b, b.a), sim.segToWorld(b, b.b)).d;
-        if (d < Math.max(a.r0, a.r1) + Math.max(b.r0, b.r1) + 0.03) return true;      // still overlapping
+        const ca = sim.segCol.get(a.id), cb = sim.segCol.get(b.id);
+        let deep = 0;
+        const probe = (c, piece) => {
+          if (!c) return;
+          for (const s of w.segsOf(piece)) {
+            const o = sim.segCol.get(s.id); if (!o || o === c) continue;
+            const hit = c.contactCollider(o, 0);
+            if (hit && -hit.distance > deep) deep = -hit.distance;
+          }
+        };
+        probe(ca, b.piece); probe(cb, a.piece);                 // the pairs the joint's filter covers
+        if (deep > CFG.PART_OVERLAP) return true;               // still inside each other
       }
       this.unfilter(id, j);
       return false;

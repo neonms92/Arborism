@@ -54,6 +54,7 @@ const ROWS = [
   ['@grow', 'Clear all wood and grow a new tree'],
   ['Chainsaw'],
   ['CUT_RATE', 'Cutting rate (cm2 of wood per second)', 10, 1000, 10, 1e-4, true],
+  ['BAR_LEN', 'Chainsaw bar length (cm)', 20, 150, 5, 0.01, true],
   ['SAW_FEED', 'Feed speed in open air or an open kerf (m/s)', 0.02, 1, 0.01, 1, true],
   ['PINCH_STUCK', 'Kerf force that pinches the bar (N)', 200, 20000, 100, 1, true],
   ['Climber and rope'],

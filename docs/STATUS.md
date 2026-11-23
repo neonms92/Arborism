@@ -128,8 +128,11 @@ mass, TESTS.md section 8).
 - A live bundle never goes back to stiff. A cracked limb stays a separate
   body for good. Several live bundles in a chain are only loosely coupled
   (DESIGN.md risk 7).
-- Pieces joined (or just un-joined) by a live bundle do not collide at the
-  joint, so a butt can sink through its stump.
+- Pieces joined by a live bundle do not collide at the joint, so a butt can
+  sink through its stump while the hinge holds. Once it lets go they collide
+  again as soon as their colliders overlap by less than `PART_OVERLAP`
+  (1 cm); before 2026-11-23 this used the distance between stem axes, which
+  kept a butt lying on its stump from ever colliding with it.
 - Fibre colours are faint at everyday loads (a healthy tree is at a few
   percent of its strength). "Load colour contrast" in the menu lifts them.
 - First person: the camera can clip into the trunk when pressed against it;
