@@ -633,6 +633,11 @@ map, so `src/sim/` imports three and Rapier by relative path (D41).
   resets the camera to the test's view. Replay starts the run again and
   keeps the camera where you put it; "‹ Tests" or the phone's back gesture
   returns to the list. `?view=FM-10` opens a test's default point directly.
+- **FM-04 / FM-05 load** is a real hanging weight once the limb goes live:
+  a point mass of P / g on a ball joint at the tip (still ramping with P),
+  released when the limb comes free. The capped force before it faded as
+  the limb moved, so FM-04's limbs hung and never tore off. FM-22 runs last,
+  alone, so other workers do not inflate its timings.
 - **Cuts** go through the saw's own `sever()`. Fibres within
   `max(2 r, 0.15 m)` of a live joint's plane are that joint's fibres (cut with
   `cutLive`), the same distance `sever()` uses to keep one cut plane.

@@ -12,6 +12,7 @@ import { World, segLen, segAxis, segRadius, lerp3 } from '../model/world.js';
 import { layout, bundleBasis, gridFor, INTACT } from '../model/fibres.js';
 import { frameApply } from '../model/flex.js';
 import { Sim } from '../sim/sim.js';
+import RAPIER from '../../vendor/rapier/rapier.mjs';
 import { sever } from '../sim/saw.js';
 
 export const DEG = Math.PI / 180;
@@ -255,22 +256,50 @@ export class Ctx {
    * live it fades as the point speeds up (0 at 2 m/s), as a climber's weight
    * does (STATUS.md): a force, not a mass, must not drive wood past free fall.
    */
-  addLoad(member, h, F) {
+  addLoad(member, h, F, opts) {
     return this.addLoadAt(() => {
       const e = member.segAt(h), t = Math.min(1, Math.max(0, (h - e.h0) / e.L));
       return { s: e.s, p: lerp3(e.s.a, e.s.b, t) };
-    }, F);
+    }, F, opts);
   }
-  /** where(ctx) -> {s, p}: a segment and a piece-local point on it. */
-  addLoadAt(where, F) { const l = { where, F, on: true }; this.loads.push(l); return l; }
+  /**
+   * where(ctx) -> {s, p}: a segment and a piece-local point on it.
+   * opts.hang: a downward load that is a real hanging weight. While the wood is rooted it is the force F; once
+   * the wood is loose it becomes a point mass |F| / g on a ball joint at that point (still following F as it
+   * ramps), so it keeps pulling as the limb tears instead of fading like a capped force. It lets go when the
+   * wood comes free.
+   */
+  addLoadAt(where, F, opts = {}) { const l = { where, F, on: true, hang: !!opts.hang, w: null, wPiece: -1 }; this.loads.push(l); return l; }
+  hangWeight(l, s, p, mag) {
+    const sim = this.sim, b = sim.bodies.get(s.piece), m = Math.max(0.01, mag / CFG.GRAVITY), I = { x: 1e-4 * m, y: 1e-4 * m, z: 1e-4 * m };
+    if (l.w && l.wPiece === s.piece && sim.bodies.get(l.wPiece) === l.wBody) { l.w.setAdditionalMassProperties(m, { x: 0, y: 0, z: 0 }, I, { x: 0, y: 0, z: 0, w: 1 }, true); return; }
+    if (l.w) sim.rapier.removeRigidBody(l.w);
+    const v = b.linvel();
+    l.w = sim.rapier.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(p.x, p.y, p.z).setLinvel(v.x, v.y, v.z)
+      .setAdditionalMassProperties(m, { x: 0, y: 0, z: 0 }, I, { x: 0, y: 0, z: 0, w: 1 }));
+    // the joint's anchor on the wood, in the wood body's frame
+    const t = b.translation(), q = b.rotation(), dx = p.x - t.x, dy = p.y - t.y, dz = p.z - t.z;
+    const qx = -q.x, qy = -q.y, qz = -q.z, qw = q.w;                 // inverse rotation
+    const ix = qw * dx + qy * dz - qz * dy, iy = qw * dy + qz * dx - qx * dz, iz = qw * dz + qx * dy - qy * dx, iw = -qx * dx - qy * dy - qz * dz;
+    const a = { x: ix * qw + iw * -qx + iy * -qz - iz * -qy, y: iy * qw + iw * -qy + iz * -qx - ix * -qz, z: iz * qw + iw * -qz + ix * -qy - iy * -qx };
+    sim.rapier.createImpulseJoint(RAPIER.JointData.spherical(a, { x: 0, y: 0, z: 0 }), b, l.w, true);
+    l.wPiece = s.piece; l.wBody = b;
+  }
   applyLoads() {
     const sim = this.sim;
     for (const l of this.loads) {
       if (!l.on) continue;
+      if (l.w && !this.world.pieces.has(l.wPiece)) { sim.rapier.removeRigidBody(l.w); l.w = null; }
       const at = l.where(this); if (!at) continue;
       const s = at.s, piece = this.world.pieces.get(s.piece);
-      if (!piece || !this.world.segs.has(s.id) || !sim.structure.isHeld(s.piece)) continue;
+      if (!piece || !this.world.segs.has(s.id)) continue;
+      if (!sim.structure.isHeld(s.piece)) {
+        // came free: let go of the weight (it has no collider, so it would drag the wood through the ground)
+        if (l.w) { sim.rapier.removeRigidBody(l.w); l.w = null; }
+        continue;
+      }
       const p = sim.segToWorld(s, at.p), f = l.F(this);
+      if (l.hang && !piece.fixed) { const mag = Math.hypot(f[0], f[1], f[2]); this.hangWeight(l, s, p, mag); l.applied = mag; continue; }
       let k = 1;
       if (!piece.fixed) {
         const b = sim.bodies.get(s.piece), v = b.linvel(), wv = b.angvel(), c = b.worldCom();

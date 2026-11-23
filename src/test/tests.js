@@ -148,7 +148,7 @@ async function overload(env, p, o = {}) {
   const m = ctx.limb(p.L, p.D, 0);
   const Py = limbYield(p.L, p.D), Pmax = 2 * Math.max(Py, 50), t0 = ctx.t;
   const P = (c) => Math.min(o.cap ?? Infinity, Pmax * Math.min(1, (c.t - t0) / 10));
-  ctx.addLoad(m, p.L, (c) => [0, -P(c), 0]);
+  ctx.addLoad(m, p.L, (c) => [0, -P(c), 0], { hang: true });
   let Plive = null, liveT = null, freeT = null, droopFree = null;
   const e0 = elev({ y: m.axis[1] });
   ctx.hooks.push((c) => {
@@ -553,7 +553,7 @@ export const TESTS = [
     view: () => ({ target: [0, 3, 0], dist: 14, yaw: -Math.PI / 2, pitch: 0.35 }),
   },
   {
-    id: 'FM-22', title: 'Step cost stays in budget', time: 60,
+    id: 'FM-22', title: 'Step cost stays in budget', time: 60, alone: true,
     params: {},
     async run(env) {
       const ctx = await env.ctx();

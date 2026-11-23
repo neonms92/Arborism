@@ -185,7 +185,7 @@ class Testing {
     };
     const fail = (job) => (e) => (e.cancelled ? null : onRec({ test: job.test, run: 'err-' + Math.random().toString(36).slice(2), batch, mode, time: Date.now(), params: job.params, seed: job.seed, verdict: 'invalid', failed: [], criteria: [], error: String(e.message || e), simTime: 0, wallTime: 0 }));
     const tests = ids.map((id) => TEST_BY_ID.get(id)).filter(Boolean);
-    const work = [];
+    const work = [], later = [];
     for (const t of tests) {
       if (mode === 'sweep') {
         if (!Object.keys(t.params).length) continue;
@@ -201,11 +201,13 @@ class Testing {
       for (const c of cases(t, mode, { n: opts.n })) {
         const job = { test: t.id, params: c.params, seed: c.seed, mode, batch, commit };
         this.progress.total++;
-        work.push(this.pool.run(job).then(onRec, fail(job)));
+        if (t.alone) later.push(job); else work.push(this.pool.run(job).then(onRec, fail(job)));
       }
     }
     this.renderStatus();
     await Promise.all(work);
+    // tests that time the engine run last, one at a time, with no other worker busy
+    for (const job of later) await this.pool.run(job).then(onRec, fail(job));
     clearInterval(ui);
     this.progress.running = false;
     this.render();
