@@ -106,11 +106,18 @@ Tests that do not use the tree generator build their wood from these.
 - **One fell per run (owner, 2026-11-23).** A run builds one world and does
   one thing to it, so what the viewer shows is the whole test. A variant (a
   direction, a depth) is a parameter, not a loop inside the run. Only tests
-  that need it keep several worlds: FM-05 (finds `P_live`, then holds a
-  fresh limb at k · `P_live`), FM-13 (hinge rows 1 – 4 compared), FM-20
-  (nine resolutions compared) and FM-21 (the same run twice). A test that
-  needs another scenario checked names it in `dependsOn` instead, and
-  running it runs that test too (FM-19 depends on FM-10).
+  that compare runs keep several worlds in a batch: FM-05 (finds `P_live`,
+  then holds a fresh limb at k · `P_live`), FM-13 (hinge rows 1 – 4), FM-20
+  (resolutions) and FM-21 (the same run twice). Each declares its runs as
+  `steps`, and the viewer shows one step at a time. A test that needs
+  another scenario checked names it in `dependsOn` instead, and running it
+  runs that test too (FM-19 depends on FM-10).
+- **Viewer sliders (owner, 2026-11-23).** The viewer's Params panel has a
+  slider for every parameter and every step. Each track is coloured by the
+  stored run nearest to that point: green passed, red failed, darker when
+  the nearest run is some way off, grey where nothing has run. Letting go
+  of a slider restarts the run there. For a comparison test, the checks
+  across runs come from the latest batch and are listed under the sliders.
 
 ---
 
@@ -489,6 +496,22 @@ coarser or finer tree should behave the same within reason.
   a good commit)*.
 - **Also recorded** for the boundary report: step cost against fibre count
   across all FM-40 runs.
+
+### FM-23 A felled trunk does not pass through its stump
+
+*Why (owner, 2026-11-23):* a felled trunk was seen sinking through its stump.
+Where they were joined the colliders overlap a little after the hinge lets
+go (colliders know nothing of the notch); the two pieces may come apart
+through that overlap, but never sink further in.
+
+- **Scenario:** FM-10's fell. Each tick, the deepest overlap between any
+  free piece and the rooted wood.
+- **Parameters:** lean 0 – 8°, D 0.3 – 0.7, hc 0.3 – 1.0, dn 0.2 – 0.33 D.
+- **Pass if:** once free, the trunk never sits more than 2 cm deeper in the
+  stump than it was the moment it came free. Runs where the trunk never
+  comes free are skipped (FM-10 covers that).
+- **Measured on 2026-11-23:** 5 / 21 before the fix (36 cm deep at FM-10's
+  default point), 21 / 21 after it.
 
 ---
 

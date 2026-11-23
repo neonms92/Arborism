@@ -432,6 +432,38 @@ export class Ctx {
   }
 
   // ---- shared measurements (TESTS.md 1.3) ----
+  /**
+   * Start tracking how deep any free piece sinks into the rooted wood (stump phasing). Returns an object kept
+   * current each tick: worst = deepest overlap (m) seen, at, live = whether a fibre joint still held then.
+   */
+  trackPhasing() {
+    if (this.phasing) return this.phasing;
+    const ph = this.phasing = { worst: 0, at: 0, live: false, worstFree: 0, atFree: null };
+    this.hooks.push((c) => {
+      const sim = c.sim, w = c.world;
+      let now = 0, anyFree = false;
+      for (const fixed of w.pieces.values()) {
+        if (!fixed.fixed) continue;
+        for (const p of w.pieces.values()) {
+          if (p.fixed) continue;
+          for (const a of w.segsOf(p.id)) {
+            const ca = sim.segCol.get(a.id); if (!ca) continue;
+            for (const b of w.segsOf(fixed.id)) {
+              const cb = sim.segCol.get(b.id); if (!cb) continue;
+              const h = ca.contactCollider(cb, 0); if (!h || h.distance >= 0) continue;
+              const d = -h.distance, live = sim.structure.isHeld(p.id);
+              if (d > ph.worst) { ph.worst = d; ph.at = c.t; ph.live = live; }
+              if (!live && d > ph.worstFree) ph.worstFree = d;
+              if (!live && d > now) now = d;
+            }
+          }
+          if (!sim.structure.isHeld(p.id)) anyFree = true;
+        }
+      }
+      if (anyFree && ph.atFree === null) ph.atFree = now;      // how far inside it was the moment it came free
+    });
+    return ph;
+  }
   /** Worst utilisation U over the stiff bundles of the standing wood, and where. */
   worstU() {
     let U = 0, seg = -1;

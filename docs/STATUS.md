@@ -71,6 +71,7 @@ for it).
 | FM-17 straight, level cut (new) | — | 21 / 21 | — |
 | FM-18 straight, notch only (new; one notch direction per run since 2026-11-23) | — | 33 / 33 | — |
 | FM-19 barber chair (new, D50; depends on FM-10, which now also checks an ordinary fell does not split) | — | 16 / 33 | thin stems at light leans never split; elsewhere the split often stops under 1 m. Where it passes, the trunk still breaks at the cut and takes the split slab with it (no standing slab yet) |
+| FM-23 no stump phasing (new) | 5 / 21 before the parting fix | 21 / 21 (12 skipped: the trunk never came free) | — |
 | FM-20 discretisation | 0 / 1 | 0 / 1 | fall heading, hinge angle and P_live all move with SEG_LEN / FIBRE_PITCH |
 | FM-21 determinism | 1 / 1 | 1 / 1 | identical event logs and transforms |
 | FM-22 step cost | 1 / 1 | 0 / 1 | idle p95 1.2 ms against a 1 ms bound while 3 other workers ran; alone it measures 0.7 – 1.0 ms with or without rolling resistance, so this one is timing noise at the edge of its bound |
@@ -131,8 +132,9 @@ mass, TESTS.md section 8).
 - Pieces joined by a live bundle do not collide at the joint, so a butt can
   sink through its stump while the hinge holds. Once it lets go they collide
   again as soon as their colliders overlap by less than `PART_OVERLAP`
-  (1 cm); before 2026-11-23 this used the distance between stem axes, which
-  kept a butt lying on its stump from ever colliding with it.
+  (1 cm), or sink further into each other than they already were (FM-23).
+  Before 2026-11-23 this used the distance between stem axes, which let a
+  felled butt sink 36 cm into its stump.
 - Fibre colours are faint at everyday loads (a healthy tree is at a few
   percent of its strength). "Load colour contrast" in the menu lifts them.
 - First person: the camera can clip into the trunk when pressed against it;

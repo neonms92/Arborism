@@ -59,7 +59,7 @@ export class Structure {
   step(dt) {
     const w = this.sim.world;
     for (const [id, j] of [...this.live]) this.liveStep(id, j, dt);
-    if (this.parting.length && this.sim.tick % 6 === 0) this.checkParting();
+    if (this.parting.length) this.checkParting();
     for (const piece of w.pieces.values()) {
       if (!piece.fixed) continue;
       this.beamPass(piece);
@@ -247,7 +247,10 @@ export class Structure {
           }
         };
         probe(ca, b.piece); probe(cb, a.piece);                 // the pairs the joint's filter covers
-        if (deep > CFG.PART_OVERLAP) return true;               // still inside each other
+        // still inside each other where they were joined: let them come apart, but only ever further apart.
+        // Sinking deeper than they already were is not coming apart, so from then on they collide.
+        if (j.partDepth === undefined) j.partDepth = deep;
+        if (deep > CFG.PART_OVERLAP && deep <= j.partDepth + CFG.PART_OVERLAP) { j.partDepth = Math.min(j.partDepth, deep); return true; }
       }
       this.unfilter(id, j);
       return false;
