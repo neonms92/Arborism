@@ -271,7 +271,9 @@ export class Structure {
     const L = layout(j.N), n = L.n, R = j.R, X = L.X, Y = L.Y;
     const A = L.dA * R * R, h = L.cs * R;
     // a fibre reaches MOR having stretched TENS_STRAIN of its length, and COMP having shortened COMP_STRAIN of it
-    const Ft = CFG.MOR * A, Fc = CFG.COMP * A, ey = CFG.TENS_STRAIN * j.Lg, ec = CFG.COMP_STRAIN * j.Lg;
+    const Ft = CFG.MOR * A, Fc = CFG.COMP * CFG.LIVE_COMP_X * A, ey = CFG.TENS_STRAIN * j.Lg, ec = CFG.COMP_STRAIN * j.Lg;
+    // how far a fibre stretches before it snaps: a fraction of its own length, or failing that FIBRE_STRETCH (D54)
+    const stretch = CFG.BREAK_STRAIN > 0 ? CFG.BREAK_STRAIN * j.Lg : CFG.FIBRE_STRETCH;
     const kt = Ft / ey, kc = Fc / ec, ks = 0.4 * kt, ply = Math.min(h, CFG.FIBRE_PLY);
     // frames: the bundle face on the parent (O, u, v, nrm) and the same face carried by the distal body
     // the parent's side of the bundle rides on the (possibly bent) segment it grows from
@@ -325,7 +327,7 @@ export class Structure {
       DEL[i] = del;
       if (j.st[i] !== ELASTIC) continue;
       const fold = bend * (ply / 2 + (grp.of[i] >= 0 ? Math.max(0, SF[i] - GC[grp.of[i]]) : 0));
-      if (del - j.p[i] > CFG.FIBRE_STRETCH - fold || del + fold > CFG.FIBRE_STRETCH
+      if (del - j.p[i] > stretch - fold || del + fold > stretch || (j.surge && j.surge[i])
         || Math.hypot(SX[i], SY[i], SZ[i]) > CFG.FIBRE_SLIP || bend > CFG.BEND_MAX) { j.st[i] = BROKEN; snapped[nSnap++] = i; }
     }
     // A fibre that snaps unloads into the fibres bonded to it. If a bond cannot carry what that fibre was
@@ -450,6 +452,18 @@ export class Structure {
       j.force[i] = j.st[i] === BROKEN ? NaN : f / Ft;
       if (j.st[i] === ELASTIC && mode[i] === CAP) j.p[i] = DEL[i] + dt * RATE[i] - capF[i] / (capF[i] > 0 ? kt : kc);
     }
+    // a fibre whose pull has grown SURGE_RATIO times within SURGE_TIME is jerked apart: it snaps next step (D54)
+    const KS = Math.max(1, Math.round(CFG.SURGE_TIME / dt));
+    if (CFG.SURGE_RATIO > 0) {
+      if (!j.hist || j.hist.length !== KS * n) { j.hist = new Float32Array(KS * n); j.histAt = 0; j.histN = 0; j.surge = new Uint8Array(n); }
+      const row = j.histAt * n, full = j.histN >= KS;
+      for (let i = 0; i < n; i++) {
+        const f = j.st[i] === ELASTIC ? j.force[i] : 0, old = j.hist[row + i];
+        if (full && old >= CFG.SURGE_MIN && f >= CFG.SURGE_RATIO * old) j.surge[i] = 1;
+        j.hist[row + i] = f;
+      }
+      j.histAt = (j.histAt + 1) % KS; j.histN++;
+    } else j.surge = null;
     // a fold past what the fibres can hold elastically stays folded (D20, D52)
     if (ownCap && kOwn > 0) {
       const tx = thp[0] + dt * ue[3], ty = thp[1] + dt * ue[4], tz = thp[2] + dt * ue[5];

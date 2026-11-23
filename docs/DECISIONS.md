@@ -463,3 +463,38 @@ damping: it swings to 99°). Must-pass: FM-14 1 → 20 / 81, FM-10 50 → 49,
 FM-11 61 → 60, FM-15 80 / 81; smoke FM-04 now passes. Peeling (a strap
 tearing back along the stem) is not modelled.
 
+**D54 — Owner's FM-10 experiment: rigid compression, long stretch, jerk
+breaks.** The owner watched FM-10's hinge give out by plain crushing and
+stretching once thin, and asked for: wood 1000× more resistant to
+compression, fibres that stretch to 1.4× their length before breaking, and
+a second break when a fibre's pull doubles within 0.2 s. All tunable, in
+the menu and the viewer's Tune panel:
+`LIVE_COMP_X` 1000 (live fibres only: the standing strain plane is
+unchanged, so kerf closing and pinch are as before), `BREAK_STRAIN` 0.4 of
+the fibre's length (0 = back to `FIBRE_STRETCH`), `SURGE_RATIO` 2 within
+`SURGE_TIME` 0.2 s, counted only from a pull of at least `SURGE_MIN` 0.1 of
+the fibre's strength (my addition, so a fibre going from almost nothing to
+a little does not count as doubling).
+Must-pass with all three, and with each one left out:
+
+| | all three | no 1000× | no 1.4× | no surge | before |
+|---|---|---|---|---|---|
+| FM-10 | 49 | 52 | 52 | 46 | 49 |
+| FM-11 | 46 | 45 | 55 | 41 | 60 |
+| FM-14 | 13 | 27 | 11 | 11 | 20 |
+| FM-15 | 74 | | | | 80 |
+
+On FM-10's default fell every hinge fibre that broke did so by the surge
+rule (15, then 5 by their neighbours); none reached 40 % stretch (30 cm on
+a 0.75 m fibre). 19 of 39 hinge fibres survive, so the trunk lies on the
+ground still joined to its stump. Smoke: FM-10, FM-11 and FM-14 now fail,
+and FM-23 skips (its trunk never comes free).
+
+**D55 — The test viewer has a Tune panel.** The owner tunes from a phone.
+Every simulation row of the Tab menu (wood first, controls left out) is a
+slider plus a number box; a change restarts the run. Tunings are kept in
+the browser and go into every run started from the Testing menu, viewer and
+batches, as `job.cfg` (applied after the defaults, before the test's own
+parameters, which win; those rows are greyed). Records keep them as
+`tuned`.
+

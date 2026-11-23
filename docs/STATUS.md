@@ -61,12 +61,12 @@ for it).
 | FM-03 plain stem | 75 / 81 | 75 / 81 | extra lean at rest > 2 % H for slender, soft corners |
 | FM-04 overload | 0 / 49 | 0 / 49 | mostly: the limb goes live near the analytic load (good) but then hangs and never comes free, so no fibre ever snaps; where it does come free, every fibre often goes in one tick (no ordered tearing) |
 | FM-05 cracked, holding | 19 / 19 | 19 / 19 | — |
-| FM-10 notch steers | 11 / 113 (+9 invalid) | 49 / 113 | hinge often lets go below 10°; heading error > 15° in many corners; 3+ rows of hinge never release at all (logs now settle) |
-| FM-11 no notch | 61 / 81 (+3) | 60 / 81 | some corners do not come free (more since D52: the trunk hangs on a folded hinge) or go > 25° off the lean |
+| FM-10 notch steers | 11 / 113 (+9 invalid) | 49 / 113 (D54 defaults) | hinge often lets go below 10°; heading error > 15° in many corners; 3+ rows of hinge never release at all (logs now settle) |
+| FM-11 no notch | 61 / 81 (+3) | 46 / 81 (60 before D54) | some corners do not come free (more since D52: the trunk hangs on a folded hinge) or go > 25° off the lean |
 | FM-12 pinch | 0 / 49 | 0 / 49 | the kerf now closes as the stem rotates over the cut (D51), but only once the back cut is about 0.68 D deep; the test asks for 0.5 D |
 | FM-13 hinge trend | 0 / 9 | 0 / 9 | 1 and 2 rows behave alike; 3 – 4 rows never release |
-| FM-14 top cut strap | 2 / 81 | 20 / 81 | 37 thick straps stay stiff (never live: the standing strap is strong enough); 19 heavy limbs on thin straps fold but tear off within 1 s |
-| FM-15 undercut + top cut | 80 / 81 (+1) | 81 / 81 | — |
+| FM-14 top cut strap | 2 / 81 | 13 / 81 (20 before D54) | 37 thick straps stay stiff (never live: the standing strap is strong enough); 19 heavy limbs on thin straps fold but tear off within 1 s |
+| FM-15 undercut + top cut | 80 / 81 (+1) | 74 / 81 | — |
 | FM-16 straight through | 5 / 25 | 16 / 25 | a stem with no lean balances on its stump |
 | FM-17 straight, level cut (new) | — | 21 / 21 | — |
 | FM-18 straight, notch only (new; one notch direction per run since 2026-11-23) | — | 33 / 33 | — |
