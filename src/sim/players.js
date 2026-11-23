@@ -2,7 +2,7 @@
 // interaction, injury thresholds. See docs/DESIGN.md section 6.
 // Prompts use {tokens} that each client's HUD turns into the right key or button name.
 
-import * as THREE from 'three';
+import * as THREE from '../../vendor/three/three.module.js';
 import { CFG, INJ, MODE } from '../config.js';
 import { segLen, segAxis, segRadius, segParam, lerp3, perp } from '../model/world.js';
 import { sawStep, sawOff } from './saw.js';

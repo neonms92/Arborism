@@ -16,7 +16,8 @@ No build, no npm install. ES modules are served as-is; libraries are in
 
 URL parameters: `?solo` (start immediately), `?host=CODE`, `?join=CODE`,
 `?seed=N` (tree), `?signal=host:port` (own PeerJS server), `?ice=<json>`
-(extra STUN/TURN servers).
+(extra STUN/TURN servers), `?test=FM-10,...|all&mode=smoke|must|explore|sweep`
+(engine tests, headless; docs/TESTS.md section 8).
 
 Two-player test on one machine without the public signaling server:
 
@@ -73,8 +74,14 @@ branch → `/ (root)`. The game is then at
   buffer: read the numbers out before calling Rapier again.
 - No HP anywhere. Harm is a delta-v threshold crossing → injury state
   (`players.impact`).
-- No automated test suite (owner's choice). Before committing: load
-  `?solo`, check the console is clean, and check a second tab can join.
+- Engine tests live in `src/test/` and run from the main menu's Testing
+  button or headless with `?test=all&mode=smoke` (docs/TESTS.md section 8).
+  Before committing: run the smoke tests, load `?solo`, check the console is
+  clean, and check a second tab can join. A test that fails is a finding to
+  report, not something to loosen without the owner.
+- Code under `src/sim/`, `src/model/` and `src/test/` (except the menu's
+  `ui.js`, `pool.js`, `store.js`) must run in a Web Worker: no DOM, no bare
+  `three` / `rapier` imports (DECISIONS D41).
 - Keep `docs/STATUS.md` current. Record judgment calls in
   `docs/DECISIONS.md`. Commit and push after every working step.
 
