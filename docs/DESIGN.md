@@ -640,6 +640,45 @@ them: radial cracks, then branches and a crushed spot, then loose chips;
 from `PAVER_GRAVEL` the slab is drawn as a low heap of gravel (finer the
 further past it). Gravel is still flat ground to the physics.
 
+### 6.5 The wood chipper
+
+A towable chipper (`model/chipper.js` shape and chip piles, `sim/chipper.js`,
+`view/chipper.js`) is parked `CHIP_GAP` outside the paving with its infeed
+hopper toward the trunk and its discharge chute to the side. It is an
+ordinary heavy dynamic body (`CHIP_MASS`) on two frictionless wheel balls and
+a jockey wheel; the sim models the tyres: under the axle they grip sideways
+(`CHIP_GRIP` × the weight on them) and roll with `CHIP_ROLL`, or with
+`CHIP_BRAKE` (axle and jockey wheel) whenever nobody holds the grip. So it
+can be towed by hand and turned about its axle, and rope, wood or a falling
+log can still drag, tip or hoist it.
+
+- **Grip.** The ring at the end of the drawbar is grabbed like wood
+  ({interact}); the hold is the same short rope from the hands. Dragging
+  anything that can move, the feet go no faster away from it than it follows
+  (plus a creep while the pull is under half of `GRAB_MAX`), so the player
+  leans into the load instead of walking out of the hold.
+- **Feeding.** Holding loose wood, {interact} while looking at the chipper
+  hands the piece to the feed rollers. They drive the point held toward the
+  drum at `CHIP_FEED_V`: a stiff velocity servo plus a motor term that rises
+  to `CHIP_PULL` within about a second of being held back. The reaction goes
+  into the chipper. A fed piece passes through the chipper's colliders; every
+  segment with both ends past the drum (and in no live joint) is removed by a
+  `chip` event, and its wood (plus leaves) × `CHIP_SWELL` lands as chips at the
+  discharge point. Standing wood cannot be fed.
+- **Chip piles** are cones at a fixed angle of repose whose volume is the
+  chips' volume, one pile per landing spot (a new pile when the chipper has
+  moved a metre); each is a fixed cone collider. The view adds loose chips
+  and a stream from the chute while chipping.
+- **Rope feed.** When the knot of the rigging line on a fed piece reaches the
+  drum, the rope goes into the rollers (`world.rope.anchor = {chip: 1}`). From
+  then on they reel it in at `CHIP_FEED_V` for ever and slip past
+  `CHIP_PULL`; the tension acts on the block and device as usual and on the
+  chipper's infeed, so the tree is pulled down or the chipper is dragged to
+  the tree and hoisted toward the block. A fed rope cannot be untied, taken
+  down, cut by the saw or snapped. Only a reset (a new tree) clears it.
+- **Reset.** A new tree re-lays the pavers fresh and re-parks the chipper
+  (`chipper` event): default pose, brakes on, nothing feeding, no chips.
+
 ---
 
 ## 7. Controls
@@ -655,7 +694,7 @@ The HUD and lobby name controls for whichever device was touched last
 | Move; climb along / around the stem | ESDF (E forward, S left, D back, F right) | left stick |
 | Look | mouse (click to capture) | right stick |
 | Lanyard (hold `LANYARD_TIME`, 4 s): spur in on the wood looked at, or move the lanyard there | R | X |
-| On the ground (press): grab the wood looked at / let go of it (a short rope from the hands to that point; pulled harder than `GRAB_MAX`, it tears out of the hands). Near the lowering device: grab or let go of the rope tail | R | X |
+| On the ground (press): grab the wood looked at / let go of it (a short rope from the hands to that point; pulled harder than `GRAB_MAX`, it tears out of the hands). Near the lowering device: grab or let go of the rope tail. At the chipper: with wood in hand, feed it in; at its grip, take hold of it to tow it | R | X |
 | Rigging (press): hang the block on the wood looked at; with a block hung, tie the rope to the wood looked at, or take the block down when looking at it; looking at the knot, untie | W | Y |
 | Punch the wood looked at (press; presses faster than `PUNCH_DECAY` stack up to `PUNCH_MAX`) | G | RB |
 | Let go of the tree (hold `LETGO_TIME`, 4 s) | C | B |

@@ -140,21 +140,35 @@ export class Players {
     const sim = this.sim, s = sim.world.segs.get(aim.seg);
     p.grab = { seg: s.id, p: sim.segToLocal(s, aim.point), L0: Math.max(0.2, this.hands(p, _a).distanceTo(aim.point)), prev: 0 };
   }
+  /** Take hold of the chipper's grip (local point pl on it). */
+  grabChipper(p, ca) {
+    p.grab = { chip: 1, p: ca.local, L0: Math.max(0.2, this.hands(p, _a).distanceTo(ca.point)), prev: 0 };
+  }
   grabStep(p, dt) {
-    const g = p.grab, sim = this.sim; if (!g) return;
-    const s = sim.world.segs.get(g.seg);
-    if (!s) { p.grab = null; return; }
-    const h = this.hands(p, _a), w = sim.segToWorld(s, g.p, _b);
+    const g = p.grab, sim = this.sim; p.pull = 0; p.lean = null; if (!g) return;
+    const ch = sim.chipper;
+    const s = g.chip ? null : sim.world.segs.get(g.seg);
+    if (g.chip ? !ch.body : !s) { p.grab = null; return; }
+    const h = this.hands(p, _a), w = g.chip ? ch.toWorld(g.p, _b) : sim.segToWorld(s, g.p, _b);
     const dir = _c.copy(h).sub(w), len = dir.length();
     const stretch = len - g.L0, rate = (stretch - g.prev) / dt; g.prev = stretch;
+    const piece = g.chip ? null : sim.world.pieces.get(s.piece);
+    // something that can move (loose wood, the chipper): the feet cannot walk away from it faster than it follows
+    const mover = g.chip ? ch.body : piece.fixed ? null : sim.bodies.get(s.piece);
+    const hx = dir.x, hz = dir.z, hl = Math.hypot(hx, hz);
+    if (mover && hl > 1e-6 && stretch > -0.1) {       // taut, or nearly
+      const v = mover.velocityAtPoint(w);
+      p.lean = { x: hx / hl, z: hz / hl, v: (v.x * hx + v.z * hz) / hl };
+    }
     if (stretch <= 0 || len < 1e-6) return;
-    const piece = sim.world.pieces.get(s.piece);
-    const m = piece.fixed ? CFG.P_MASS : Math.min(CFG.P_MASS, sim.bodies.get(s.piece).mass());
+    const m = g.chip || piece.fixed ? CFG.P_MASS : Math.min(CFG.P_MASS, sim.bodies.get(s.piece).mass());
     const k = Math.min(CFG.GRAB_K, CFG.ROPE_KCAP * m / (dt * dt)), c = 2 * CFG.ROPE_DAMP * Math.sqrt(k * m);
     const T = Math.max(0, k * stretch + c * rate);
-    if (T > CFG.GRAB_MAX) { p.grab = null; this.say(p, 'The wood pulled out of your hands'); return; }
+    p.pull = T;
+    if (T > CFG.GRAB_MAX) { p.grab = null; p.pull = 0; this.say(p, g.chip ? 'The chipper pulled out of your hands' : 'The wood pulled out of your hands'); return; }
     dir.divideScalar(len);
-    sim.applyForce(s.id, w, dir.clone().multiplyScalar(T));               // wood pulled toward the hands
+    if (g.chip) ch.body.applyImpulseAtPoint({ x: dir.x * T * dt, y: dir.y * T * dt, z: dir.z * T * dt }, w, true);   // chipper pulled toward the hands
+    else sim.applyForce(s.id, w, dir.clone().multiplyScalar(T));               // wood pulled toward the hands
     p.body.applyImpulse({ x: -dir.x * T * dt, y: -dir.y * T * dt, z: -dir.z * T * dt }, true);   // and the hands toward the wood
   }
 
@@ -241,7 +255,14 @@ export class Players {
     const speed = CFG.WALK * (p.inj >= INJ.HURT ? 0.45 : 1);
     const sy = Math.sin(inp.yaw), cy = Math.cos(inp.yaw);
     // yaw 0 looks toward -Z; forward = (-sin, 0, -cos), right = (cos, 0, -sin)
-    const wx = (-sy * inp.my + cy * inp.mx) * speed, wz = (-cy * inp.my - sy * inp.mx) * speed;
+    let wx = (-sy * inp.my + cy * inp.mx) * speed, wz = (-cy * inp.my - sy * inp.mx) * speed;
+    // dragging something that moves (loose wood, the chipper): lean into it rather than walk out of the hold.
+    // Away from it, the feet go no faster than it follows, plus a little while the pull is under half of GRAB_MAX.
+    const ln = p.grab && p.lean;
+    if (ln) {
+      const away = wx * ln.x + wz * ln.z, allow = Math.max(0, ln.v) + ((p.pull || 0) < 0.5 * CFG.GRAB_MAX ? 0.15 : 0);
+      if (away > allow) { wx -= (away - allow) * ln.x; wz -= (away - allow) * ln.z; }
+    }
     if (p.grounded) body.setLinvel({ x: wx, y: pressed.jump ? CFG.JUMP : v.y, z: wz }, true);
     else body.setLinvel({ x: v.x + (wx - v.x) * 0.02, y: v.y, z: v.z + (wz - v.z) * 0.02 }, true);
 
@@ -257,9 +278,20 @@ export class Players {
     } else {
       // {interact} toggles holding the wood. Letting go does not start a lanyard throw until the button is
       // released; a press that grabs standing wood and keeps being held goes on to throw the lanyard.
-      if (pressed.interact && p.grab) { p.grab = null; p.chLock.add('lanyard'); }
+      // At the chipper: with wood in hand it feeds it in; at its grip it takes hold of the chipper.
+      const ca = control ? sim.chipper.aim(p) : null, atChip = ca && ca.dist < CFG.REACH;
+      const wood = p.grab && !p.grab.chip ? sim.world.segs.get(p.grab.seg) : null;
+      const loose = wood && !sim.world.pieces.get(wood.piece).fixed;
+      if (pressed.interact && wood && atChip) {
+        if (loose) { sim.chipper.feed(wood.piece, wood.id, p.grab.p); p.grab = null; p.chLock.add('lanyard'); }
+        else this.say(p, 'Only loose wood can go in the chipper');
+      } else if (pressed.interact && p.grab) { p.grab = null; p.chLock.add('lanyard'); }
+      else if (pressed.interact && atChip && ca.grip) this.grabChipper(p, ca);
       else if (pressed.interact && reach) this.grabStart(p, aim);
-      first = p.grab ? '{interact}: let go of the wood' : reach ? '{interact}: grab the wood' : '';
+      if (wood && atChip) first = loose ? '{interact}: feed it into the chipper' : 'Only loose wood can go in the chipper';
+      else if (p.grab) first = p.grab.chip ? '{interact}: let go of the chipper   {move}: tow it' : '{interact}: let go of the wood';
+      else if (atChip) first = ca.grip ? '{interact}: take hold of the chipper' : 'Chipper: grab a limb, then {interact} here to feed it in. Its grip is at the front';
+      else first = reach ? '{interact}: grab the wood' : '';
     }
     if (reach && !(nearDev && rope.holder < 0 && !p.grab)) {
       const s = sim.world.segs.get(aim.seg), piece = sim.world.pieces.get(s.piece);
@@ -401,7 +433,7 @@ export class Players {
     for (const p of this.list.values()) {
       const s = p.saw;
       out.push({
-        id: p.id, m: p.mode, inj: p.inj, gr: p.grab ? [p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pr: p.prompt,
+        id: p.id, m: p.mode, inj: p.inj, gr: p.grab ? [p.grab.chip ? -1 : p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pr: p.prompt,
         cl: p.cl ? [p.cl.seg, +p.cl.t.toFixed(3), p.cl.side.map((x) => +x.toFixed(3))] : 0,
         saw: s.on ? [...s.A.toArray(), ...s.b.toArray(), ...s.f.toArray(), s.stuck ? 1 : 0, s.cutting ? 1 : 0, CFG.BAR_LEN].map((x) => +x.toFixed(3)) : 0,
       });

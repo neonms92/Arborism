@@ -511,3 +511,33 @@ runs, against 17 surge and 16 slip): the heavy limbs on thin straps tear
 by stretch within a second of folding, which is where a too-small
 `FIBRE_STRETCH` would show.
 
+## Wood chipper
+
+**D57 — The chipper is an ordinary body with modelled tyres; feeding and
+the rope feed are forces, chipping is removal past the drum.** The owner
+asked for a chipper that eats a grabbed limb on {interact}, takes in a rope
+tied to it and then never stops reeling it ("it climbs the tree or weighs it
+down; only a reset fixes it"), leaves a reasonable pile of chips, has a grip
+at the non-chipping end to move it by hand, and is put back with the pavers
+on a reset. Following the owner's preference for general physics: the rollers
+are a capped force (`CHIP_PULL`, 15 kN, under `ROPE_BREAK`) with an equal
+reaction on the chipper, so whether the tree bends or the chipper is dragged
+and hoisted is decided by the bodies, not by a rule. In the first test a
+600 kg chipper with the rope over a block at 4.7 m was dragged 9 m to the
+trunk and lifted 2.2 m. The rope is "taken" when its knot reaches the drum,
+not when its segment is chipped, because a tied-off rope would otherwise stall
+the rollers before the wood it is tied to could pass the drum. The only rules
+that are not physics: a fed rope cannot be cut, untied or snapped (the
+owner's "only a reset"), only loose wood can be fed, and the brake is on
+whenever nobody holds the grip (without it the rollers' reaction rolled the
+chipper about while feeding). The tyres are modelled in `sim/chipper.js`
+because Rapier's balls would slide, not roll, and friction is isotropic. Chips
+are a volume per landing spot drawn as a cone; they are not particles.
+
+**D58 — Feet lean into a moving load.** Towing a 600 kg chipper with the
+existing grab tore the hold in one tick (walking speed against a 20 kN/m hold
+with damping). Rather than a special rule for the chipper, holding anything
+that can move (loose wood too) now limits how fast the feet go away from it
+to how fast it follows, plus 0.15 m/s while the pull is under half of
+`GRAB_MAX`. Standing wood is unchanged: walking away still tears it out of
+the hands. Dragging a heavy log is now slow instead of an instant tear-out.
