@@ -4,10 +4,13 @@
 // seg:   {id, parent, piece, a:[3], b:[3], r0, r1, leaf, f}   (a, b piece-local; f = fibre bundle)
 // piece: {id, fixed}
 // rope:  {state: 0 none | 1 block set | 2 tied, block, anchor, device}  nodes = {seg, p:[3] piece-local}
+//        or, for an anchor the chipper has taken in, {chip: 1} (the rope runs into its infeed; only a reset ends it)
+// chipper: model/chipper.js
 
 import { makeBundle, cutFibres, packBundle, unpackBundle, gridFor, layout, bundleBasis, CUT, isGone, setGone, presence } from './fibres.js';
 import { CFG } from '../config.js';
 import { newPaving, crackPaver, packPaving, unpackPaving } from './pavers.js';
+import { addChips } from './chipper.js';
 
 export const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 export const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -65,6 +68,7 @@ export class World {
     this.rope = { state: 0 };
     this.players = new Map();     // id -> {id, name}
     this.paving = null;           // concrete pavers round the tree (model/pavers.js)
+    this.chipper = null;          // the wood chipper and its chip piles (model/chipper.js)
     this.nextId = 1;              // host allocates all ids
     this.listeners = [];
     this._kids = null; this._order = null;
@@ -141,10 +145,20 @@ export class World {
         for (const s of [...this.segs.values()]) if (s.piece === ev.piece) this.segs.delete(s.id);
         this.pieces.delete(ev.piece);
         this._dirty();
-        for (const n of ['block', 'anchor', 'device']) {
-          const node = this.rope[n];
-          if (node && !this.segs.has(node.seg)) { this.rope = { state: 0 }; info.ropeLost = true; break; }
-        }
+        this._ropeCheck(info);
+        break;
+      }
+      case 'chipper': this.chipper = { p: ev.p, q: ev.q, piles: [] }; break;   // parked fresh (no chips)
+      case 'chip': {                // the chipper took in segments segs[] and blew V m3 of chips out at (x, z)
+        const gone = new Set(ev.segs), touched = new Set();
+        for (const id of ev.segs) { const s = this.segs.get(id); if (s) { touched.add(s.piece); this.segs.delete(id); } }
+        for (const s of this.segs.values()) if (gone.has(s.parent)) s.parent = -1;     // what was held on by them is loose in the same piece
+        this._dirty();
+        info.gone = []; info.touched = [...touched];
+        for (const pc of touched) if (!this.segsOf(pc).length) { this.pieces.delete(pc); info.gone.push(pc); }
+        this._dirty();
+        if (this.chipper && ev.V > 0) addChips(this.chipper, ev.x, ev.z, ev.V);
+        this._ropeCheck(info);
         break;
       }
       case 'rope': this.rope = ev.rope; break;
@@ -158,6 +172,14 @@ export class World {
       case 'toast': break;
     }
     for (const fn of this.listeners) fn(ev, info);
+  }
+
+  /** A rope node whose wood is gone loses the rope. */
+  _ropeCheck(info) {
+    for (const n of ['block', 'anchor', 'device']) {
+      const node = this.rope[n];
+      if (node && node.seg !== undefined && !this.segs.has(node.seg)) { this.rope = { state: 0 }; info.ropeLost = true; break; }
+    }
   }
 
   // Cut segment s in two at fraction `at`. Returns the new distal segment
@@ -278,7 +300,7 @@ export class World {
   serialize() {
     return {
       segs: [...this.segs.values()].map((s) => ({ ...s, f: packBundle(s.f) })), pieces: [...this.pieces.values()],
-      rope: this.rope, players: [...this.players.values()], paving: packPaving(this.paving),
+      rope: this.rope, players: [...this.players.values()], paving: packPaving(this.paving), chipper: this.chipper,
     };
   }
   load(o) {
@@ -288,6 +310,7 @@ export class World {
     for (const p of o.players) this.players.set(p.id, p);
     this.rope = o.rope;
     this.paving = unpackPaving(o.paving);
+    this.chipper = o.chipper || null;
     this._dirty();
     for (const fn of this.listeners) fn({ t: 'load' }, {});
   }

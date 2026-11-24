@@ -26,9 +26,10 @@ const net = new Net();
 let sim = null, interp = null, me = -1, aux = null, room = '', role = '', running = false;
 let nextPid = 1, acc = 0, last = performance.now(), inputTimer = 0;
 
-world.on((ev) => {
+world.on((ev, info) => {
   if (ev.t === 'toast' && (ev.to < 0 || ev.to === me)) hud.toast(ev.msg);
   if (ev.t === 'rmpiece' && interp) interp.drop(ev.piece);
+  if (ev.t === 'chip' && interp) for (const id of info.gone) interp.drop(id);
 });
 
 // ---------- lobby ----------

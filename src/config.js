@@ -118,6 +118,15 @@ export const CFG = {
   GRAB_K: 20000,           // N/m, stiffness of that rope (capped for stability on light pieces)
   GRAB_MAX: 600,           // N, pull at which the wood is pulled out of the player's hands
   GRAB_HEIGHT: 0.3,        // m, hands above the body centre
+  // --- wood chipper (sim/chipper.js): a towable chipper on two wheels and a jockey wheel ---
+  CHIP_MASS: 600,          // kg (applies when it is put back by a new tree)
+  CHIP_GAP: 3,             // m between the edge of the paving and the chipper, where it is parked
+  CHIP_PULL: 15000,        // N, most the feed rollers pull with (on wood and on rope); they slip past it
+  CHIP_FEED_V: 0.6,        // m/s the feed rollers draw wood and rope in
+  CHIP_ROLL: 0.02,         // rolling resistance of its wheels, as a fraction of the weight on them
+  CHIP_BRAKE: 0.7,         // braked wheels (whenever nobody holds the grip), as a fraction of the weight on them
+  CHIP_GRIP: 0.9,          // sideways grip of the tyres (friction coefficient)
+  CHIP_SWELL: 2.5,         // m3 of loose chips per m3 of wood chipped
 };
 
 // The values above as shipped, before the Tab menu loads saved settings over them (the test runner starts from these).

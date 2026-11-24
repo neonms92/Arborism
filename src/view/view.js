@@ -18,6 +18,8 @@ import { bundleBasis, layout, CUT } from '../model/fibres.js';
 import { Flex, frameApply } from '../model/flex.js';
 import { CFG, MODE, INJ } from '../config.js';
 import { PaverView } from './pavers.js';
+import { ChipperView } from './chipper.js';
+import { SHAPE } from '../model/chipper.js';
 
 const SIDES = 7;
 const PLAYER_COLORS = [0xe8a23a, 0x3a9be8, 0xd94f6a, 0x62c462, 0xb07be0, 0xe0d24a];
@@ -50,6 +52,7 @@ export class View {
       new THREE.MeshLambertMaterial({ color: 0x5d8a48 }));
     ground.receiveShadow = true; this.scene.add(ground);
     this.paverView = new PaverView(this.scene, world);   // concrete pavers round the tree, and their cracks
+    this.chipperView = new ChipperView(this.scene, world);   // the wood chipper and its chip piles
 
     this.barkMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, side: THREE.DoubleSide });
     this.leafMat = new THREE.MeshLambertMaterial({ color: 0x3f7d3a, flatShading: true, transparent: true });
@@ -93,6 +96,7 @@ export class View {
   // ---- model -> meshes ----
   onEvent(ev, info) {
     this.paverView.onEvent(ev);
+    this.chipperView.onEvent(ev);
     switch (ev.t) {
       case 'reset':
         for (const id of [...this.pieces.keys()]) this.dropPiece(id);
@@ -120,6 +124,9 @@ export class View {
       }
       case 'cut': case 'divide': case 'rip': { const s = this.world.segs.get(ev.seg); if (s) this.buildPiece(s.piece); break; }
       case 'rmpiece': this.dropPiece(ev.piece); break;
+      case 'chip':
+        for (const id of info.touched || []) { if (this.world.pieces.has(id)) this.buildPiece(id); else this.dropPiece(id); }
+        break;
     }
   }
 
@@ -377,6 +384,7 @@ export class View {
     this.flexNow = flex;
     if (flex) for (const p of this.pieces.values()) this.bendPiece(p, flex);
     if (aux && CFG.SHOW_FIBRES && aux.tick !== this.lastAuxTick && (CFG.STRESS_COLORS || !this.painted)) { this.lastAuxTick = aux.tick; this.painted = true; this.paintFibres(aux); }
+    this.chipperView.update(dt, src, aux);
     const seen = new Set();
     let mePos = null;
     if (aux) for (const a of aux.pl) {
@@ -426,7 +434,7 @@ export class View {
 
   // wood held on the ground: a short rope from the hands to the point grabbed
   poseGrab(pm, a) {
-    const g = a.gr, W = g ? this.nodeWorld({ seg: g[0], p: [g[1], g[2], g[3]] }, new THREE.Vector3()) : null;
+    const g = a.gr, W = !g ? null : g[0] === -1 ? this.chipperView.toWorld([g[1], g[2], g[3]]) : this.nodeWorld({ seg: g[0], p: [g[1], g[2], g[3]] }, new THREE.Vector3());
     pm.grab.visible = !!W;
     if (!W) return;
     const H = pm.group.position.clone().addScaledVector(Y, CFG.GRAB_HEIGHT);
@@ -435,6 +443,7 @@ export class View {
   }
 
   nodeWorld(n, out) {
+    if (n.chip) return this.chipperView.group.visible ? this.chipperView.toWorld(SHAPE.INFEED, out) : null;
     const s = this.world.segs.get(n.seg), piece = s && this.pieces.get(s.piece);
     if (!piece) return null;
     const b = frameApply(this.flexNow && this.flexNow.at(s.id, Math.min(1, Math.max(0, segParam(s, n.p)))), n.p);

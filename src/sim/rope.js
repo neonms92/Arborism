@@ -13,7 +13,9 @@ export class Rope {
   constructor(sim) { this.sim = sim; this.reset(); }
   reset() { this.L0 = 0; this.T = 0; this.wraps = 2; this.holder = -1; this.prev = 0; this.lastForce = null; this.slack = 0; }
 
-  node(n) { return this.sim.segToWorld(this.sim.world.segs.get(n.seg), n.p); }
+  node(n) { return n.chip ? this.sim.chipper.infeed() : this.sim.segToWorld(this.sim.world.segs.get(n.seg), n.p); }
+  /** The chipper's feed rollers have the rope: they reel it in for ever, and only a reset ends it. */
+  fed() { const r = this.sim.world.rope; return r.state === 2 && !!r.anchor.chip; }
 
   // ---- placing ({rig}: block, then tie, then untie at the knot) ----
   target(p, aim) {
@@ -27,12 +29,13 @@ export class Rope {
     if (st === 0) return t && t.fixed ? '{rig}: hang the rigging block here' : '';
     if (st === 1) return !t ? 'Look at the wood to tie the rope to, or at the block to take it down'
       : this.node(this.sim.world.rope.block).distanceTo(t.point) < 0.7 ? '{rig}: take the block down' : '{rig}: tie the rope here';
+    if (this.fed()) return '';
     if (t && this.node(this.sim.world.rope.anchor).distanceTo(t.point) < 0.7) return '{rig}: untie';
     return '';
   }
   place(p, aim) {
     const sim = this.sim, w = sim.world, r = w.rope, t = this.target(p, aim);
-    if (!t) return;
+    if (!t || this.fed()) return;
     if (r.state === 0) {
       if (!t.fixed) return;
       // friction device: on the root segment of the same piece, about 1 m up
@@ -57,11 +60,13 @@ export class Rope {
   /** Straight runs of rope in the world, for anything that can cut it. */
   spans() {
     const r = this.sim.world.rope, out = [];
+    if (this.fed()) return out;               // the rollers have it: nothing but a reset frees it
     if (r.state >= 2) out.push([this.node(r.anchor), this.node(r.block)]);
     if (r.state >= 1) out.push([this.node(r.block), this.node(r.device)]);
     return out;
   }
   cut() {
+    if (this.fed()) return;
     this.sim.emit({ t: 'rope', rope: { state: 0 } });
     this.sim.toast('The rope was cut!');
     this.reset();
@@ -95,14 +100,20 @@ export class Rope {
     if (r.state !== 2) { this.T = 0; this.holder = -1; return; }
     const pa = this.node(r.anchor).clone(), pb = this.node(r.block).clone(), pd = this.node(r.device).clone();
     const s = pa.distanceTo(pb) + pb.distanceTo(pd);
-    const stretch = s - this.L0;
-    this.slack = -stretch;
-    const aSeg = w.segs.get(r.anchor.seg), aPiece = w.pieces.get(aSeg.piece);
-    const m = aPiece.fixed ? 500 : sim.bodies.get(aSeg.piece).mass();
+    const fed = !!r.anchor.chip;
+    if (fed) this.L0 = Math.max(0.3, this.L0 - CFG.CHIP_FEED_V * dt);     // the feed rollers reel it in
+    let stretch = s - this.L0;
+    const aSeg = fed ? null : w.segs.get(r.anchor.seg), aPiece = fed ? null : w.pieces.get(aSeg.piece);
+    const m = fed ? sim.chipper.mass() : aPiece.fixed ? 500 : sim.bodies.get(aSeg.piece).mass();
     const k = Math.min(CFG.ROPE_EA / this.L0, CFG.ROPE_KCAP * m / (dt * dt));
     const c = 2 * CFG.ROPE_DAMP * Math.sqrt(k * m);
-    const rate = (stretch - this.prev) / dt; this.prev = stretch;
+    let rate = (stretch - this.prev) / dt;
     let T = stretch > 0 ? Math.max(0, k * stretch + c * rate) : 0;
+    if (fed && T > CFG.CHIP_PULL) {            // ...but slip on it past what they can pull
+      this.L0 += (T - CFG.CHIP_PULL) / k; stretch = s - this.L0; T = CFG.CHIP_PULL;
+    }
+    this.prev = stretch;
+    this.slack = -stretch;
 
     // friction device: capstan. Unattended = tied off.
     if (this.holder >= 0) {
@@ -116,13 +127,14 @@ export class Rope {
     } else { this.cap = Infinity; this.run = 0; }
     this.T = T;
     if (T <= 0) return;
-    if (T > CFG.ROPE_BREAK) {
+    if (T > CFG.ROPE_BREAK && !fed) {
       sim.emit({ t: 'rope', rope: { state: 0 } }); sim.toast('The rope snapped!'); this.reset(); return;
     }
     // anchor: pulled toward the block
     const fa = _a.copy(pb).sub(pa).normalize().multiplyScalar(T);
-    sim.applyForce(r.anchor.seg, pa, fa);
-    if (!aPiece.fixed) this.lastForce = { piece: aSeg.piece, p: pa, f: fa.clone() };
+    if (fed) sim.chipper.body.applyImpulseAtPoint({ x: fa.x * dt, y: fa.y * dt, z: fa.z * dt }, pa, true);
+    else sim.applyForce(r.anchor.seg, pa, fa);
+    if (!fed && !aPiece.fixed) this.lastForce = { piece: aSeg.piece, p: pa, f: fa.clone() };
     // block: both legs pull on it
     const fb = _b.copy(pa).sub(pb).normalize().add(_d.copy(pd).sub(pb).normalize()).multiplyScalar(T);
     sim.applyForce(r.block.seg, pb, fb);
@@ -131,6 +143,6 @@ export class Rope {
   }
 
   aux() {
-    return { L0: +this.L0.toFixed(3), T: Math.round(this.T), wraps: this.wraps, holder: this.holder, slack: +(this.slack || 0).toFixed(2), run: +(this.run || 0).toFixed(2), grip: +(this.grip ?? 1).toFixed(2) };
+    return { fed: this.fed() ? 1 : 0, L0: +this.L0.toFixed(3), T: Math.round(this.T), wraps: this.wraps, holder: this.holder, slack: +(this.slack || 0).toFixed(2), run: +(this.run || 0).toFixed(2), grip: +(this.grip ?? 1).toFixed(2) };
   }
 }
