@@ -64,11 +64,11 @@ export const CFG = {
   BOND_LEN: 0.05,          // m, length along the grain over which neighbouring fibres are bonded (SHEAR acts over it)
   FIBRE_DAMP: 0.01,        // s, stiffness-proportional damping of a live bundle
   BEND_MAX: 3.14,          // rad, no fibre survives being folded further than this (3.14 = folded right over)
-  LIVE_COMP_X: 1000,       // how many times COMP a live fibre bears in compression before it crushes (D54)
-  BREAK_STRAIN: 0.4,       // a live fibre snaps once stretched this fraction of its length (0 = use FIBRE_STRETCH instead)
+  LIVE_COMP_X: 1,          // how many times COMP a live fibre bears in compression before it crushes (D54)
+  BREAK_STRAIN: 0,         // a live fibre snaps once stretched this fraction of its length (0 = use FIBRE_STRETCH instead)
   SURGE_RATIO: 2,          // a live fibre snaps if its pull grows this many times within SURGE_TIME (0 = off)
   SURGE_TIME: 0.2,         // s
-  SURGE_MIN: 0.1,          // ... counting only from a pull of at least this fraction of its tensile strength
+  SURGE_MIN: 0.03,         // ... counting only from a pull of at least this fraction of its tensile strength
   FOLD_DAMP: 0.1,          // s, drag on folding fibres (plies rubbing): this times a solid fibre's bending stiffness
   COLOR_GAMMA: 0.6,        // debug fibre colours: (stress / limit) ^ gamma
 

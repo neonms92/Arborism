@@ -498,3 +498,16 @@ batches, as `job.cfg` (applied after the defaults, before the test's own
 parameters, which win; those rows are greyed). Records keep them as
 `tuned`.
 
+**D56 — D54 retuned: old stretch, 1× compression, surge kept.** Owner
+approved. Must-pass (FM-10 / FM-11 / FM-14) with `BREAK_STRAIN` 0 (back to
+`FIBRE_STRETCH`) and surge 2× in 0.2 s: `LIVE_COMP_X` 1 → 52 / 64 / 20,
+10 → 51 / 62 / 13, 30 → 50 / 63 / 10, so compression stays 1× (slider
+kept). Surge variants at 1×: ratio 1.5 → 52 / 64 / 20, window 0.5 s →
+53 / 63 / 21, both → 50 / 64 / 21, `SURGE_MIN` 0.03 → 54 / 66 / 20 (chosen).
+FM-10's default fell passes again: half its hinge surviving was the 1.4×
+stretch, not the surge rule. The surge rule costs FM-15 (80 → 74 at
+`SURGE_MIN` 0.03, 77 at 0.1). FM-14 snaps by stretch (47 fibres over 81
+runs, against 17 surge and 16 slip): the heavy limbs on thin straps tear
+by stretch within a second of folding, which is where a too-small
+`FIBRE_STRETCH` would show.
+
