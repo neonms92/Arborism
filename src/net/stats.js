@@ -5,6 +5,12 @@
 //   loss up   inputs carry a sequence number; the host counts the gaps and sends the figure back in 'po'.
 //   host sim  host ticks per wall second over the window (below 100%: the host machine cannot keep up).
 //   host fps  the host's frame rate, sent back in 'po': pings are answered between frames, so it adds to ping.
+//   late      how much later than the quickest one each snapshot arrives (max over the window): data queuing
+//             somewhere on the way. Seconds here is the 1-2 s lag; ping (also on the fast channel) shows it too.
+//   queue     bytes waiting in the host's send buffer for this client, and how many updates it skipped
+//             because of them (net.js broadcastFast, CFG.NET_QUEUE_MAX).
+//   route     the WebRTC candidate pair in use: host-host is straight across the LAN; relay means every
+//             packet goes out to a TURN server on the internet and back (PeerJS's free ones by default).
 //   delay     what your own moves take to come back on screen: input wait + round trip + host frame +
 //             the client's render delay (CFG.INTERP_DELAY). An estimate, not a measurement.
 // Only the main thread uses this; the host keeps its per-client figures on the connection object.
@@ -20,6 +26,8 @@ export class NetStats {
     this.rtts = []; this.pingOk = [];                       // last 20 round trips (ms) / outcomes
     this.snaps = []; this.bytes = []; this.late = 0;        // {tick, at} / {at, n}
     this.up = null; this.hostFps = 0;                       // uplink loss and frame rate the host reports
+    this.q = 0; this.sk = 0;                                // host send queue (bytes), updates it skipped
+    this.lates = []; this.via = null; this.routeT = -1e9;   // {at, ms} / candidate pair
   }
 
   /** Called every frame on a client; returns a ping message when one is due. */
@@ -27,7 +35,7 @@ export class NetStats {
     for (const [s, at] of this.sent) if (now - at > PING_LOST) { this.sent.delete(s); this.out(false); }
     if (now - this.pingT < CFG.PING_EVERY * 1000) return null;
     this.pingT = now; const s = ++this.seq; this.sent.set(s, now);
-    return { t: 'pi', s, r: Math.round(this.rtt()), l: this.lossDown() };
+    return { t: 'pi', s, r: Math.round(this.rtt()), l: this.lossDown(), via: this.via?.local === 'relay' || this.via?.remote === 'relay' ? 'relay' : this.via ? 'direct' : '' };
   }
 
   pong(m, now) {
@@ -36,6 +44,8 @@ export class NetStats {
     this.rtts.push(now - at); if (this.rtts.length > 20) this.rtts.shift();
     if (Number.isFinite(m.up)) this.up = m.up;
     if (Number.isFinite(m.fps)) this.hostFps = m.fps;
+    if (Number.isFinite(m.q)) this.q = m.q;
+    if (Number.isFinite(m.sk)) this.sk = m.sk;
   }
 
   out(ok) { this.pingOk.push(ok); if (this.pingOk.length > 20) this.pingOk.shift(); }
@@ -44,9 +54,38 @@ export class NetStats {
   packet(n, now) { this.bytes.push({ at: now, n }); this.trim(this.bytes, now); }
 
   /** Every snapshot's tick, including ones that come too late to be drawn. */
-  snap(tick, now, stale) { if (stale) this.late++; this.snaps.push({ tick, at: now }); this.trim(this.snaps, now); }
+  snap(tick, now, stale, transit) {
+    if (stale) this.late++;
+    // host speed is judged on the host's own send clock when there is one, so a queue on the way does not read as a slow host
+    this.snaps.push({ tick, at: Number.isFinite(transit) ? now - transit : now }); this.trim(this.snaps, now);
+    // transit = local arrival - host send clock: unknown (fixed) clock offset + real transit. Against the
+    // quickest packet since joining, it is how late a packet is.
+    if (Number.isFinite(transit)) {
+      this.lates.push({ at: now, ms: transit }); this.trim(this.lates, now);
+      this.bestTransit = Math.min(this.bestTransit ?? Infinity, transit);
+    }
+  }
 
-  trim(a, now) { while (a.length && now - a[0].at > WIN) a.shift(); }
+  /** Worst arrival lateness in the window, against the quickest packet since joining (ms). */
+  lateMax() { let hi = -Infinity; for (const l of this.lates) hi = Math.max(hi, l.ms); return hi > this.bestTransit ? hi - this.bestTransit : 0; }
+
+  /** Every 2 s, ask the browser which way the packets go. */
+  routeCheck(now, get) {
+    if (now - this.routeT < 2000) return;
+    this.routeT = now;
+    get().then((r) => { if (r) this.via = r; }).catch(() => {});
+  }
+
+  routeText() {
+    const v = this.via; if (!v) return 'route: unknown';
+    const relay = v.local === 'relay' || v.remote === 'relay';
+    const net = Number.isFinite(v.rtt) ? `, network round trip ${Math.round(v.rtt * 1000)} ms` : '';
+    if (relay) return `route: THROUGH A RELAY SERVER on the internet${net}`;
+    if (v.local === 'host' && v.remote === 'host') return `route: direct on the local network${net}`;
+    return `route: direct over the internet (${v.local}/${v.remote})${net}`;
+  }
+
+  trim(a, now) { while (a.length && now - a[0].at > WIN) a.shift(); }   // snaps hold send times, close enough for a 5 s window
 
   rtt() { return this.rtts.length ? this.rtts[this.rtts.length - 1] : 0; }
   rttAvg() { return this.rtts.length ? this.rtts.reduce((a, b) => a + b, 0) / this.rtts.length : 0; }
@@ -84,8 +123,10 @@ export class NetStats {
       `ping ${Math.round(this.rtt())} ms  (avg ${Math.round(this.rttAvg())}, jitter ${Math.round(this.jitter())})`,
       `loss  down ${pc(this.lossDown())}  up ${this.up == null ? '-' : pc(this.up)}  ping ${pc(this.lossPing())}`,
       `your moves show after ~${Math.round(this.delay())} ms  (render delay ${Math.round(CFG.INTERP_DELAY * 1000)})`,
-      `in ${this.kBps(now).toFixed(1)} kB/s`,
+      `in ${this.kBps(now).toFixed(1)} kB/s   snapshots up to ${Math.round(this.lateMax())} ms late`,
+      this.routeText(),
     ];
+    if (this.q > 2048 || this.sk) out.push(`host send queue ${(this.q / 1024).toFixed(0)} kB, ${this.sk} stale updates skipped`);
     const hs = this.hostSpeed();
     if (hs < 0.95) out.push(`host is running slow: ${Math.round(hs * 100)}% speed`);
     // the host answers pings between its frames, so a slow host frame shows up in ping too

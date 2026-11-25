@@ -234,6 +234,19 @@ line lists each player's ping and loss. All of it is in `net/stats.js`:
   input older than one already used is dropped (the channel is unordered).
 - **Host speed**: host ticks per wall second; below 95% the host machine
   cannot keep up and everything runs in slow motion.
+- **Snapshots late**: each snapshot carries the host's clock when sent;
+  arrival minus that, against the quickest since joining, is how late data
+  is (queues anywhere: the link, a relay, a busy main thread). Host speed
+  is judged on the send clock too.
+- **Route**: the WebRTC candidate pair (`getStats`): direct on the LAN,
+  direct over the internet, or through a TURN relay. PeerJS's defaults
+  include its free public TURN servers, so a LAN game can end up relayed
+  over the internet without anyone noticing.
+- **Send queue** (D89): snapshots, aux and inputs are latest-wins, so the
+  sender skips one while the link is behind: more than `NET_QUEUE_MAX` kB
+  waiting, or more than `NET_LAG_MAX` (0.25 s) at the pace the link has
+  been draining. Without this PeerJS buffers up to 8 MB and the lag grows
+  without limit. Pings and events are never skipped.
 - **"Your moves show after"**: an estimate, ping + half the input period +
   half a host frame + `INTERP_DELAY`. On a LAN the render delay (100 ms)
   is most of it; it is in the Tab menu.
