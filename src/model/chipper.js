@@ -23,6 +23,7 @@ export const SHAPE = {
   GRIP: [2.45, -0.25, 0], GRIP_H: [0.07, 0.06, 0.16],
   HOPPER: { c: [-1.7, 0.02, 0], h: [0.4, 0.36, 0.5] },
   INFEED: [-2.1, 0.02, 0],
+  WINCH: [-1.95, 0.28, 0],                // the winch drum just inside the top lip of the hopper mouth: it takes the grab rope
   DRUM_X: -1.0,
   DISCHARGE: [0.2, 3.2],                  // (x, z) on the ground where chips land
 };

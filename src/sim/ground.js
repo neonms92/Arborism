@@ -1,4 +1,4 @@
-// Host only: the ground is solid (DECISIONS D84).
+// Host only: the ground is solid (DECISIONS D88).
 //
 // On terrain the ground collider is a heightfield: a surface with nothing
 // under it. A bit of wood pressed hard enough (a crown landing on a twig, a

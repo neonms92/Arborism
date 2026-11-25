@@ -96,6 +96,10 @@ export class Sim {
     const segs = generateTree(CFG.TREE_SEED, () => this.world.newId());
     // the job tree is marked with an orange X, sprayed on the side facing its street (not on flat ground: the engine tests)
     this.emit({ t: 'tree', piece: this.world.newId(), segs, mark: this.flat ? undefined : markOn(segs, CFG.MARK_HEIGHT, plan.front) });
+    // the budget goes by the lots' width for the yard density (each lot is that within 15%), so it does not jump about
+    // from seed to seed
+    const d = Math.min(1, Math.max(0, CFG.YARD_DENSITY));
+    this.damage.job(this.flat ? 0 : CFG.YARD_LOT_MAX + (CFG.YARD_LOT_MIN - CFG.YARD_LOT_MAX) * d);
   }
 
   /** The 'stands' event for the planned trees: each stands on the lowest ground round its trunk, so it never floats. */
@@ -335,6 +339,7 @@ export class Sim {
     const dt = CFG.TICK;
     this.tick++;
     if (CFG.DAY_LENGTH > 0) this.days += dt / CFG.DAY_LENGTH;
+    this.damage.step(dt);
     this.stepClouds(dt);
     this.loads.length = 0;
     // filtered contact loads from the previous physics step

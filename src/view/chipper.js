@@ -24,6 +24,12 @@ export class ChipperView {
     const hm = new THREE.Mesh(hop, lam(0xe0701c, { side: THREE.DoubleSide })); hm.position.set(...S.HOPPER.c); parts.push(hm);
     const throat = box({ c: [S.HOPPER.c[0] + S.HOPPER.h[0] - 0.02, S.HOPPER.c[1], 0], h: [0.02, S.HOPPER.h[1] * 0.75, S.HOPPER.h[2] * 0.75] }, lam(0x111111));
     parts.push(throat);
+    // the winch over the hopper mouth: a drum on two posts
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.34, 10).rotateX(Math.PI / 2), dark); drum.position.set(...S.WINCH); parts.push(drum);
+    for (const z of [-0.2, 0.2]) {
+      const top = S.HOPPER.c[1] + S.HOPPER.h[1], m = new THREE.Mesh(new THREE.BoxGeometry(0.04, S.WINCH[1] - top + 0.05, 0.04), grey);
+      m.position.set(S.WINCH[0], (S.WINCH[1] + top) / 2, z); parts.push(m);
+    }
     for (const w of S.WHEELS) { const m = new THREE.Mesh(new THREE.CylinderGeometry(S.WHEEL_R, S.WHEEL_R, 0.22, 14).rotateX(Math.PI / 2), dark); m.position.set(...w); parts.push(m); }
     const jw = new THREE.Mesh(new THREE.CylinderGeometry(S.JOCKEY_R, S.JOCKEY_R, 0.08, 10).rotateX(Math.PI / 2), dark); jw.position.set(...S.JOCKEY); parts.push(jw);
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.45, 6), grey); post.position.set(S.JOCKEY[0], S.JOCKEY[1] + 0.25, 0); parts.push(post);

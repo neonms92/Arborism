@@ -9,6 +9,8 @@ export const CFG = {
   FULL_EVERY: 60,          // ticks between full (all bodies) snapshots
   INTERP_DELAY: 0.1,       // s, client render delay
   INPUT_HZ: 30,
+  PING_EVERY: 0.5,         // s between pings from a joined client (net/stats.js)
+  NET_STATS: true,         // show the network box on a joined client
   INVERT_Y: true,          // push forward / mouse forward looks down
   LOOK_SENS: 0.008,         // rad of look per pixel of mouse travel
   TOUCH_LOOK_SENS: 0.006,  // rad of look per pixel a finger drags on the right of the screen
@@ -64,7 +66,7 @@ export const CFG = {
   CONTACT_TAU: 0.04,       // s, low-pass on contact-force loads
   CONTACT_MIN: 150,        // N, contact-force event threshold
   ROLL_RESIST: 0.02,       // m, rolling resistance of loose wood on the ground: lever arm of the normal force
-  GROUND_PUSH_K: 1000,     // 1/s^2: wood inside the ground (D84) is pushed out like a spring: this x its share of the body's mass per m it is in (1000: about 1 cm under its own weight)...
+  GROUND_PUSH_K: 1000,     // 1/s^2: wood inside the ground (D88) is pushed out like a spring: this x its share of the body's mass per m it is in (1000: about 1 cm under its own weight)...
   GROUND_PUSH_MAX: 0.05,   // m: ...counting at most this depth...
   GROUND_PUSH_DAMP: 40,    // 1/s: ...less this per m/s it is moving out of the ground (more per m/s into it)
   DEBRIS_MASS: 2,          // kg, pieces lighter than this are removed...
@@ -187,6 +189,7 @@ export const CFG = {
   CHIP_GAP: 3,             // m between the tree's paving (or the trunk) and the chipper, where it is parked
   CHIP_PULL: 15000,        // N, most the feed rollers pull with (on wood and on rope); they slip past it
   CHIP_FEED_V: 0.6,        // m/s the feed rollers draw wood and rope in
+  CHIP_WINCH_F: 6000,      // N, most the winch over the hopper pulls the grab rope with (it reels at CHIP_FEED_V)
   CHIP_ROLL: 0.02,         // rolling resistance of its wheels, as a fraction of the weight on them
   CHIP_BRAKE: 0.7,         // braked wheels (whenever nobody holds the grip), as a fraction of the weight on them
   CHIP_GRIP: 0.9,          // sideways grip of the tyres (friction coefficient)
@@ -216,6 +219,14 @@ export const CFG = {
   YARD_TREES_PITCH: 0.06,  // m, fibre width once one comes to life (FIBRE_PITCH is the job tree's): wider = fewer fibres, cheaper
   MARK_HEIGHT: 1.4,        // m above the ground of the orange X sprayed on the job tree
   // --- what breaking things costs (sim/damage.js), in dollars, added to a running total on the HUD ---
+  // the job's budget (sim/damage.js): BUDGET_BASE for a tree BUDGET_REF_H tall and BUDGET_REF_D across at the base on a
+  // lot BUDGET_LOT_REF wide, in proportion to height x diameter and to BUDGET_LOT_REF / the lot width, rounded to BUDGET_ROUND
+  BUDGET_BASE: 5000,       // $
+  BUDGET_REF_H: 5.4864,    // m (18 ft)
+  BUDGET_REF_D: 0.8,       // m
+  BUDGET_LOT_REF: 22,      // m, the lot width at the default yards (density 0.5)
+  BUDGET_ROUND: 500,       // $
+  WAGE: 7.5,               // $ per player per game hour (U.S. federal minimum wage, rounded); a game hour is DAY_LENGTH / 24
   PAVER_COST: 25,          // one paver, the first time it cracks
   FENCE_COST: 300,         // one fence section broken apart
   SHED_COST: 2500,         // the shed broken apart

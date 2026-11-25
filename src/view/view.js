@@ -99,7 +99,7 @@ export class View {
     this.barkMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, side: THREE.DoubleSide });
     this.leafMat = new THREE.MeshLambertMaterial({ color: 0x3f7d3a, flatShading: true, transparent: true });
     this.standsView = new StandsView(this.scene, world, this.leafMat);   // the other trees in the yards, until they come to life
-    this.fibreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });   // unlit: the colour IS the information
+    this.fibreMat = new THREE.MeshLambertMaterial({ color: 0xffffff });   // lit like the bark: dark at night, seen by headlamp (D84)
     this.fibreGeo = new THREE.BoxGeometry(1, 1, 1);
     this.ropeMat = new THREE.MeshLambertMaterial({ color: 0xf2e9d0, flatShading: true });
     this.lanyardMat = new THREE.MeshLambertMaterial({ color: 0xffd21a, flatShading: true });
@@ -403,6 +403,7 @@ export class View {
     if (flex) for (const p of this.pieces.values()) this.bendPiece(p, flex);
     if (aux && CFG.SHOW_FIBRES && aux.tick !== this.lastAuxTick && (CFG.STRESS_COLORS || !this.painted)) { this.lastAuxTick = aux.tick; this.painted = true; this.paintFibres(aux); }
     this.chipperView.update(dt, src, aux);
+    this.poseWinch(aux);
     this.buildsView.update(src);
     this.weedsView.update(this.camera);
     const seen = new Set();
@@ -507,6 +508,21 @@ export class View {
     const pts = lanyardLoop(s, cl[1], cl[2], CFG.STANDOFF).map((q) => { const b = frameApply(fr, q); return new THREE.Vector3(b[0], b[1], b[2]).applyQuaternion(piece.group.quaternion).add(piece.group.position); });
     pm.lanyard.geometry.dispose();
     pm.lanyard.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.3), 20, 0.012, 5);
+  }
+
+  // the chipper's winch: a rope from the drum over the hopper to each piece it is pulling in
+  poseWinch(aux) {
+    const wn = (aux && aux.chip && aux.chip.wn) || [], cv = this.chipperView;
+    this.winchRopes = this.winchRopes || [];
+    while (this.winchRopes.length < wn.length) {
+      const m = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat); m.frustumCulled = false; this.scene.add(m); this.winchRopes.push(m);
+    }
+    this.winchRopes.forEach((m, i) => {
+      const g = wn[i], P = g && cv.group.visible ? this.nodeWorld({ seg: g[0], p: [g[1], g[2], g[3]] }, new THREE.Vector3()) : null;
+      m.visible = !!P; if (!P) return;
+      m.geometry.dispose();
+      m.geometry = new THREE.TubeGeometry(new THREE.LineCurve3(cv.toWorld(SHAPE.WINCH), P), 1, 0.012, 5);
+    });
   }
 
   // wood held on the ground: a short rope from the hands to the point grabbed
