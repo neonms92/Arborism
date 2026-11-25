@@ -41,13 +41,13 @@ export class Chipper {
     this.parts = new Map();          // wreck part body id -> RigidBody, once it has crumpled
     this.hit = null;                 // strongest push on it this step from wood or a structure: {F, o (other collider)}
     this.busy = 0;                   // ticks left of chips flying out of the chute (aux)
+    this.stick = { A: null, J: null }; // where the tyres under the axle (A) and the jockey wheel (J) stopped and grip
   }
 
-  /** Level ground where it is parked (the terrain is made before it is placed): a pad round its middle. */
-  pads(blend) {
+  /** How far along x it reaches where it is parked, and its chips land: {x0, x1} (world). */
+  reach() {
     const pose = parkedPose(CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, CFG.CHIP_GAP), S = SHAPE;
-    const x0 = S.INFEED[0] - 0.2, x1 = S.GRIP[0] + 0.2, mid = (x0 + x1) / 2;
-    return [{ x: pose.p[0] + mid, z: pose.p[2], r: Math.hypot((x1 - x0) / 2, S.WHEELS[0][2] + S.WHEEL_R), blend }];
+    return { x0: pose.p[0] + S.INFEED[0] - 0.2, x1: pose.p[0] + S.GRIP[0] + 0.2 };
   }
 
   /** The Tab menu's "Respawn chipper": take away the old one, broken or not, and park a new one (chip piles stay). */
@@ -94,7 +94,7 @@ export class Chipper {
     const sim = this.sim, R = sim.R;
     this.removeBody();
     for (const b of this.parts.values()) sim.rapier.removeRigidBody(b);
-    this.parts.clear();
+    this.parts.clear(); this.stick = { A: null, J: null };
     if (!ev.keep) { for (const { col } of this.pileCols.values()) sim.rapier.removeCollider(col, false); this.pileCols.clear(); this.colPile.clear(); }
     const body = sim.rapier.createRigidBody(sim.dynamic().setTranslation(ev.p[0], ev.p[1], ev.p[2])
       .setRotation({ x: ev.q[0], y: ev.q[1], z: ev.q[2], w: ev.q[3] }).setLinearDamping(0.05).setAngularDamping(0.3));
@@ -297,30 +297,42 @@ export class Chipper {
     // wheel is clamped too
     const towed = [...this.sim.players.list.values()].some((p) => p.grab && p.grab.chip);
     const S = SHAPE, share = (S.JOCKEY[0] - S.CHASSIS.c[0]) / (S.JOCKEY[0] - S.AXLE[0]);
-    const meff = (P, n) => effMass(b, P, n);
-    const push = (P, n, v, cap) => {          // impulse along n at P that stops velocity v along n, up to cap
-      const J = Math.max(-cap, Math.min(cap, -v * meff(P, n)));
-      if (J) b.applyImpulseAtPoint({ x: n.x * J, y: n.y * J, z: n.z * J }, P, true);
-    };
     // directions along the ground under a point (its tangent plane)
     const flat = (d, n) => d.addScaledVector(n, -d.dot(n)).normalize();
     const sim = this.sim, gn = (P) => { const n = sim.groundN(P.x, P.z); return new THREE.Vector3(n[0], n[1], n[2]); };
     const above = (P) => P.y - sim.groundY(P.x, P.z);
+    // Each grip is an impulse along a direction at a point that stops the velocity there, up to a cap (the friction
+    // the weight on it allows). They are applied before the physics step, in which gravity pulls along the ground
+    // too, so they stop that as well; and they are solved together, a few passes with the total kept within each cap,
+    // since one grip's impulse changes the velocity at the other. A gripping tyre also sticks where it is: it is
+    // pulled back toward the spot where it stopped (the drift the step's contact forces leave would otherwise add up
+    // to a slow creep down a slope), and that spot moves with it whenever it slips (its grip at the cap).
+    const grips = [], st = this.stick;
     const A = this.toWorld(S.AXLE, new THREE.Vector3());
     if (above(A) < 0.06) {
       const N = m * g * share, n = gn(A);
-      const side = flat(this.dirToWorld([0, 0, 1], new THREE.Vector3()), n);
-      const fwd = flat(this.dirToWorld([1, 0, 0], new THREE.Vector3()), n);
-      let v = b.velocityAtPoint(A);
-      push(A, side, v.x * side.x + v.y * side.y + v.z * side.z, CFG.CHIP_GRIP * N * dt);
-      v = b.velocityAtPoint(A);
-      push(A, fwd, v.x * fwd.x + v.y * fwd.y + v.z * fwd.z, (towed ? CFG.CHIP_ROLL : CFG.CHIP_BRAKE) * N * dt);
+      if (!st.A || towed) st.A = A.clone();      // being towed, it rolls: grip only stops sliding, it does not hold a spot
+      grips.push({ P: A, at: 'A', d: flat(this.dirToWorld([0, 0, 1], new THREE.Vector3()), n), cap: CFG.CHIP_GRIP * N * dt, J: 0, stick: true });
+      grips.push({ P: A, at: 'A', d: flat(this.dirToWorld([1, 0, 0], new THREE.Vector3()), n), cap: (towed ? CFG.CHIP_ROLL : CFG.CHIP_BRAKE) * N * dt, J: 0, stick: !towed });
+    } else st.A = null;
+    const Jp = this.toWorld([S.JOCKEY[0], S.JOCKEY[1] - S.JOCKEY_R, S.JOCKEY[2]], new THREE.Vector3());
+    if (above(Jp) < 0.06) {
+      // the castor: whichever way it is sliding, or about to slide this step under gravity (or back to where it stopped)
+      if (!st.J || towed) st.J = Jp.clone();
+      const v = b.velocityAtPoint(Jp), n = gn(Jp), h = new THREE.Vector3(v.x, v.y - g * dt, v.z).addScaledVector(Jp.clone().sub(st.J), STICK / dt);
+      const sp = h.addScaledVector(n, -h.dot(n)).length();
+      if (sp > 1e-5) grips.push({ P: Jp, at: 'J', d: h.multiplyScalar(1 / sp), cap: (towed ? CFG.CHIP_ROLL : CFG.CHIP_BRAKE) * m * g * (1 - share) * dt, J: 0, stick: !towed });
+    } else st.J = null;
+    for (const G of grips) { G.m = effMass(b, G.P, G.d); G.e = G.stick && st[G.at] ? G.P.clone().sub(st[G.at]).dot(G.d) * STICK / dt : 0; }
+    for (let pass = 0; pass < 4; pass++) {
+      for (const G of grips) {
+        const v = b.velocityAtPoint(G.P), d = G.d, vn = v.x * d.x + v.y * d.y + v.z * d.z - g * d.y * dt + G.e;
+        const J = Math.max(-G.cap, Math.min(G.cap, G.J - vn * G.m)), dJ = J - G.J;
+        G.J = J;
+        if (dJ) b.applyImpulseAtPoint({ x: d.x * dJ, y: d.y * dJ, z: d.z * dJ }, G.P, true);
+      }
     }
-    const J = this.toWorld([S.JOCKEY[0], S.JOCKEY[1] - S.JOCKEY_R, S.JOCKEY[2]], new THREE.Vector3());
-    if (above(J) < 0.06) {
-      const v = b.velocityAtPoint(J), n = gn(J), h = new THREE.Vector3(v.x, v.y, v.z), sp = h.addScaledVector(n, -h.dot(n)).length();
-      if (sp > 1e-4) push(J, h.multiplyScalar(1 / sp), sp, (towed ? CFG.CHIP_ROLL : CFG.CHIP_BRAKE) * m * g * (1 - share) * dt);
-    }
+    for (const G of grips) if (Math.abs(G.J) >= G.cap * 0.999 && st[G.at]) st[G.at] = G.P.clone();     // slipping: it sticks again further on
   }
 
   // ---- after physics: chip whatever has gone past the drum ----
@@ -422,6 +434,8 @@ export class Chipper {
 }
 
 /** The mass body b presents to an impulse at world point P along unit n: 1 / (1/m + (r x n) . I^-1 (r x n)). */
+const STICK = 0.2;          // fraction of a stuck tyre's drift from where it stopped taken back each step
+
 function effMass(b, P, n) {
   const m = b.mass(), c = b.worldCom(), rx = P.x - c.x, ry = P.y - c.y, rz = P.z - c.z, e = b.effectiveWorldInvInertia().elements;
   const ux = ry * n.z - rz * n.y, uy = rz * n.x - rx * n.z, uz = rx * n.y - ry * n.x;

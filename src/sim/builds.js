@@ -1,11 +1,12 @@
-// Host only: breakable structures (model/builds.js has their shapes and state).
+// Host only: breakable structures (model/builds.js has their shapes and state;
+// model/yards.js plans where they go).
 //
 // An intact module has no physics of its own: its parts are colliders on the
 // body it is in (the build's fixed body, or a loose body if it has lost its
 // glue to the ground), so things just bump into it. Every tick the contact
 // forces on each intact module from wood (or from loose parts and bodies of a
-// build) are added up. When that reaches SHED_BREAK_F (a shed) or
-// FENCE_BREAK_F (a fence section) the module breaks: a
+// build) are added up. When that reaches SHED_BREAK_F (a shed),
+// FENCE_BREAK_F (a fence section) or HOUSE_BREAK_F (a room) the module breaks: a
 // 'smash' event, after which each of its parts is a loose body of its own.
 //
 // It gives way rather than stopping what hit it: the body that hit it gets
@@ -17,7 +18,8 @@
 
 import { CFG } from '../config.js';
 import { groundRange } from '../model/terrain.js';
-import { compose, regroup, partMass, breakForce, qrot, SHED, FENCE } from '../model/builds.js';
+import { compose, regroup, partMass, breakForce, qrot, modProxies, SHED, FENCE } from '../model/builds.js';
+import { planYards, footprint } from '../model/yards.js';
 
 const CONTACT_EVENT_F = 300;      // N: contact force below which Rapier does not report a pair on a module (too small to matter)
 
@@ -31,50 +33,52 @@ export class Builds {
     this.hits = new Map();        // 'build:module' -> {F, h (module collider), o (other collider), f (strongest pair)} this step
     this.vel = new Map();         // body handle -> [vx,vy,vz, wx,wy,wz] at the end of last tick (loose bodies and parts)
     this.burst = null;            // how the next smash throws its parts (set just before it is emitted)
+    this.proxies = new WeakMap();  // module (model) -> the boxes it collides as while intact
     this.log = null;              // set to [] in the console to see every contact on a module: arb.sim.builds.log = []
   }
 
-  /** Where the shed and the fence runs go round the current tree, before their heights are known. */
-  sites() {
-    const D = SHED.D, r = CFG.TREE_HEIGHT * CFG.PAVER_RADIUS + CFG.SHED_GAP + D / 2;
-    const w = this.sim.world, F = CFG.TREE_HEIGHT * CFG.PAVER_RADIUS + CFG.FENCE_GAP;
-    const ry = (deg) => { const a = deg * Math.PI / 360; return [0, Math.sin(a), 0, Math.cos(a)]; };   // turned about y; a fence runs along its +x
-    return [
-      // on the far side of the trunk from the chipper's chute, door toward the trunk
-      { id: w.newId(), kind: 'shed', p: [0, 0, -r], q: [0, 0, 0, 1] },
-      // a run of each fence: privacy on the -x side, two-rail on the +z side, split rail between the shed and the chipper
-      { id: w.newId(), kind: 'fence:privacy', n: 4, p: [-F, 0, -4.88], q: ry(-90) },
-      { id: w.newId(), kind: 'fence:rail2', n: 4, p: [-4.88, 0, F], q: ry(0) },
-      { id: w.newId(), kind: 'fence:split', n: 3, p: [F - 5.5, 0, -F - 0.5], q: ry(-45) },
-    ];
-  }
-
-  /** Level ground under each shed (fences follow the ground in steps instead). */
-  pads(blend) {
-    this.planned = this.sites();
-    return this.planned.filter((b) => !b.kind.startsWith('fence:'))
-      .map((b) => ({ x: b.p[0], z: b.p[2], r: Math.hypot(SHED.W, SHED.D) / 2 + 0.3, blend }));
+  /**
+   * The neighbourhood for the current settings (model/yards.js): lots of houses, sheds, fences and paving
+   * round the tree's own lot, which also holds the shed on the far side of the trunk from the chipper's
+   * chute, door toward the trunk. Planned before the ground is made, since the ground is made with the
+   * pads the plan asks for. Flat ground (the engine tests) gets none of it.
+   */
+  plan() {
+    if (this.sim.flat) return (this.planned = { builds: [], areas: [], pads: [] });
+    const paveR = CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, r = paveR + CFG.SHED_GAP + SHED.D / 2, chip = this.sim.chipper.reach();
+    const P = planYards({
+      seed: CFG.YARD_SEED, density: CFG.YARD_DENSITY, lotMax: CFG.YARD_LOT_MAX, lotMin: CFG.YARD_LOT_MIN, extent: CFG.YARD_EXTENT,
+      street: CFG.YARD_STREET, fence: CFG.YARD_FENCE, blend: CFG.TERRAIN_BLEND, paver: CFG.PAVER_SIZE, paveR,
+      treeLot: { x0: Math.min(-paveR, chip.x0), x1: Math.max(paveR, chip.x1), z0: -(r + SHED.D / 2) },
+    });
+    const shed = { kind: 'shed', p: [0, 0, -r], q: [0, 0, 0, 1] };
+    P.builds.unshift(shed);
+    P.pads.unshift({ x: 0, z: -r, r: Math.hypot(SHED.W, SHED.D) / 2 + 0.3, blend: CFG.TERRAIN_BLEND });
+    return (this.planned = P);
   }
 
   /**
-   * Put the shed and fences up, intact, for the current tree (with every new tree), on the ground as it
-   * is: a shed at the highest ground under its footprint (its pad makes that level), and each fence
-   * section level at the lower of its two posts, so a run steps down a slope and its posts go deeper
-   * into the ground on the uphill side.
+   * Put the planned builds up, intact (with every new tree), on the ground as it is: a shed at the highest
+   * ground under its footprint (its pad makes that level), a house on a foundation that reaches down below
+   * the lowest ground under it, and each fence section level at the lower of its two posts, so a run steps
+   * down a slope and its posts go deeper into the ground on the uphill side.
    */
   place() {
-    const sim = this.sim, list = this.planned || this.sites();
+    const sim = this.sim, w = sim.world, list = (this.planned || this.plan()).builds.map((b) => ({ ...b, id: w.newId(), p: b.p.slice() }));
     this.planned = null;
     for (const b of list) {
       const toW = (l) => { const r = qrot(b.q, l); return [b.p[0] + r[0], b.p[2] + r[2]]; };
       if (b.kind.startsWith('fence:')) {
-        const span = FENCE[b.kind.slice(6)].SPAN, post = [];
+        const span = b.span || FENCE[b.kind.slice(6)].SPAN, post = [];
         for (let i = 0; i <= b.n; i++) { const [x, z] = toW([i * span, 0, 0]); post.push(sim.groundY(x, z)); }
         b.p[1] = post[0];
         b.ys = []; for (let i = 0; i < b.n; i++) b.ys.push(+(Math.min(post[i], post[i + 1]) - b.p[1]).toFixed(4));
       } else {
-        const { W, D } = SHED, foot = [[-W / 2, -D / 2], [W / 2, -D / 2], [W / 2, D / 2], [-W / 2, D / 2]].map(([x, z]) => toW([x, 0, z]));
-        b.p[1] = +groundRange(sim.world.terrain, foot).hi.toFixed(4);
+        const g = groundRange(w.terrain, footprint(b));
+        if (b.kind === 'house') {
+          b.p[1] = +(g.hi + CFG.HOUSE_RAISE).toFixed(4);
+          b.h = { ...b.h, depth: +(b.p[1] - g.lo + 0.3).toFixed(3) };
+        } else b.p[1] = +g.hi.toFixed(4);
       }
     }
     sim.emit({ t: 'builds', list });
@@ -104,13 +108,14 @@ export class Builds {
     }
   }
 
-  /** Colliders for intact module i of build b, on body. */
+  /** Colliders for intact module i of build b, on body: its parts merged where they line up (model/builds.js modProxies). */
   addModule(b, i, body) {
     const sim = this.sim, R = sim.R, m = b.mods[i], cols = [];
-    for (const pt of m.parts) {
+    let px = this.proxies.get(m); if (!px) this.proxies.set(m, px = modProxies(m));
+    for (const pt of px) {
       const f = compose(m.p, m.q, pt.c, pt.q);
       const d = R.ColliderDesc.cuboid(pt.h[0], pt.h[1], pt.h[2]).setTranslation(f.p[0], f.p[1], f.p[2])
-        .setRotation({ x: f.q[0], y: f.q[1], z: f.q[2], w: f.q[3] }).setMass(partMass(pt, CFG.SHED_DENSITY)).setFriction(0.7).setRestitution(0.1)
+        .setRotation({ x: f.q[0], y: f.q[1], z: f.q[2], w: f.q[3] }).setMass(pt.v * CFG.SHED_DENSITY).setFriction(0.7).setRestitution(0.1)
         .setActiveEvents(R.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(CONTACT_EVENT_F);
       const c = sim.rapier.createCollider(d, body);
       cols.push(c); this.colMod.set(c.handle, [b.id, i]);

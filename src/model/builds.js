@@ -6,7 +6,7 @@
 // either intact (rigid, simple collision, no physics of its own) or broken
 // (its parts are loose bodies). A shed is one module; a bigger structure is
 // several modules with glue between them, so one part of it can be smashed
-// while the rest stands: a fence is one module per section.
+// while the rest stands: a fence is one module per section, a house one per room.
 //
 // Every intact module is in a BODY. Modules glued, directly or through other
 // intact modules, to a module that stands on the ground (ground: true) are in
@@ -18,7 +18,8 @@
 //
 // world.builds = [{id, kind, p:[3], q:[4], mods: [mod...], glue: [[i, j]...],
 //                  bodies: {id: {p, q}} (loose bodies, as they started)}]
-// mod = {p, q, ground, shape ('shed' or a fence style), end (a fence's last section),
+// mod = {p, q, ground, shape ('shed', a fence style, 'room' or 'found'), end (a fence's last section),
+//        s (a room's or foundation's shape parameters),
 //        parts: [part...] (from its shape, module-local),
 //        body: id of the body it is in while intact,
 //        ids: null while intact, else [body id of each part] once broken,
@@ -94,19 +95,20 @@ export function shedParts() {
 
 // ---- fences: one module per section between posts ----
 // Module frame: origin on the ground at the section's first post, the fence
-// runs along +x for SPAN, +z is its good face. Each section has its first
-// post; the last section of a run also has the post that closes it.
+// runs along +x for SPAN (or the run's own span), +z is its good face. Each section has its first
+// post (unless the run starts on a post another run already has); the last section of a run also
+// has the post that closes it (`end`, likewise).
 export const FENCE = {
   rail2: { SPAN: 2.44, H: 1.2, POST: 0.09, RAILS: [0.45, 1.0], RAIL: [0.04, 0.14] },          // two-rail: square posts, two boards on edge
   split: { SPAN: 3.0, H: 1.3, POST: 0.16, RAILS: [0.35, 0.75, 1.1], RAIL: [0.1, 0.12] },      // split rail: rough posts and split logs
   privacy: { SPAN: 2.44, H: 1.83, POST: 0.09, RAILS: [0.25, 0.95, 1.6], RAIL: [0.04, 0.09], PICKET: [0.14, 0.016] },  // 6 ft privacy: pickets nailed to three rails
 };
 
-export function fenceParts(style, end) {
-  const F = FENCE[style], P = F.POST, out = [], gap = 0.004;
+export function fenceParts(style, end, span = FENCE[style].SPAN, start = true) {
+  const F = { ...FENCE[style], SPAN: span }, P = F.POST, out = [], gap = 0.004;
   const box = (x0, x1, y0, y1, z0, z1, mat, q = I) => out.push({ c: [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2], h: [(x1 - x0) / 2, (y1 - y0) / 2, (z1 - z0) / 2], q, mat });
   const post = (x) => box(x - P / 2, x + P / 2, 0, F.H + (style === 'split' ? 0.08 : 0), -P / 2, P / 2, style === 'split' ? 'rough' : 'post');
-  post(0); if (end) post(F.SPAN);
+  if (start) post(0); if (end) post(F.SPAN);
   const x0 = P / 2 + gap, x1 = F.SPAN - P / 2 - gap, [rt, rh] = F.RAIL;
   F.RAILS.forEach((y, i) => {
     if (style === 'split') {                 // a split log, turned a little about its length so the rails are not all alike
@@ -125,36 +127,213 @@ export function fenceParts(style, end) {
   return out;
 }
 
+// ---- houses: one module per room, on a foundation ----
+// A house is a grid of rooms (nx along its x, nz along its z, st storeys; `cut` [ix, iz] leaves one corner
+// room out for an L), with a gable roof whose ridge runs along x through the middle of its depth. Its frame:
+// origin at the bottom of the ground floor in the middle of the grid, +z is the front (the street side),
+// where the door is, in front room column `door`. Every room is a module, glued to its neighbours on its
+// storey and to the room under it; the ground floor's rooms are glued to the FOUNDATION, a module that
+// stands on the ground and does not break (concrete), so a room only comes loose when every glued path from
+// it to the foundation is gone.
+//
+// house spec (build.h) = {nx, nz, st, cut, door, rw, rd, pitch, depth}
+//   rw, rd   m, room size along x and z;  pitch: roof rise per m;  depth: m of foundation under the floor
+//            (down to below the lowest ground under the house; set when it is put up)
+export const HOUSE = { WH: 2.6, T: 0.1, FL: 0.12, ROOF_T: 0.06, OVER: 0.4, DOOR: 0.95, DOOR_H: 2.05, WIN: 1.1, SILL: 0.9, WIN_TOP: 2.05, PANEL: 1.3, GABLE: 0.25 };
+
+/** The rooms of a house: [{ix, iz, k (storey)}], and a lookup has(ix, iz). */
+export function houseRooms(h) {
+  const has = (ix, iz) => ix >= 0 && ix < h.nx && iz >= 0 && iz < h.nz && !(h.cut && h.cut[0] === ix && h.cut[1] === iz);
+  const out = [];
+  for (let k = 0; k < h.st; k++) for (let iz = 0; iz < h.nz; iz++) for (let ix = 0; ix < h.nx; ix++) if (has(ix, iz)) out.push({ ix, iz, k });
+  return { list: out, has };
+}
+
+/** Footprint corners of a house in its own frame (the whole grid, overhangs left out). */
+export function houseFoot(h) {
+  const W = h.nx * h.rw / 2, D = h.nz * h.rd / 2;
+  return [[-W, -D], [W, -D], [W, D], [-W, D]];
+}
+
+function houseLayout(h) {
+  const { WH } = HOUSE, R = houseRooms(h), mods = [], glue = [], at = new Map();
+  const cx = (ix) => (ix - (h.nx - 1) / 2) * h.rw, cz = (iz) => (iz - (h.nz - 1) / 2) * h.rd;
+  // the foundation: one slab under each ground-floor room
+  mods.push({ p: [0, 0, 0], q: I, ground: true, shape: 'found', s: { cells: R.list.filter((r) => !r.k).map((r) => [cx(r.ix), cz(r.iz), h.rw, h.rd]), depth: h.depth } });
+  for (const r of R.list) {
+    const top = r.k === h.st - 1, nb = (dx, dz) => R.has(r.ix + dx, r.iz + dz);
+    // a wall on each outside edge, and an inside wall (with a doorway) on the +x and +z edges where there is a neighbour
+    const walls = {
+      nx: nb(-1, 0) ? 0 : 'ext', px: nb(1, 0) ? 'int' : 'ext',
+      nz: nb(0, -1) ? 0 : 'ext', pz: nb(0, 1) ? 'int' : (!r.k && r.iz === h.nz - 1 && r.ix === h.door ? 'door' : 'ext'),
+    };
+    const s = {
+      w: h.rw, d: h.rd, walls,
+      roof: top ? { mz: cz(r.iz), half: h.nz * h.rd / 2, top: WH, pitch: h.pitch, over: { nx: !nb(-1, 0), px: !nb(1, 0), nz: !nb(0, -1), pz: !nb(0, 1) } } : null,
+    };
+    at.set(`${r.ix},${r.iz},${r.k}`, mods.length);
+    mods.push({ p: [cx(r.ix), r.k * (WH + 0.01), cz(r.iz)], q: I, ground: false, shape: 'room', s });
+  }
+  for (const r of R.list) {
+    const i = at.get(`${r.ix},${r.iz},${r.k}`);
+    for (const [dx, dz, dk] of [[1, 0, 0], [0, 1, 0], [0, 0, 1]]) { const j = at.get(`${r.ix + dx},${r.iz + dz},${r.k + dk}`); if (j !== undefined) glue.push([i, j]); }
+    if (!r.k) glue.push([0, i]);
+  }
+  return { mods, glue };
+}
+
+/** The foundation's parts: a concrete slab under each ground-floor room, from the floor down `depth`. */
+export function foundParts(s) {
+  return s.cells.map(([x, z, w, d]) => ({ c: [x, -s.depth / 2, z], h: [w / 2, s.depth / 2, d / 2], q: I, mat: 'found' }));
+}
+
+/** One room's parts (module frame: origin on its floor's underside in its middle, +z the house's front). */
+export function roomParts(s) {
+  const { WH, T, FL, ROOF_T, OVER, DOOR, DOOR_H, WIN, SILL, WIN_TOP, PANEL, GABLE } = HOUSE, out = [], gap = 0.004;
+  const { w, d, walls, roof } = s, W = w / 2, D = d / 2;
+  const box = (x0, x1, y0, y1, z0, z1, mat, q = I) => { if (x1 - x0 > 0.01 && y1 - y0 > 0.01 && z1 - z0 > 0.01) out.push({ c: [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2], h: [(x1 - x0) / 2, (y1 - y0) / 2, (z1 - z0) / 2], q, mat }); };
+  // underside of the roof at module z (room-local): rises from the eaves to the ridge
+  const roofY = (z) => roof.top + roof.pitch * (roof.half - Math.abs(z + roof.mz));
+  // floor: two boards inside the walls this room owns
+  const fx0 = -W + (walls.nx ? T : 0), fx1 = W - (walls.px ? T : 0), fz0 = -D + (walls.nz ? T : 0), fz1 = D - (walls.pz ? T : 0);
+  for (let i = 0; i < 2; i++) { const a = fz0 + (fz1 - fz0) * i / 2, b = fz0 + (fz1 - fz0) * (i + 1) / 2; box(fx0, fx1, 0, FL, a + gap, b - gap, 'floor'); }
+
+  // A wall along one edge: span [a0, a1] along it, `put(a0, a1, y0, y1, mat)` makes a box over that stretch.
+  // Openings (door, window, doorway) are cut out; the solid wall is panels at most PANEL wide.
+  const wall = (type, a0, a1, put, alongZ, zAt) => {
+    const L = a1 - a0, mid = (a0 + a1) / 2, op = [];
+    if (type === 'door') { op.push({ c: mid - L / 4, w: DOOR, y0: FL, y1: DOOR_H, mat: 'door' }); if (L > 3.2) op.push({ c: mid + L / 4, w: WIN, y0: SILL, y1: WIN_TOP, mat: 'glass' }); }
+    else if (type === 'int') op.push({ c: mid, w: DOOR, y0: FL, y1: DOOR_H, mat: null });
+    else if (L > 2.2) op.push({ c: mid, w: Math.min(WIN, L - 1.2), y0: SILL, y1: WIN_TOP, mat: 'glass' });
+    const solid = (b0, b1, y0, y1, step) => { const n = Math.max(1, Math.ceil((b1 - b0) / step - 1e-6)); for (let i = 0; i < n; i++) put(b0 + (b1 - b0) * i / n + gap, b0 + (b1 - b0) * (i + 1) / n - gap, y0, y1, 'wall'); };
+    let a = a0;
+    for (const o of op) {
+      const o0 = o.c - o.w / 2, o1 = o.c + o.w / 2;
+      solid(a, o0, 0, WH, PANEL);
+      if (o.y0 > FL) put(o0 + gap, o1 - gap, 0, o.y0 - gap, 'wall');
+      if (o.mat) put(o0 + gap, o1 - gap, o.y0 + gap, o.y1 - gap, o.mat);
+      put(o0 + gap, o1 - gap, o.y1, WH, 'wall');
+      a = o1;
+    }
+    solid(a, a1, 0, WH, PANEL);
+    // under the roof, an outside wall goes on up to it (a gable end, or an eaves wall that meets the roof high up)
+    if (roof && type !== 'int') {
+      const step = alongZ ? GABLE : PANEL, n = Math.max(1, Math.ceil(L / step - 1e-6));
+      for (let i = 0; i < n; i++) {
+        const b0 = a0 + L * i / n, b1 = a0 + L * (i + 1) / n, top = alongZ ? Math.min(roofY(b0), roofY(b1)) : roofY(zAt);
+        if (top - WH > 0.05) put(b0 + gap, b1 - gap, WH + gap, top - gap, 'wall');
+      }
+    }
+  };
+  // walls along x (front pz, back nz) run the room's full width; walls along z fit between them
+  if (walls.pz) wall(walls.pz, -W, W, (a, b, y0, y1, m) => box(a, b, y0, y1, D - T, D, m), false, D - T);
+  if (walls.nz) wall(walls.nz, -W, W, (a, b, y0, y1, m) => box(a, b, y0, y1, -D, -D + T, m), false, -D + T);
+  const z0 = -D + (walls.nz ? T + gap : 0), z1 = D - (walls.pz ? T + gap : 0);
+  if (walls.px) wall(walls.px, z0, z1, (a, b, y0, y1, m) => box(W - T, W, y0, y1, a, b, m), true);
+  if (walls.nx) wall(walls.nx, z0, z1, (a, b, y0, y1, m) => box(-W, -W + T, y0, y1, a, b, m), true);
+
+  // roof: boards over this room, split at the ridge, overhanging where the house ends
+  if (roof) {
+    const o = roof.over, x0 = -W - (o.nx ? OVER : 0), x1 = W + (o.px ? OVER : 0);
+    const za = -D - (o.nz ? OVER : 0), zb = D + (o.pz ? OVER : 0), zr = -roof.mz, th = Math.atan(roof.pitch);
+    const spans = zr > za + 0.01 && zr < zb - 0.01 ? [[za, zr], [zr, zb]] : [[za, zb]];
+    const nb = Math.max(1, Math.round((x1 - x0) / 2.2)), bw = (x1 - x0) / nb;
+    for (const [p0, p1] of spans) {
+      const up = (p0 + p1) / 2 < zr, q = rotX(up ? -th : th), n = qrot(q, [0, 1, 0]), zc = (p0 + p1) / 2, yc = roofY(zc), hl = (p1 - p0) / 2 / Math.cos(th);
+      for (let i = 0; i < nb; i++) {
+        const x = x0 + (i + 0.5) * bw;
+        out.push({ c: [x + n[0] * ROOF_T / 2, yc + n[1] * ROOF_T / 2 + gap, zc + n[2] * ROOF_T / 2], h: [bw / 2 - gap, ROOF_T / 2, hl - gap], q, mat: 'roof' });
+      }
+    }
+  }
+  return out;
+}
+
 /** The parts of one module, from its shape. */
-export function modParts(m) { return m.shape === 'shed' ? shedParts() : fenceParts(m.shape, m.end); }
+export function modParts(m) {
+  if (m.shape === 'shed') return shedParts();
+  if (m.shape === 'room') return roomParts(m.s);
+  if (m.shape === 'found') return foundParts(m.s);
+  return fenceParts(m.shape, m.end, m.s?.span, m.s?.start ?? true);
+}
 
 /**
  * Kinds of build: module poses (build frame), shapes and glue. 'shed'; 'stack' (two sheds glued one on the
- * other, not placed by default); 'fence:<style>' with n sections in a row, each glued to the next.
+ * other, not placed by default); 'fence:<style>' with n sections in a row, each glued to the next
+ * (b.span: their length, else the style's; b.start / b.end false: no post at that end of the run); 'house' from b.h.
  */
-function layout(kind, n = 4) {
-  const S = SHED;
+function layout(b) {
+  const S = SHED, kind = b.kind, n = b.n || 4;
+  if (kind === 'house') return houseLayout(b.h);
   if (kind.startsWith('fence:')) {
-    const style = kind.slice(6), F = FENCE[style], mods = [], glue = [];
-    for (let i = 0; i < n; i++) { mods.push({ p: [i * F.SPAN, 0, 0], q: I, ground: true, shape: style, end: i === n - 1 }); if (i) glue.push([i - 1, i]); }
+    const style = kind.slice(6), span = b.span || FENCE[style].SPAN, mods = [], glue = [];
+    for (let i = 0; i < n; i++) {
+      const s = b.span ? { span, start: i > 0 || b.start !== false } : undefined;
+      mods.push({ p: [i * span, 0, 0], q: I, ground: true, shape: style, end: i === n - 1 && b.end !== false, s });
+      if (i) glue.push([i - 1, i]);
+    }
     return { mods, glue };
   }
   if (kind === 'stack') return { mods: [{ p: [0, 0, 0], q: I, ground: true, shape: 'shed' }, { p: [0, S.HF + S.ROOF_T + 0.01, 0], q: I, ground: false, shape: 'shed' }], glue: [[0, 1]] };
   return { mods: [{ p: [0, 0, 0], q: I, ground: true, shape: 'shed' }], glue: [] };
 }
 
-/** A build, fresh and intact, from {id, kind, p, q, n, ys}. ys: each module's height above p (a fence stepping down a slope). */
+/** A build, fresh and intact, from {id, kind, p, q, n, ys, h}. ys: each module's height above p (a fence stepping down a slope). */
 export function newBuild(b) {
-  const L = layout(b.kind, b.n);
+  const L = layout(b);
   if (b.ys) L.mods.forEach((m, i) => { if (b.ys[i]) m.p = [m.p[0], m.p[1] + b.ys[i], m.p[2]]; });
   return {
     id: b.id, kind: b.kind, p: b.p, q: b.q, glue: L.glue, bodies: {},
-    mods: L.mods.map((m) => ({ p: m.p, q: m.q, ground: m.ground, shape: m.shape, end: !!m.end, parts: modParts(m), body: b.id, ids: null, at: null })),
+    mods: L.mods.map((m) => ({ p: m.p, q: m.q, ground: m.ground, shape: m.shape, end: !!m.end, s: m.s, parts: modParts(m), body: b.id, ids: null, at: null })),
   };
 }
 
+/** Builds for a welcome message: the parts are left out (every machine makes them again from the shape). */
+export function packBuilds(list) { return list.map((b) => ({ ...b, mods: b.mods.map(({ parts, ...m }) => m) })); }
+export function unpackBuilds(list) { return (list || []).map((b) => ({ ...b, mods: b.mods.map((m) => ({ ...m, parts: m.parts || modParts(m) })) })); }
+
+/**
+ * The boxes an intact module collides as: its parts, with neighbours that line up merged into one box (wall
+ * panels into a wall, pickets into a fence panel, a window's sill, glass and lintel into a column), so a
+ * neighbourhood of thousands of boards is a few hundred colliders while it stands. Two boxes turned alike are
+ * merged when the box round both is no bigger than the two together (to MERGE_SLACK): they touch along a whole
+ * face. Each proxy is {c, h, q, v (volume of the parts in it)}. The parts themselves come back when it breaks.
+ */
+const MERGE_SLACK = 0.03;
+export function modProxies(m) {
+  const groups = new Map();
+  for (const pt of m.parts) {
+    const k = pt.q.map((x) => Math.round(x * 1e4)).join(',');
+    let g = groups.get(k); if (!g) groups.set(k, g = { q: pt.q, boxes: [] });
+    const c = qrot([-pt.q[0], -pt.q[1], -pt.q[2], pt.q[3]], pt.c);     // centre in the parts' own (shared) frame
+    g.boxes.push({ lo: [c[0] - pt.h[0], c[1] - pt.h[1], c[2] - pt.h[2]], hi: [c[0] + pt.h[0], c[1] + pt.h[1], c[2] + pt.h[2]], v: 8 * pt.h[0] * pt.h[1] * pt.h[2] });
+  }
+  const vol = (lo, hi) => (hi[0] - lo[0]) * (hi[1] - lo[1]) * (hi[2] - lo[2]);
+  const out = [];
+  for (const g of groups.values()) {
+    const B = g.boxes;
+    for (let merged = true; merged; ) {
+      merged = false;
+      for (let i = 0; i < B.length && !merged; i++) for (let j = i + 1; j < B.length; j++) {
+        const a = B[i], b = B[j], lo = a.lo.map((x, k) => Math.min(x, b.lo[k])), hi = a.hi.map((x, k) => Math.max(x, b.hi[k]));
+        if (vol(lo, hi) > (vol(a.lo, a.hi) + vol(b.lo, b.hi)) * (1 + MERGE_SLACK)) continue;
+        B[i] = { lo, hi, v: a.v + b.v }; B.splice(j, 1); merged = true; break;
+      }
+    }
+    for (const b of B) {
+      const c = qrot(g.q, [(b.lo[0] + b.hi[0]) / 2, (b.lo[1] + b.hi[1]) / 2, (b.lo[2] + b.hi[2]) / 2]);
+      out.push({ c, h: [(b.hi[0] - b.lo[0]) / 2, (b.hi[1] - b.lo[1]) / 2, (b.hi[2] - b.lo[2]) / 2], q: g.q, v: b.v });
+    }
+  }
+  return out;
+}
+
 /** Contact force (N) that breaks an intact module of this shape. */
-export function breakForce(m, CFG) { return m.shape === 'shed' ? CFG.SHED_BREAK_F : CFG.FENCE_BREAK_F; }
+export function breakForce(m, CFG) {
+  if (m.shape === 'found') return Infinity;
+  if (m.shape === 'room') return CFG.HOUSE_BREAK_F;
+  return m.shape === 'shed' ? CFG.SHED_BREAK_F : CFG.FENCE_BREAK_F;
+}
 
 /** Mass of a part (kg) at density rho. */
 export function partMass(pt, rho) { return 8 * pt.h[0] * pt.h[1] * pt.h[2] * rho; }
