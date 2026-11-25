@@ -772,3 +772,18 @@ push can come before they touch). A 1 t log dropped 3 m cracks pavers again.
 `rollResist` in `sim.js` reads the same impulses, so loose wood has had no
 rolling resistance on hilly ground since D62 either; it is not fixed here
 because that changes how logs roll.
+
+**D68 — A jump pushes off steep ground you are sliding on.** Owner: the jump
+was "frustratingly close" to clearing a 0.8 m ledge; allow another jump while
+sliding on the ledge. Rather than a ledge rule, jumping now needs only
+footing: any contact under the player whose normal is within `JUMP_SLOPE`
+(70°) of straight up. Standing (the ray down) jumps as before. Off steeper
+footing the jump is the walking velocity plus `JUMP` up, less any part going
+into the face, so the feet push off it, not through it. Walls (shed, house,
+fences, the trunk) are steeper than 70°, so they cannot be climbed by
+jumping: jumping at a shed wall for 5 s got no higher than one jump. Scripted
+runs at 30 ledges, jumping every 0.4 s while walking at them: 23 got up
+(0 before). About a third of attempts left the player briefly shaken (3 of 30
+before, with no climbing): landing at a little over `DV_SHAKEN` (4 m/s) after
+slamming into the face or falling back off it. The threshold was left alone.
+

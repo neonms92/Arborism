@@ -102,6 +102,7 @@ export const ROWS = [
   ['SAW_FEED', 'Feed speed in open air or an open kerf (m/s)', 0.02, 1, 0.01, 1, true],
   ['PINCH_STUCK', 'Kerf force that pinches the bar (N)', 200, 20000, 100, 1, true],
   ['Climber and rope'],
+  ['JUMP_SLOPE', 'Steepest ground you can still jump off while sliding (degrees)', 0, 90, 1, Math.PI / 180, true],
   ['P_MASS', 'Climber mass (kg)', 40, 400, 5, 1, true],
   ['STUB_LEN', 'Shortest branch that stops the lanyard at a union (m)', 0, 3, 0.05, 1, true],
   ['CLIMB_BOUNCE', 'Weight multiplier while moving on spurs', 1, 3, 0.1, 1, true],

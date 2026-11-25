@@ -263,6 +263,24 @@ export class Players {
     return out.join('   ');
   }
 
+  /** Is p touching anything under it no steeper than JUMP_SLOPE (something to push a jump off)? n: set to its normal. */
+  footing(p, n) {
+    const sim = this.sim, minY = Math.cos(CFG.JUMP_SLOPE);
+    let ok = false;
+    sim.rapier.contactPairsWith(p.col, (o) => {
+      if (ok) return;
+      sim.rapier.contactPair(p.col, o, (man, flipped) => {
+        if (ok || !man.numContacts()) return;
+        let close = false;
+        for (let i = 0, n = man.numContacts(); i < n; i++) if (man.contactDist(i) < 0.03) close = true;
+        // the manifold's normal points from its first collider to its second: from p down into what it stands on
+        const nm = man.normal(), sg = flipped ? 1 : -1, nx = nm.x * sg, ny = nm.y * sg, nz = nm.z * sg;
+        if (close && ny >= minY) { ok = true; if (n) n.set(nx, ny, nz); }
+      });
+    });
+    return ok;
+  }
+
   ground(p, inp, dt, control, pressed, aim) {
     const sim = this.sim, body = p.body, t = body.translation(), v = body.linvel();
     const hit = sim.rapier.castRay(new sim.R.Ray(t, { x: 0, y: -1, z: 0 }), CFG.P_HALF + CFG.P_RADIUS + 0.12, true,
@@ -281,6 +299,14 @@ export class Players {
       if (away > allow) { wx -= (away - allow) * ln.x; wz -= (away - allow) * ln.z; }
     }
     if (p.grounded) body.setLinvel({ x: wx, y: pressed.jump ? CFG.JUMP : v.y, z: wz }, true);
+    // sliding on ground too steep to stand on (a ledge face): a jump still pushes off it, so a ledge just over
+    // jump height can be scrambled up in two or three jumps; a wall (steeper than JUMP_SLOPE) gives no footing
+    // (the push has nothing into the face: the feet push off it, not through it)
+    else if (pressed.jump && (_c.set(0, 0, 0), this.footing(p, _c))) {
+      const j = _b.set(wx, Math.max(v.y, CFG.JUMP), wz), into = j.dot(_c);
+      if (into < 0) j.addScaledVector(_c, -into);
+      body.setLinvel({ x: j.x, y: j.y, z: j.z }, true);
+    }
     else body.setLinvel({ x: v.x + (wx - v.x) * 0.02, y: v.y, z: v.z + (wz - v.z) * 0.02 }, true);
 
     // what the buttons do depends on what is looked at (no tools)
