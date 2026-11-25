@@ -115,6 +115,7 @@ export const CFG = {
   // --- player ---
   P_MASS: 85, P_RADIUS: 0.28, P_HALF: 0.6,
   WALK: 3.5, JUMP: 3.4,
+  JUMP_SLOPE: 1.22,        // rad (70°): sliding on ground up to this steep (a ledge face), a jump still pushes off it
   CLIMB: 1.1,              // m/s along the stem
   AROUND: 1.4,             // m/s around the stem
   CLIMB_BOUNCE: 1.6,       // weight multiplier while moving on spurs
