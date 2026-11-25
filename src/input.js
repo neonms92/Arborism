@@ -1,11 +1,12 @@
-// Gamepad + keyboard/mouse -> one InputState per frame.
+// Gamepad + keyboard/mouse + touch -> one InputState per frame.
 // Held values are "latest wins"; button presses are COUNTERS (DESIGN.md 2.5).
 // Look angles and saw swing angles live here: they are applied locally and
-// sent to the host. `device` is whichever of 'kb' / 'pad' was touched last;
+// sent to the host. `device` is whichever of 'kb' / 'pad' / 'touch' was used last;
 // the HUD uses it to name controls.
 
 import { CFG } from './config.js';
 import { blankInput } from './sim/players.js';
+import { Touch } from './touch.js';
 
 const DEAD = 0.18;
 const dz = (v) => (Math.abs(v) < DEAD ? 0 : (v - Math.sign(v) * DEAD) / (1 - DEAD));
@@ -27,6 +28,8 @@ export class Input {
     this.sawOut = false;        // set by main: the local player's chainsaw is planted
     this.active = false;        // set by main: game running (not in lobby)
     this.device = 'kb';
+    this.touch = new Touch(this, canvas);    // on-screen controls (src/touch.js)
+    if (this.touch.on) this.device = 'touch';
     window.addEventListener('keydown', (e) => {
       this.device = 'kb';
       if (!this.active || e.repeat) return;
@@ -58,6 +61,13 @@ export class Input {
     let mx = (k.has('KeyF') ? 1 : 0) - (k.has('KeyS') ? 1 : 0), my = (k.has('KeyE') ? 1 : 0) - (k.has('KeyD') ? 1 : 0);
     for (const f in HOLD) s[f] = k.has(HOLD[f][0]) ? 1 : 0;
     let lx = 0, ly = 0, rt = this.mouse.l ? 1 : 0, lt = this.mouse.r ? 1 : 0;
+    let tdx = 0, tdy = 0;
+    if (this.touch.on) {
+      const t = this.touch.take();
+      mx += t.mx; my += t.my; tdx = t.dx; tdy = t.dy;
+      rt = Math.max(rt, t.rt); lt = Math.max(lt, t.lt);
+      if (t.hi) s.hi = 1; if (t.hd) s.hd = 1;
+    }
 
     const pads = [...(navigator.getGamepads?.() || [])].filter((p) => p && p.connected);
     const pad = pads.find((p) => p.mapping === 'standard') || pads[0];
@@ -84,12 +94,12 @@ export class Input {
       // saw planted: the view holds still and the same controls pivot the bar instead.
       // The host only uses how much these change, so they are free-running angles.
       const perPx = CFG.SAW_SENS / Math.max(600, window.innerWidth);
-      s.sy += -lx * CFG.SAW_SENS * 0.5 * dt - this.mouse.dx * perPx;
-      s.sp += inv * (ly * CFG.SAW_SENS * 0.5 * dt + this.mouse.dy * perPx);
+      s.sy += -lx * CFG.SAW_SENS * 0.5 * dt - (this.mouse.dx + tdx * CFG.TOUCH_SAW_SENS) * perPx;
+      s.sp += inv * (ly * CFG.SAW_SENS * 0.5 * dt + (this.mouse.dy + tdy * CFG.TOUCH_SAW_SENS) * perPx);
     } else {
       s.sy = s.sp = 0;
-      s.yaw -= lx * 2.6 * dt + this.mouse.dx * CFG.LOOK_SENS;
-      s.pitch = clamp(s.pitch + inv * (ly * 2.0 * dt + this.mouse.dy * CFG.LOOK_SENS), -1.5, 1.5);
+      s.yaw -= lx * 2.6 * dt + this.mouse.dx * CFG.LOOK_SENS + tdx * CFG.TOUCH_LOOK_SENS;
+      s.pitch = clamp(s.pitch + inv * (ly * 2.0 * dt + this.mouse.dy * CFG.LOOK_SENS + tdy * CFG.TOUCH_LOOK_SENS), -1.5, 1.5);
     }
     this.mouse.dx = this.mouse.dy = 0;
     s.mx = clamp(mx, -1, 1); s.my = clamp(my, -1, 1);

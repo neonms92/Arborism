@@ -18,7 +18,8 @@ URL parameters: `?solo` (start immediately), `?host=CODE`, `?join=CODE`,
 `?seed=N` (tree), `?signal=host:port` (own PeerJS server), `?ice=<json>`
 (extra STUN/TURN servers), `?test=FM-10,...|all&mode=smoke|must|explore|sweep`
 (engine tests, headless; docs/TESTS.md section 8), `?view=FM-10` (watch that
-test's default point, touch controls for phones).
+test's default point, touch controls for phones); its Saw button cuts by finger),
+`?touch` / `?touch=0` (force the on-screen touch controls on / off).
 
 Two-player test on one machine without the public signaling server:
 

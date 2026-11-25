@@ -13,7 +13,8 @@ import { summarise, boundary } from './report.js';
 import { runCase } from './runcase.js';
 import { segMass, segCentroidT, lerp3 } from '../model/world.js';
 import { ROWS } from '../view/menu.js';
-import { CFG_DEFAULTS } from '../config.js';
+import { CFG, CFG_DEFAULTS } from '../config.js';
+import { sawStep } from '../sim/saw.js';
 
 // Tunings made in the viewer's Tune panel: CFG values that every run started from this menu uses (viewer
 // replays and batches), unless the test sets that key itself. Kept in this browser.
@@ -310,6 +311,7 @@ class Testing {
     const { View } = await import('../view/view.js');
     const THREE = await import('three');
     const canvas = el('canvas'), hud = el('div', { class: 'hud' }), title = el('div', { class: 'title' });
+    let gameCfg = null;          // the game's settings, while the viewer runs on past the end of a test with the saw
     let speed = 1, paused = false, closed = false, gen = 0, vw = null, ctxNow = null, params = null;
     let wall0 = performance.now(), sim0 = 0, lastDraw = 0, done = null, camView = null, camTouched = false;
     const speeds = [[1, '1×'], [4, '4×'], [Infinity, 'Max'], [0.25, '¼×']];
@@ -432,10 +434,15 @@ class Testing {
       if (showPanel && showTune) tbtn.onclick();
     } }, 'Params');
     if (!sliders.length) pbtn.style.display = 'none';
+    // ---- Saw (prototype of draw-to-cut, STATUS.md): put a finger on the wood to plant the bar there, drag to pivot it,
+    // and hold a second finger anywhere to run the chain and press it in. Lift the first finger to take the bar off.
+    // Mouse: left button plants and drags, hold Space to cut. The run keeps going after the test is done while Saw is on.
+    let sawMode = false;
+    const sawb = el('button', { title: 'Cut with your fingers (prototype)', onclick: () => { sawMode = !sawMode; sawb.classList.toggle('on', sawMode); if (!sawMode) sawLift(); } }, 'Saw');
 
     const wrapEl = el('div', { id: 'tview' }, canvas, hud, panel, tunePanel,
       el('div', { class: 'top' }, el('button', { title: 'Back to the test list', onclick: () => close() }, '‹ Tests'), title),
-      el('div', { class: 'bot' }, el('button', { onclick: () => replay() }, 'Replay'), pb, spb, pbtn, tbtn, plb, ib));
+      el('div', { class: 'bot' }, el('button', { onclick: () => replay() }, 'Replay'), pb, spb, sawb, pbtn, tbtn, plb, ib));
     document.body.append(wrapEl);
 
     // ---- camera: an orbit about a target; dolly moves the camera, and carries the target along once it gets close
@@ -456,12 +463,61 @@ class Testing {
       cam.target = cam.target.map((x, i) => x - right[i] * dx * k + up[i] * dy * k);
     };
     const orbit = (dx, dy) => { cam.yaw -= dx * 0.007; cam.pitch = Math.max(-1.4, Math.min(1.5, cam.pitch + dy * 0.007)); };
+    // the saw: a stand-in climber with no body, whose eyes are 1 m back from where the finger met the wood
+    const saw = { err: '', id: null, run: new Set(), key: false, p: null, inp: null, eye: null, mesh: null };
+    const sawLift = () => { saw.id = null; saw.run.clear(); if (saw.inp) saw.inp.lt = saw.inp.rt = 0; };
+    const sawPlant = (e) => {
+      if (!vw || !ctxNow) return false;
+      const r = canvas.getBoundingClientRect(), c = vw.camera;
+      const d = new THREE.Vector3(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1, 0.5).unproject(c).sub(c.position).normalize();
+      const hit = ctxNow.sim.ray(c.position.clone(), d, 200);
+      if (!hit) return false;
+      saw.eye = { o: hit.point.clone().addScaledVector(d, -1), d, aim: { seg: hit.seg, point: hit.point, dist: 1 } };
+      saw.p = { saw: { on: false }, prompt: '' };
+      saw.inp = { lt: 1, rt: 0, sy: 0, sp: 0, yaw: cam.yaw };
+      saw.id = e.pointerId;
+      return true;
+    };
+    const sawTick = (c) => {
+      if (!saw.p || c !== ctxNow) return;
+      if (saw.inp.lt > 0) saw.inp.rt = saw.run.size || saw.key ? 1 : 0;
+      const ps = Object.create(c.sim);            // the same sim, seen through the stand-in's eyes
+      ps.eye = () => ({ o: saw.eye.o.clone(), d: saw.eye.d.clone() });
+      sawStep(ps, saw.p, saw.inp, CFG.TICK, true, saw.p.saw.on ? null : saw.eye.aim);
+      if (!saw.p.saw.on && saw.inp.lt === 0) saw.p = null;
+    };
+    const drawSaw = () => {
+      if (saw.mesh && saw.mesh.parent !== vw.scene) saw.mesh = null;
+      if (!saw.mesh) {
+        saw.mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xff8a20, depthTest: false, transparent: true, opacity: 0.85 }));
+        saw.mesh.renderOrder = 11; saw.mesh.matrixAutoUpdate = false; vw.scene.add(saw.mesh);
+      }
+      const sw = saw.p && saw.p.saw;
+      saw.mesh.visible = !!(sw && sw.on);
+      if (!saw.mesh.visible) return;
+      const y = new THREE.Vector3().crossVectors(sw.f, sw.b);
+      saw.mesh.material.color.set(sw.stuck ? 0xff2020 : sw.cutting ? 0xffe040 : 0xff8a20);
+      saw.mesh.matrix.makeBasis(sw.b, y, sw.f).scale(new THREE.Vector3(CFG.BAR_LEN, 0.012, 0.07)).setPosition(sw.A.clone().addScaledVector(sw.f, 0.035));
+    };
+    addEventListener('keydown', (e) => { if (e.code === 'Space' && sawMode) { saw.key = true; e.preventDefault(); } });
+    addEventListener('keyup', (e) => { if (e.code === 'Space') saw.key = false; });
     const pts = new Map();
     let lastTap = 0, moved = 0, g2 = null;
     const two = () => { const [a, b] = [...pts.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
-    canvas.onpointerdown = (e) => { g2 = null; try { canvas.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ } pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = 0; };
+    canvas.onpointerdown = (e) => {
+      if (sawMode) {
+        if (saw.id !== null) { saw.run.add(e.pointerId); return; }          // a second finger: run the chain
+        if (sawPlant(e)) { try { canvas.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ } pts.set(e.pointerId, { x: e.clientX, y: e.clientY, saw: true }); return; }
+      }
+      g2 = null; try { canvas.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ } pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = 0; };
     canvas.onpointermove = (e) => {
       const p = pts.get(e.pointerId); if (!p) return;
+      if (p.saw) {
+        // same feel as the game's mouse: SAW_SENS turns per screen width, times the touch factor
+        const perPx = CFG.SAW_SENS / Math.max(600, innerWidth) * (e.pointerType === 'mouse' ? 1 : CFG.TOUCH_SAW_SENS), inv = CFG.INVERT_Y ? 1 : -1;
+        saw.inp.sy -= (e.clientX - p.x) * perPx; saw.inp.sp += inv * (e.clientY - p.y) * perPx;
+        p.x = e.clientX; p.y = e.clientY; return;
+      }
       if (pts.size === 1 && e.pointerType === 'mouse' && (e.buttons & 6 || e.shiftKey)) {   // right / middle / shift drag pans
         pan(e.clientX - p.x, e.clientY - p.y); moved += 99; p.x = e.clientX; p.y = e.clientY; camTouched = true; return;
       }
@@ -481,6 +537,8 @@ class Testing {
       moved += 99; camTouched = true;
     };
     const up = (e) => {
+      saw.run.delete(e.pointerId);
+      if (e.pointerId === saw.id) { pts.delete(e.pointerId); sawLift(); return; }
       if (!pts.delete(e.pointerId)) return;
       if (pts.size < 2) g2 = null;
       if (pts.size || e.type === 'pointercancel') return;
@@ -507,6 +565,7 @@ class Testing {
       if (closed) return;
       closed = true; gen++;
       removeEventListener('popstate', onPop);
+      if (gameCfg) Object.assign(CFG, gameCfg);
       if (vw) { vw.renderer.dispose(); vw.renderer.forceContextLoss?.(); }
       wrapEl.remove();
       if (!fromPop) history.back();
@@ -553,6 +612,7 @@ class Testing {
       const sim = ctx.sim, U = ctx.worstU();
       vw.update(1 / 60, { pose: (id) => sim.pose(id), get flex() { return sim.structure.flex; } }, sim.aux(), -1, null);
       drawPlumbs(sim);
+      drawSaw();
       // one step of a comparison test may have nothing of its own to judge: its checks are across the batch
       const v = done ? (done.metrics && done.metrics.one && !done.criteria.length ? 'one step' : done.verdict === 'explore' ? (done.wouldPass ? 'pass' : 'fail') : done.verdict) : null;
       title.replaceChildren(el('b', {}, `${rec.test} ${T.title}`),
@@ -563,12 +623,14 @@ class Testing {
         `run ${ctx === ctxNow ? '' : '(earlier) '}t = ${ctx.t.toFixed(2)} s   pieces ${sim.world.pieces.size}   live bundles ${sim.structure.live.size}   splits ${ctx.splits.length}\n` +
         `worst U ${U.U.toFixed(3)}   step ${ctx.stepMs.length ? ctx.stepMs[ctx.stepMs.length - 1].toFixed(2) : 0} ms` +
         (done ? `\n\nverdict: ${done.verdict}${done.failed.length ? '\nfailed: ' + done.failed.join('\n        ') : ''}${done.breach ? '\n' + done.breach.inv + ': ' + done.breach.detail : ''}${done.error ? '\n' + done.error.split('\n')[0] : ''}` : '') +
+        (sawMode ? `\n\nSAW: finger on the wood plants the bar · drag pivots it · hold a second finger (or Space) to cut · lift to take it off${saw.p && saw.p.prompt && /PINCH/.test(saw.p.prompt) ? '\nBAR PINCHED' : ''}${saw.err ? '\n' + saw.err : ''}` : '') +
         '\n\none finger: orbit · pinch: move forward / back · two fingers: pan · double tap: reset camera'
         + '\nmouse: drag orbit · right drag: pan · wheel: forward / back · trackpad swipe: pan'
         + '\nplumb: yellow = centre of gravity straight down, cyan = the cut (hinge) straight down';
     };
     const start = async () => {
       const my = ++gen;
+      if (gameCfg) { Object.assign(CFG, gameCfg); gameCfg = null; }
       done = null; ctxNow = null;
       const frame = async (ctx) => {
         if (my !== gen) throw { abort: true };
@@ -582,6 +644,8 @@ class Testing {
       const onCtx = (ctx, p) => {
         if (my !== gen) return;
         params = p; ctxNow = ctx; sim0 = 0; wall0 = performance.now();
+        saw.p = null; saw.err = ''; sawLift();
+        ctx.actions.push(sawTick);
         if (vw) { vw.renderer.dispose(); }
         vw = new View(canvas, ctx.world);
         const v = T.view ? T.view(p) : null;
@@ -596,7 +660,19 @@ class Testing {
       const r = await runCase({ test: rec.test, params: rec.params, seed: rec.seed, mode: 'view', cfg: tuned() }, { frame, onCtx });
       if (my !== gen) return;
       done = r;
-      while (my === gen && !closed) { if (ctxNow) draw(ctxNow); await raf(); }
+      // with the saw on, the world carries on after the test has finished (at the test's own settings)
+      let t0 = performance.now(), broke = false;
+      while (my === gen && !closed) {
+        const now = performance.now();
+        if (sawMode && ctxNow && !paused && !broke) {
+          if (!gameCfg) { gameCfg = { ...CFG }; Object.assign(CFG, r.cfg); }
+          let n = Math.min(4, Math.round((now - t0) * Math.min(4, speed) / 1000 / CFG.TICK));
+          if (n > 0) t0 = now;
+          try { while (n-- > 0) ctxNow.stepOnce(); } catch (err) { broke = true; saw.err = `stopped: ${err.inv || ''} ${String(err.detail || err).split('\n')[0]}`; }
+        } else t0 = now;
+        if (ctxNow) draw(ctxNow);
+        await raf();
+      }
     };
     const replay = () => {
       if (closed) return;
