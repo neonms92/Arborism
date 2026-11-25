@@ -13,7 +13,7 @@ import { summarise, boundary } from './report.js';
 import { runCase } from './runcase.js';
 import { segMass, segCentroidT, lerp3 } from '../model/world.js';
 import { ROWS } from '../view/menu.js';
-import { CFG, CFG_DEFAULTS } from '../config.js';
+import { CFG, TEST_DEFAULTS } from '../config.js';
 import { sawStep } from '../sim/saw.js';
 
 // Tunings made in the viewer's Tune panel: CFG values that every run started from this menu uses (viewer
@@ -402,14 +402,14 @@ class Testing {
       for (const r of rows) {
         if (r.length === 1) { tunePanel.append(el('div', { class: 'grp' }, r[0])); continue; }
         const [key, label, min, max, step, scale] = r;
-        if (!(key in CFG_DEFAULTS) || typeof CFG_DEFAULTS[key] !== 'number' || key.startsWith('@')) continue;
-        const cur = () => (key in loadTune() ? loadTune()[key] : CFG_DEFAULTS[key]);
+        if (!(key in TEST_DEFAULTS) || typeof TEST_DEFAULTS[key] !== 'number' || key.startsWith('@')) continue;
+        const cur = () => (key in loadTune() ? loadTune()[key] : TEST_DEFAULTS[key]);
         const lab = el('span', { class: 'lab', title: label }), inp = el('input', { type: 'range' }), nb = el('input', { type: 'number' });
         for (const i of [inp, nb]) { i.min = min; i.max = max; i.step = step; }
         const show = () => { const v = +(cur() / scale).toFixed(4); inp.value = v; nb.value = v; lab.textContent = label; lab.classList.toggle('changed', key in loadTune()); };
         const set = (v) => {
           const t2 = loadTune(), x = v * scale;
-          if (Math.abs(x - CFG_DEFAULTS[key]) <= Math.abs(CFG_DEFAULTS[key]) * 1e-9) delete t2[key]; else t2[key] = x;
+          if (Math.abs(x - TEST_DEFAULTS[key]) <= Math.abs(TEST_DEFAULTS[key]) * 1e-9) delete t2[key]; else t2[key] = x;
           saveTune(t2); buildTune(); replay();
         };
         inp.oninput = () => { nb.value = inp.value; };
