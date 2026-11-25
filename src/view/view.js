@@ -43,8 +43,10 @@ export class View {
     this.renderer.shadowMap.enabled = true;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x9fc4e0);
-    this.scene.fog = new THREE.Fog(0x9fc4e0, 40, 140);
+    this.fog = new THREE.Fog(0x9fc4e0, 40, 140);   // the sky's colour, so fully fogged ground meets the sky with no seam
     this.camera = new THREE.PerspectiveCamera(72, 1, 0.05, 300);
+    this.drawDist = CFG.DRAW_DIST;   // m, now: CFG.DRAW_DIST, ridden down towards CFG.DRAW_DIST_MIN while frames are slow (adaptDraw)
+    this.frameMs = 0; this.lastFrame = 0;
     this.camera.position.set(6, 3, 9); this.camera.lookAt(0, 4, 0);
 
     this.scene.add(new THREE.HemisphereLight(0xdfeeff, 0x4a5a3a, 1.2));
@@ -436,7 +438,31 @@ export class View {
       }
       this.camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, roll, 'YXZ'));
     }
+    this.adaptDraw();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * Draw distance: the far plane sits at this.drawDist, which is CFG.DRAW_DIST while the frame rate keeps
+   * up. While the smoothed frame rate is under CFG.DRAW_FPS it shrinks (CFG.DRAW_ADAPT of itself per second)
+   * towards CFG.DRAW_DIST_MIN; once it is 10% over, it grows back five times slower. The gap between the two
+   * keeps it from hunting. Fog in the sky's colour runs from CFG.FOG_START of the distance to just short of
+   * it, so what the far plane clips has already faded out (CFG.AUTO_FOG; off = no fog at all).
+   */
+  adaptDraw() {
+    const now = performance.now(), ft = now - this.lastFrame; this.lastFrame = now;
+    const max = CFG.DRAW_DIST, min = Math.min(CFG.DRAW_DIST_MIN, max);
+    if (ft > 0 && ft < 250) {                     // not the first frame, nor the return to a hidden tab
+      this.frameMs = this.frameMs ? this.frameMs + (ft - this.frameMs) * 0.05 : ft;   // about the last 20 frames
+      const fps = 1000 / this.frameMs, s = ft / 1000;
+      if (fps < CFG.DRAW_FPS) this.drawDist *= Math.exp(-CFG.DRAW_ADAPT * s);
+      else if (fps > CFG.DRAW_FPS * 1.1) this.drawDist *= Math.exp(CFG.DRAW_ADAPT * 0.2 * s);
+    }
+    this.drawDist = Math.min(max, Math.max(min, this.drawDist));
+    const d = this.drawDist, cam = this.camera;
+    if (Math.abs(cam.far - d) > 0.01) { cam.far = d; cam.updateProjectionMatrix(); }
+    this.scene.fog = CFG.AUTO_FOG ? this.fog : null;
+    this.fog.far = d * 0.98; this.fog.near = Math.min(this.fog.far, d * CFG.FOG_START);
   }
 
   poseSaw(pm, a) {
