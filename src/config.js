@@ -13,6 +13,7 @@ export const CFG = {
   LOOK_SENS: 0.008,         // rad of look per pixel of mouse travel
   TOUCH_LOOK_SENS: 0.006,  // rad of look per pixel a finger drags on the right of the screen
   TOUCH_SAW_SENS: 1.5,     // touch: the bar pivots this many times as far per pixel as with the mouse (SAW_SENS)
+  LEAVE_GUARD: true,       // in a game, Back / swipe-back asks before leaving, and so does closing the tab (src/leave.js)
   TOUCH_STICK_R: 60,       // px a thumb moves from where it landed for full speed (CSS px)
   // --- view (all in the Tab menu) ---
   BARK_OPACITY: 1,         // 0 = bark hidden, 1 = solid bark (the test viewer starts from TEST_DEFAULTS instead)
@@ -48,6 +49,12 @@ export const CFG = {
   HEADLAMPS: true,         // players switch headlamps on when the sun goes down
   HEADLAMP: 14,            // candela: brightness of a headlamp (lights a surface 1 m away with this, 3 m away with a ninth)
   HEADLAMP_ANGLE: 0.45,    // rad, half-width of a headlamp's beam
+  // clouds: the host drifts one number, cover (0 clear .. 1 overcast), and sends it with the clock
+  CLOUDS: -1,              // -1 = the weather changes by itself; 0..1 = hold the cover there
+  CLOUD_HOURS: 3,          // game hours, about how long between changes in the weather
+  CLOUD_CHANGE: 120,       // s of play for the cover to go all the way from clear to overcast
+  CLOUD_DIM: 0.85,         // fraction of sunlight and moonlight that full cover blocks
+  CLOUD_WIND: 6,           // m/s the cloud layer drifts overhead
 
   // --- wood (green hardwood) ---
   DENSITY: 900,            // kg/m^3
