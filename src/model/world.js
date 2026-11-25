@@ -154,7 +154,15 @@ export class World {
         this._ropeCheck(info);
         break;
       }
-      case 'chipper': this.chipper = { p: ev.p, q: ev.q, piles: [] }; break;   // parked fresh (no chips)
+      case 'chipper':               // parked fresh, whole (keep: a respawn, which leaves the chip piles where they are)
+        this.chipper = { p: ev.p, q: ev.q, piles: ev.keep && this.chipper ? this.chipper.piles : [], wreck: null };
+        break;
+      case 'chipwreck': if (this.chipper) this.chipper.wreck = { at: ev.at, ids: ev.ids }; break;   // it crumpled
+      case 'chips':                 // a player took V m3 off pile i (take: [i, V]), or put V m3 down at (x, z) (drop: [x, z, V])
+        if (!this.chipper) break;
+        if (ev.take) { const pl = this.chipper.piles[ev.take[0]]; if (pl) pl[2] = Math.max(0, +(pl[2] - ev.take[1]).toFixed(5)); }
+        if (ev.drop) addChips(this.chipper, ev.drop[0], ev.drop[1], ev.drop[2]);
+        break;
       case 'chip': {                // the chipper took in segments segs[] and blew V m3 of chips out at (x, z)
         const gone = new Set(ev.segs), touched = new Set();
         for (const id of ev.segs) { const s = this.segs.get(id); if (s) { touched.add(s.piece); this.segs.delete(id); } }

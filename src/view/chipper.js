@@ -2,7 +2,8 @@
 // chips flying out of the chute while it is chipping. No game rules.
 
 import * as THREE from 'three';
-import { SHAPE, CHIPPER_BODY_ID, pileShape, chipToWorld } from '../model/chipper.js';
+import { SHAPE, CHIPPER_BODY_ID, pileShape, chipToWorld, WRECK } from '../model/chipper.js';
+import { compose } from '../model/builds.js';
 import { groundY } from '../model/terrain.js';
 
 const CHUTE = [[0.2, 0.45, 0.3], [0.2, 1.45, 0.35], [0.2, 1.75, 0.8], [0.2, 1.55, 1.35]];   // discharge chute, chipper-local
@@ -42,11 +43,30 @@ export class ChipperView {
     for (let i = 0; i < SPRAY; i++) this.spray.setColorAt(i, c.setHSL(0.09 + (i % 5) * 0.008, 0.5, 0.55 + (i % 3) * 0.08));
     scene.add(this.spray);
     this.t = 0;
+    // the wreck, once it has crumpled: one mesh per part
+    this.wreckMats = { body: orange, dark: lam(0xb85810), wheel: dark, steel: grey, grip: yellow };
+    this.wreckRoot = new THREE.Group(); scene.add(this.wreckRoot);
+    this.wreckParts = new Map();    // part body id -> {m, rest}
+  }
+
+  syncWreck() {
+    this.wreckRoot.clear(); this.wreckParts.clear();
+    const wr = this.world.chipper && this.world.chipper.wreck; if (!wr) return;
+    WRECK.forEach((pt, k) => {
+      const geo = pt.mat === 'wheel' ? new THREE.CylinderGeometry(pt.h[0], pt.h[0], Math.max(0.04, pt.h[2] * 2), 12).rotateX(Math.PI / 2)
+        : new THREE.BoxGeometry(pt.h[0] * 2, pt.h[1] * 2, pt.h[2] * 2);
+      const m = new THREE.Mesh(geo, this.wreckMats[pt.mat] || this.wreckMats.body);
+      m.castShadow = m.receiveShadow = true;
+      const rest = compose(wr.at.p, wr.at.q, pt.c, pt.q);
+      m.position.set(...rest.p); m.quaternion.set(...rest.q);
+      this.wreckRoot.add(m); this.wreckParts.set(wr.ids[k], { m, rest });
+    });
   }
 
   onEvent(ev) {
-    if (ev.t === 'chipper' || ev.t === 'load') { this.group.visible = !!this.world.chipper; this.syncPiles(true); }
-    else if (ev.t === 'chip') this.syncPiles(false);
+    if (ev.t === 'chipper' || ev.t === 'load') { this.group.visible = !!this.world.chipper; this.posed = false; this.syncPiles(!ev.keep); this.syncWreck(); }
+    else if (ev.t === 'chip' || ev.t === 'chips') this.syncPiles(false);
+    else if (ev.t === 'chipwreck') this.syncWreck();
   }
 
   syncPiles(all) {
@@ -56,10 +76,10 @@ export class ChipperView {
       let v = this.piles[i];
       if (v && Math.abs(v.V - pl[2]) < 1e-4) return;
       if (v) this.dropPile(v);
-      this.piles[i] = this.buildPile(pl, i);
+      this.piles[i] = pl[2] > 1e-4 ? this.buildPile(pl, i) : { V: pl[2], mesh: null, chips: null };   // an emptied pile
     });
   }
-  dropPile(v) { this.scene.remove(v.mesh, v.chips); v.mesh.geometry.dispose(); v.chips.dispose(); }
+  dropPile(v) { if (!v.mesh) return; this.scene.remove(v.mesh, v.chips); v.mesh.geometry.dispose(); v.chips.dispose(); }
 
   // A lumpy cone of chips at the angle of repose, with loose chips scattered over it. Seeded by the pile's index.
   buildPile(pl, idx) {
@@ -99,8 +119,12 @@ export class ChipperView {
 
   update(dt, src, aux) {
     const ch = this.world.chipper;
-    this.group.visible = !!ch;
-    if (!ch) { this.spray.visible = false; return; }
+    this.group.visible = !!ch && !ch.wreck;
+    for (const [id, P] of this.wreckParts) {
+      const pose = src.pose(id);
+      if (pose) { P.m.position.set(pose.p.x, pose.p.y, pose.p.z); P.m.quaternion.set(pose.q.x, pose.q.y, pose.q.z, pose.q.w); }
+    }
+    if (!ch || ch.wreck) { this.spray.visible = false; return; }
     const pose = src.pose(CHIPPER_BODY_ID);
     if (pose) { this.group.position.set(pose.p.x, pose.p.y, pose.p.z); this.group.quaternion.set(pose.q.x, pose.q.y, pose.q.z, pose.q.w); }
     else if (!this.posed) { this.group.position.set(...ch.p); this.group.quaternion.set(...ch.q); }

@@ -315,6 +315,7 @@ export class Sim {
     this.eq.drainContactForceEvents((e) => this.onContact(e));
     this.players.post(dt);
     this.builds.post();          // before pavers.post: it reads the velocities from before the step
+    this.chipper.crumpleCheck(); // so does this
     this.pavers.post();
     this.chipper.post();
 
@@ -326,6 +327,7 @@ export class Sim {
     const mag = e.totalForceMagnitude(), dir = e.maxForceDirection();
     this.pavers.onContact(h1, h2);
     this.builds.onContact(h1, h2, mag);
+    this.chipper.onContact(h1, h2, mag);
     for (const [h, other] of [[h1, h2], [h2, h1]]) {
       const pid = this.colPlayer.get(h);
       if (pid !== undefined) { this.players.onContact(pid, mag); continue; }
@@ -386,12 +388,11 @@ export class Sim {
       fn(id, b.translation(), b.rotation(), !b.isSleeping());
     }
     for (const p of this.players.list.values()) fn(PLAYER_BODY_ID + p.id, p.body.translation(), p.body.rotation(), true);
-    const c = this.chipper.body;
-    if (c) fn(CHIPPER_BODY_ID, c.translation(), c.rotation(), !c.isSleeping());
+    this.chipper.eachBody(fn);
     this.builds.eachBody(fn);
   }
   pose(id) {
-    const b = id >= PLAYER_BODY_ID ? this.players.list.get(id - PLAYER_BODY_ID)?.body : id === CHIPPER_BODY_ID ? this.chipper.body : this.bodies.get(id) || this.builds.body(id);
+    const b = id >= PLAYER_BODY_ID ? this.players.list.get(id - PLAYER_BODY_ID)?.body : id === CHIPPER_BODY_ID ? this.chipper.body : this.bodies.get(id) || this.builds.body(id) || this.chipper.partBody(id);
     return b ? { p: b.translation(), q: b.rotation() } : null;
   }
   aux() {

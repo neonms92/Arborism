@@ -143,6 +143,8 @@ export const CFG = {
   CHIP_ROLL: 0.02,         // rolling resistance of its wheels, as a fraction of the weight on them
   CHIP_BRAKE: 0.7,         // braked wheels (whenever nobody holds the grip), as a fraction of the weight on them
   CHIP_GRIP: 0.9,          // sideways grip of the tyres (friction coefficient)
+  CHIP_BREAK_F: 120000,    // N of contact force in one step, from wood or a structure's parts, that crumples it
+  CHIP_CARRY: 0.04,        // m3 of chips a player can carry (an armful, about 40 L)
   CHIP_SWELL: 2.5,         // m3 of loose chips per m3 of wood chipped
   // --- breakable structures (sim/builds.js): the shed; rigid until hit hard enough, then loose boards ---
   SHED_GAP: 3,             // m between the edge of the paving and the shed, where it is put up

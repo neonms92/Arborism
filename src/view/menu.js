@@ -59,6 +59,9 @@ export const ROWS = [
   ['CHIP_BRAKE', 'Wheels: brakes when nobody holds the grip (fraction of weight)', 0, 1.5, 0.05, 1, true],
   ['CHIP_MASS', 'Mass (kg, applies at the next new tree)', 100, 5000, 50, 1, true],
   ['CHIP_SWELL', 'Chips: loose volume per volume of wood', 1, 5, 0.1, 1, true],
+  ['CHIP_CARRY', 'Chips a player can carry (litres)', 1, 500, 1, 0.001, true],
+  ['CHIP_BREAK_F', 'Hit that crumples it (kN, from wood or a structure)', 1, 500, 1, 1000, true],
+  ['@chipper', 'Respawn chipper (removes the old one, broken or not; chip piles stay)'],
   ['Houses, sheds and fences (breakable structures)'],
   ['HOUSE_BREAK_F', 'House: force from wood that breaks one room apart (N)', 500, 400000, 500, 1, true],
   ['SHED_BREAK_F', 'Shed: force from wood that breaks it apart (N)', 500, 200000, 500, 1, true],
@@ -135,9 +138,9 @@ export class Menu {
     this.inputs = [];
     for (const r of ROWS) {
       if (r.length === 1) { const t = document.createElement('h3'); t.textContent = r[0]; el.appendChild(t); continue; }
-      if (r[0] === '@grow') {
+      if (r[0] === '@grow' || r[0] === '@chipper') {
         const b = document.createElement('button'); b.textContent = r[1]; b.className = 'go';
-        b.onclick = () => this.onGrow();
+        b.onclick = () => (r[0] === '@grow' ? this.onGrow() : this.onChipper && this.onChipper());
         el.appendChild(b); continue;
       }
       const [key, label, min, max, step, scale] = r;
