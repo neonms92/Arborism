@@ -24,6 +24,12 @@ export const CFG = {
   WOBBLE: 0.08,            // rad, how far the view swims while shaken (0 = steady)
   WOBBLE_HZ: 0.6,          // how fast it swims (cycles per second)
   IMPERIAL: true,          // HUD numbers in feet, pounds, mph... (the settings menu stays in SI)
+  DRAW_DIST: 150,          // m, how far the view draws while the frame rate keeps up (the camera's far plane)
+  DRAW_DIST_MIN: 50,       // m, the shortest it rides down to while the frame rate is low
+  DRAW_FPS: 40,            // frames per second: below this the draw distance shrinks; above it by 10% it grows back
+  DRAW_ADAPT: 0.25,        // fraction of the draw distance it shrinks by per second while too slow (it grows back at a fifth of this)
+  AUTO_FOG: true,          // fog thickens towards the draw distance so the far edge fades into the sky instead of being clipped
+  FOG_START: 0.3,          // fog begins at this fraction of the draw distance
   PEER_PREFIX: 'arborism-',
 
   // --- wood (green hardwood) ---

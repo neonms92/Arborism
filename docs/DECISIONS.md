@@ -904,3 +904,23 @@ costs, settings search.**
 - *Settings menu.* Sections are collapsible (closed by default, and the
   open ones are remembered), with a search box that shows only the
   settings whose label or config name contains every word typed.
+
+**D73 — Adaptive draw distance, with fog over the edge.**
+- The camera's far plane is the draw distance, `DRAW_DIST` (150 m). Each
+  machine adapts its own (view only, nothing on the network): the frame
+  time is smoothed over about 20 frames, and while that is under
+  `DRAW_FPS` (40 fps) the distance shrinks by `DRAW_ADAPT` (25%) of itself
+  per second, down to `DRAW_DIST_MIN` (50 m). Once the frame rate is 10%
+  over the target it grows back five times slower. The gap and the slow
+  rise stop it hunting. Frames over 250 ms (a hidden tab, a load) are not
+  counted.
+- Cutting the far plane saves what three.js frustum-culls (whole houses,
+  sheds, fences and pieces past it) and the pixels of ground past it. It
+  cannot help a slow simulation on the host, so there it rides to the
+  minimum and stays: the person asked for frame rate as the signal.
+- Fog is linear, in the sky's colour, from `FOG_START` (0.3) of the
+  distance to 98% of it, so anything the far plane cuts has already faded
+  into the sky. `AUTO_FOG` off removes the fog entirely (the distance still
+  adapts, and its edge shows).
+- Defaults keep the old look: the fixed fog was 40 to 140 m.
+
