@@ -45,11 +45,12 @@ export class Builds {
    * gets none of it.
    */
   plan() {
-    if (this.sim.flat) return (this.planned = { builds: [], areas: [], pads: [], chipper: null });
+    if (this.sim.flat) return (this.planned = { builds: [], areas: [], pads: [], chipper: null, trees: [], front: [0, 1] });
     const S = CHIP_SHAPE;
     const P = planYards({
       seed: CFG.YARD_SEED, density: CFG.YARD_DENSITY, lotMax: CFG.YARD_LOT_MAX, lotMin: CFG.YARD_LOT_MIN, extent: CFG.YARD_EXTENT,
       street: CFG.YARD_STREET, fence: CFG.YARD_FENCE, blend: CFG.TERRAIN_BLEND, paver: CFG.PAVER_SIZE,
+      trees: { n: CFG.YARD_TREES, hmin: CFG.YARD_TREES_HMIN, hmax: CFG.YARD_TREES_HMAX, thick: CFG.YARD_TREES_THICK },
       tree: {
         clear: CFG.TREE_DIAMETER / 2 + CFG.YARD_TREE_CLEAR, paveMax: CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, pit: CFG.TREE_DIAMETER / 2 + CFG.PAVER_PIT,
         chip: { x0: S.INFEED[0] - 0.2, x1: S.GRIP[0] + 0.2, hz: S.WHEELS[0][2] + S.WHEEL_R, gap: CFG.CHIP_GAP },

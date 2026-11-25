@@ -216,6 +216,7 @@ export class Players {
     const pressed = {};
     for (const k of COUNTERS) { pressed[k] = p.primed && inp.c[k] !== p.last[k]; p.last[k] = inp.c[k]; }
     p.primed = true;
+    if (p.replay) { for (const k in p.replay) pressed[k] = pressed[k] || p.replay[k]; p.replay = null; }   // a press that woke a tree (below)
     // two movement keys at once: the same speed as one (no faster on the diagonal)
     const mv = Math.hypot(inp.mx, inp.my); if (mv > 1) { inp.mx /= mv; inp.my /= mv; }
     if (p.toastT > 0) p.toastT -= dt;
@@ -232,6 +233,19 @@ export class Players {
     const control = p.inj < INJ.DOWN && p.shakenT <= 0;
     const aim = control ? sim.aim(p) : null;
     p.prompt = '';
+    // one of the other trees in the yards, still without wood of its own (sim/stands.js): starting to saw it
+    // (holding {raise}), climb or grab it ({interact}) or rig it ({rig}) grows its wood. Rapier only finds the new
+    // colliders after the next step, so the press that did it is handed on to the next tick.
+    const stand = control && !aim && p.mode !== MODE.ROPE ? sim.stands.aim(p, Math.max(CFG.REACH, CFG.SAW_REACH)) : null;
+    let standHint = '';
+    if (stand) {
+      const sawIt = inp.lt >= 0.3 && stand.dist <= CFG.SAW_REACH, near = stand.dist < CFG.REACH;
+      if (sawIt || (near && (pressed.interact || pressed.rig))) {
+        sim.stands.wake(stand.i);
+        p.replay = { interact: pressed.interact, rig: pressed.rig };
+        pressed.interact = pressed.rig = false;
+      } else if (near) standHint = (stand.dist <= CFG.SAW_REACH ? '{raise}: plant the saw   ' : '') + '{interact}: grab, or hold to spur in   {rig}: hang the rigging block here';
+    }
     if (p.ch) p.ch.seen = false;
     if (!inp.hi) p.chLock.delete('lanyard');
     if (!inp.hd) p.chLock.delete('letgo');
@@ -254,6 +268,7 @@ export class Players {
     } else {
       this.ground(p, inp, dt, control, pressed, aim);
     }
+    if (standHint && !p.grab && p.mode === MODE.GROUND) p.prompt = standHint;
     if (p.ch && !p.ch.seen) p.ch = null;          // the action stopped being possible: start again
     const v = p.body.linvel(); p.vPre.set(v.x, v.y, v.z);
   }

@@ -8,6 +8,8 @@
 // chipper: model/chipper.js
 // builds: breakable structures (the shed), model/builds.js
 // terrain: the ground, model/terrain.js (null = flat at y = 0)
+// stands: the other trees in the yards, model/stands.js (null = none)
+// mark: the orange X sprayed on the job tree {c:[3] on its axis, n:[3] out to the paint}, piece-local (null = none)
 
 import { makeBundle, cutFibres, packBundle, unpackBundle, gridFor, layout, bundleBasis, CUT, isGone, setGone, presence } from './fibres.js';
 import { CFG } from '../config.js';
@@ -75,6 +77,8 @@ export class World {
     this.chipper = null;          // the wood chipper and its chip piles (model/chipper.js)
     this.builds = [];             // breakable structures: the shed (model/builds.js)
     this.terrain = null;          // the ground (model/terrain.js); null = flat at y = 0
+    this.stands = null;           // the other trees in the yards (model/stands.js)
+    this.mark = null;             // the orange X on the job tree
     this.damage = 0;              // $, running cost of what the job broke (sim/damage.js)
     this.nextId = 1;              // host allocates all ids
     this.listeners = [];
@@ -159,10 +163,15 @@ export class World {
       case 'tree':
         for (const s of ev.segs) this.segs.set(s.id, { ...s, piece: ev.piece, f: makeBundle(s.N || gridFor(s.r0)) });
         this.pieces.set(ev.piece, { id: ev.piece, fixed: true });
+        if (ev.mark) this.mark = ev.mark;
+        if (ev.stand !== undefined && this.stands) this.stands.list[ev.stand].piece = ev.piece;    // one of the other trees came to life
         this._dirty();
         break;
+      case 'stands':                // the other trees in the yards, all dormant
+        this.stands = ev.list.length ? { g: ev.g, list: ev.list.map(([x, y, z, seed, h, d]) => ({ x, y, z, seed, h, d, piece: 0 })) } : null;
+        break;
       case 'reset':                 // all wood gone (a new tree follows)
-        this.segs.clear(); this.pieces.clear(); this.rope = { state: 0 }; this.damage = 0;
+        this.segs.clear(); this.pieces.clear(); this.rope = { state: 0 }; this.damage = 0; this.stands = null; this.mark = null;
         this._dirty();
         break;
       case 'cut': {                 // the saw severed fibres i[] at z[] (m from the segment base)
@@ -352,7 +361,7 @@ export class World {
     return {
       segs: [...this.segs.values()].map((s) => ({ ...s, f: packBundle(s.f) })), pieces: [...this.pieces.values()],
       rope: this.rope, players: [...this.players.values()], paving: packPaving(this.paving), chipper: this.chipper, builds: packBuilds(this.builds),
-      terrain: this.terrain ? this.terrain.spec : null, damage: this.damage,
+      terrain: this.terrain ? this.terrain.spec : null, damage: this.damage, stands: this.stands, mark: this.mark,
     };
   }
   load(o) {
@@ -366,6 +375,7 @@ export class World {
     this.chipper = o.chipper || null;
     this.builds = unpackBuilds(o.builds);
     this.damage = o.damage || 0;
+    this.stands = o.stands || null; this.mark = o.mark || null;
     this._dirty();
     for (const fn of this.listeners) fn({ t: 'load' }, {});
   }
