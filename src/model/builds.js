@@ -6,7 +6,7 @@
 // either intact (rigid, simple collision, no physics of its own) or broken
 // (its parts are loose bodies). A shed is one module; a bigger structure is
 // several modules with glue between them, so one part of it can be smashed
-// while the rest stands.
+// while the rest stands: a fence is one module per section.
 //
 // Every intact module is in a BODY. Modules glued, directly or through other
 // intact modules, to a module that stands on the ground (ground: true) are in
@@ -18,7 +18,8 @@
 //
 // world.builds = [{id, kind, p:[3], q:[4], mods: [mod...], glue: [[i, j]...],
 //                  bodies: {id: {p, q}} (loose bodies, as they started)}]
-// mod = {p, q, ground, parts: [part...] (its shape, module-local),
+// mod = {p, q, ground, shape ('shed' or a fence style), end (a fence's last section),
+//        parts: [part...] (from its shape, module-local),
 //        body: id of the body it is in while intact,
 //        ids: null while intact, else [body id of each part] once broken,
 //        at: {p, q} pose of its body when it broke}
@@ -91,21 +92,68 @@ export function shedParts() {
   return out;
 }
 
-/** Kinds of build: module poses (build frame) and glue. 'stack' is two sheds glued one on the other (not placed by default). */
-function layout(kind) {
-  const S = SHED;
-  if (kind === 'stack') return { mods: [{ p: [0, 0, 0], q: I, ground: true }, { p: [0, S.HF + S.ROOF_T + 0.01, 0], q: I, ground: false }], glue: [[0, 1]] };
-  return { mods: [{ p: [0, 0, 0], q: I, ground: true }], glue: [] };
+// ---- fences: one module per section between posts ----
+// Module frame: origin on the ground at the section's first post, the fence
+// runs along +x for SPAN, +z is its good face. Each section has its first
+// post; the last section of a run also has the post that closes it.
+export const FENCE = {
+  rail2: { SPAN: 2.44, H: 1.2, POST: 0.09, RAILS: [0.45, 1.0], RAIL: [0.04, 0.14] },          // two-rail: square posts, two boards on edge
+  split: { SPAN: 3.0, H: 1.3, POST: 0.16, RAILS: [0.35, 0.75, 1.1], RAIL: [0.1, 0.12] },      // split rail: rough posts and split logs
+  privacy: { SPAN: 2.44, H: 1.83, POST: 0.09, RAILS: [0.25, 0.95, 1.6], RAIL: [0.04, 0.09], PICKET: [0.14, 0.016] },  // 6 ft privacy: pickets nailed to three rails
+};
+
+export function fenceParts(style, end) {
+  const F = FENCE[style], P = F.POST, out = [], gap = 0.004;
+  const box = (x0, x1, y0, y1, z0, z1, mat, q = I) => out.push({ c: [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2], h: [(x1 - x0) / 2, (y1 - y0) / 2, (z1 - z0) / 2], q, mat });
+  const post = (x) => box(x - P / 2, x + P / 2, 0, F.H + (style === 'split' ? 0.08 : 0), -P / 2, P / 2, style === 'split' ? 'rough' : 'post');
+  post(0); if (end) post(F.SPAN);
+  const x0 = P / 2 + gap, x1 = F.SPAN - P / 2 - gap, [rt, rh] = F.RAIL;
+  F.RAILS.forEach((y, i) => {
+    if (style === 'split') {                 // a split log, turned a little about its length so the rails are not all alike
+      const tw = (i % 2 ? 1 : -1) * 0.25;
+      out.push({ c: [(x0 + x1) / 2, y, 0], h: [(x1 - x0) / 2, rh / 2, rt / 2], q: [Math.sin(tw / 2), 0, 0, Math.cos(tw / 2)], mat: 'rough' });
+    } else {
+      const zf = style === 'privacy' ? P / 2 : rt / 2;     // a privacy fence's rails are flush with the posts' good face, for the pickets
+      box(x0, x1, y - rh / 2, y + rh / 2, zf - rt, zf, 'rail');
+    }
+  });
+  if (style === 'privacy') {                 // pickets on the good face, from the first post's middle to the next one's
+    const [pw, pt] = F.PICKET, n = Math.round(F.SPAN / (pw + gap));
+    const w = F.SPAN / n;
+    for (let i = 0; i < n; i++) box(i * w + gap / 2, (i + 1) * w - gap / 2, 0.03, F.H, P / 2 + gap, P / 2 + gap + pt, 'picket');
+  }
+  return out;
 }
 
-/** A build, fresh and intact, from {id, kind, p, q}. */
+/** The parts of one module, from its shape. */
+export function modParts(m) { return m.shape === 'shed' ? shedParts() : fenceParts(m.shape, m.end); }
+
+/**
+ * Kinds of build: module poses (build frame), shapes and glue. 'shed'; 'stack' (two sheds glued one on the
+ * other, not placed by default); 'fence:<style>' with n sections in a row, each glued to the next.
+ */
+function layout(kind, n = 4) {
+  const S = SHED;
+  if (kind.startsWith('fence:')) {
+    const style = kind.slice(6), F = FENCE[style], mods = [], glue = [];
+    for (let i = 0; i < n; i++) { mods.push({ p: [i * F.SPAN, 0, 0], q: I, ground: true, shape: style, end: i === n - 1 }); if (i) glue.push([i - 1, i]); }
+    return { mods, glue };
+  }
+  if (kind === 'stack') return { mods: [{ p: [0, 0, 0], q: I, ground: true, shape: 'shed' }, { p: [0, S.HF + S.ROOF_T + 0.01, 0], q: I, ground: false, shape: 'shed' }], glue: [[0, 1]] };
+  return { mods: [{ p: [0, 0, 0], q: I, ground: true, shape: 'shed' }], glue: [] };
+}
+
+/** A build, fresh and intact, from {id, kind, p, q, n}. */
 export function newBuild(b) {
-  const L = layout(b.kind), parts = shedParts();
+  const L = layout(b.kind, b.n);
   return {
     id: b.id, kind: b.kind, p: b.p, q: b.q, glue: L.glue, bodies: {},
-    mods: L.mods.map((m) => ({ p: m.p, q: m.q, ground: m.ground, parts, body: b.id, ids: null, at: null })),
+    mods: L.mods.map((m) => ({ p: m.p, q: m.q, ground: m.ground, shape: m.shape, end: !!m.end, parts: modParts(m), body: b.id, ids: null, at: null })),
   };
 }
+
+/** Contact force (N) that breaks an intact module of this shape. */
+export function breakForce(m, CFG) { return m.shape === 'shed' ? CFG.SHED_BREAK_F : CFG.FENCE_BREAK_F; }
 
 /** Mass of a part (kg) at density rho. */
 export function partMass(pt, rho) { return 8 * pt.h[0] * pt.h[1] * pt.h[2] * rho; }

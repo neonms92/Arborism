@@ -52,7 +52,6 @@ export class Sim {
     const noHit = (c1, c2) => {
       const s1 = this.colSeg.get(c1), s2 = this.colSeg.get(c2);
       if (this.chipper.noHit(c1, s2) || this.chipper.noHit(c2, s1)) return true;     // wood being fed passes into the chipper
-      if (this.builds.noHit(c1, c2)) return true;     // boards of a module that has just broken fly apart
       if (s1 === undefined || s2 === undefined) return false;
       const a = this.world.segs.get(s1), b = this.world.segs.get(s2), nh = this.structure.noHit;
       if (!a || !b) return false;

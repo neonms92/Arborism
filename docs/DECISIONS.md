@@ -573,3 +573,17 @@ not collide with each other for `SHED_APART` (0.3 s). Without the last, the
 boards, which start touching, lost two thirds of their speed to each other
 within four ticks and the shed just slumped. Loose boards are not wood: they
 cannot be cut, grabbed or chipped, and do not crack pavers.
+
+**D60 — No scatter kick: a broken module slumps; fences are glued sections.**
+Owner, after trying D59: "go with slumping … I'd expect the force of the wood
+to produce sufficient breakage", and ideally a structure switched to physics
+holds together. So `SHED_SCATTER`, `SHED_REACH` and `SHED_APART` are gone:
+the parts start where they were, with the module's velocity, a few mm apart
+(nothing overlaps, so nothing is pushed out), and only the impactor keeping
+its pre-step velocity remains. The same 127 kg log from 3 m now leaves the
+shed in a heap within 2.6 m of its centre. Fences (two-rail, split rail,
+6 ft privacy) use the same model, one module per section between posts, so
+a log takes out the section it hits and the rest of the run stands. Their
+own threshold, `FENCE_BREAK_F` 10 kN: a 127 kg log from 3–4 m (50 kN) broke
+one section of the privacy and of the two-rail fence; a 42 kg log from 1.6 m
+(8.5 kN) did not break the two-rail.

@@ -4,18 +4,19 @@
 // body it is in (the build's fixed body, or a loose body if it has lost its
 // glue to the ground), so things just bump into it. Every tick the contact
 // forces on each intact module from wood (or from loose parts and bodies of a
-// build) are added up. When that reaches SHED_BREAK_F the module breaks: a
+// build) are added up. When that reaches SHED_BREAK_F (a shed) or
+// FENCE_BREAK_F (a fence section) the module breaks: a
 // 'smash' event, after which each of its parts is a loose body of its own.
 //
 // It gives way rather than stopping what hit it: the body that hit it gets
-// back the velocity it had before this step, and the parts are thrown off
-// from the contact point with the impact's speed (SHED_SCATTER of it outward
-// across the ground and half that upward, falling off over SHED_REACH), so the rest is ordinary collisions. Glued
+// back the velocity it had before this step, so it ploughs on into the parts,
+// which start where they were, moving as the module was: from there it is
+// ordinary physics, and the structure slumps or is knocked apart. Glued
 // modules that are no longer held by the ground through intact glue become
 // one loose body, which can break again where it lands.
 
 import { CFG } from '../config.js';
-import { compose, regroup, partMass } from '../model/builds.js';
+import { compose, regroup, partMass, breakForce } from '../model/builds.js';
 
 const CONTACT_EVENT_F = 300;      // N: contact force below which Rapier does not report a pair on a module (too small to matter)
 
@@ -26,7 +27,6 @@ export class Builds {
     this.modCols = new Map();     // 'build:module' -> [collider] while intact
     this.colMod = new Map();      // collider handle -> [build id, module index] while intact
     this.partCol = new Map();     // collider handle -> part body id
-    this.partOf = new Map();      // part collider handle -> [smash tick, build id, module index] (boards of one module fly apart before they hit each other)
     this.hits = new Map();        // 'build:module' -> {F, h (module collider), o (other collider), f (strongest pair)} this step
     this.vel = new Map();         // body handle -> [vx,vy,vz, wx,wy,wz] at the end of last tick (loose bodies and parts)
     this.burst = null;            // how the next smash throws its parts (set just before it is emitted)
@@ -36,8 +36,16 @@ export class Builds {
   /** Put the shed up, intact, for the current tree (with every new tree). */
   place() {
     const D = 1.8, r = CFG.TREE_HEIGHT * CFG.PAVER_RADIUS + CFG.SHED_GAP + D / 2;
-    // on the far side of the trunk from the chipper's chute, door toward the trunk
-    this.sim.emit({ t: 'builds', list: [{ id: this.sim.world.newId(), kind: 'shed', p: [0, 0, -r], q: [0, 0, 0, 1] }] });
+    const w = this.sim.world, F = CFG.TREE_HEIGHT * CFG.PAVER_RADIUS + CFG.FENCE_GAP;
+    const ry = (deg) => { const a = deg * Math.PI / 360; return [0, Math.sin(a), 0, Math.cos(a)]; };   // turned about y; a fence runs along its +x
+    this.sim.emit({ t: 'builds', list: [
+      // on the far side of the trunk from the chipper's chute, door toward the trunk
+      { id: w.newId(), kind: 'shed', p: [0, 0, -r], q: [0, 0, 0, 1] },
+      // a run of each fence: privacy on the -x side, two-rail on the +z side, split rail between the shed and the chipper
+      { id: w.newId(), kind: 'fence:privacy', n: 4, p: [-F, 0, -4.88], q: ry(-90) },
+      { id: w.newId(), kind: 'fence:rail2', n: 4, p: [-4.88, 0, F], q: ry(0) },
+      { id: w.newId(), kind: 'fence:split', n: 3, p: [F - 5.5, 0, -F - 0.5], q: ry(-45) },
+    ] });
   }
 
   body(id) { return this.bodies.get(id) || null; }
@@ -51,7 +59,7 @@ export class Builds {
   clear() {
     const R = this.sim.rapier;
     for (const b of this.bodies.values()) R.removeRigidBody(b);
-    this.bodies.clear(); this.modCols.clear(); this.colMod.clear(); this.partCol.clear(); this.partOf.clear(); this.hits.clear(); this.vel.clear();
+    this.bodies.clear(); this.modCols.clear(); this.colMod.clear(); this.partCol.clear(); this.hits.clear(); this.vel.clear();
   }
 
   build() {
@@ -99,38 +107,18 @@ export class Builds {
     }
     if (old && !old.isFixed() && !b.mods.some((x) => !x.ids && x.body === oldId)) { sim.rapier.removeRigidBody(old); this.bodies.delete(oldId); }
 
-    // the parts, each where it was, thrown off from where it was hit
+    // the parts, each where it was, moving as the module was: what happens next is ordinary physics
     const B = this.burst; this.burst = null;
-    let seed = (sim.tick * 7919 + ev.m * 104729 + 1) >>> 0;
-    const rnd = () => { seed = (seed + 0x6D2B79F5) >>> 0; let t = seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296 - 0.5; };
+    const v = B ? B.vSelf : la, w = B ? B.wSelf : aa;
     m.parts.forEach((pt, k) => {
       const l = compose(m.p, m.q, pt.c, pt.q), f = compose(ev.at.p, ev.at.q, l.p, l.q);
-      let v = B ? B.vSelf.slice() : la.slice(), w = [0, 0, 0];
-      if (B && B.sp > 0) {
-        // out from the hit point across the ground, and up: boards burst out of the shed rather than into the ground
-        let hx = f.p[0] - B.P[0], hz = f.p[2] - B.P[2], hl = Math.hypot(hx, hz);
-        const dl = Math.hypot(hx, f.p[1] - B.P[1], hz);
-        if (hl < 0.05) { const a = rnd() * 2 * Math.PI; hx = Math.cos(a); hz = Math.sin(a); hl = 1; }
-        const g = Math.max(0.3, Math.exp(-dl / Math.max(0.05, CFG.SHED_REACH))), out = B.sp * CFG.SHED_SCATTER * g, push = B.sp * 0.3 * g;
-        v[0] += B.dir[0] * push + hx / hl * out + rnd() * 0.4 * out;
-        v[1] += B.dir[1] * push + 0.5 * out + rnd() * 0.2 * out;
-        v[2] += B.dir[2] * push + hz / hl * out + rnd() * 0.4 * out;
-        for (let j = 0; j < 3; j++) w[j] = rnd() * 3 * B.sp * g;
-      }
       const body = sim.rapier.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(f.p[0], f.p[1] + 0.002, f.p[2]).setRotation({ x: f.q[0], y: f.q[1], z: f.q[2], w: f.q[3] })
         .setLinvel(v[0], v[1], v[2]).setAngvel({ x: w[0], y: w[1], z: w[2] }).setLinearDamping(0.05).setAngularDamping(0.3).setCcdEnabled(true));
-      const c = sim.rapier.createCollider(R.ColliderDesc.cuboid(pt.h[0], pt.h[1], pt.h[2]).setMass(partMass(pt, CFG.SHED_DENSITY)).setFriction(0.7).setRestitution(0.1).setActiveHooks(R.ActiveHooks.FILTER_CONTACT_PAIRS), body);
-      this.bodies.set(ev.parts[k], body); this.partCol.set(c.handle, ev.parts[k]); this.partOf.set(c.handle, [sim.tick, b.id, ev.m]);
+      const c = sim.rapier.createCollider(R.ColliderDesc.cuboid(pt.h[0], pt.h[1], pt.h[2]).setMass(partMass(pt, CFG.SHED_DENSITY)).setFriction(0.7).setRestitution(0.1), body);
+      this.bodies.set(ev.parts[k], body); this.partCol.set(c.handle, ev.parts[k]);
     });
     // what hit it goes on as if the module had not been there; the parts are in its way now, so it still pays for them
     if (B && B.other && B.otherPre) { const o = B.otherPre; B.other.setLinvel({ x: o[0], y: o[1], z: o[2] }, true); B.other.setAngvel({ x: o[3], y: o[4], z: o[5] }, true); }
-  }
-
-  /** Two boards of the same module, just after it broke: they pass through each other (they start nailed together, touching). */
-  noHit(h1, h2) {
-    const a = this.partOf.get(h1); if (!a) return false;
-    const b = this.partOf.get(h2);
-    return !!b && a[1] === b[1] && a[2] === b[2] && this.sim.tick - a[0] < CFG.SHED_APART / CFG.TICK;
   }
 
   // ---- contacts and breaking ----
@@ -160,8 +148,9 @@ export class Builds {
     const sim = this.sim;
     for (const [k, hit] of this.hits) {
       if (this.log) this.log.push({ tick: sim.tick, mod: k, F: Math.round(hit.F) });
-      if (hit.F < CFG.SHED_BREAK_F) continue;
       const bm = this.colMod.get(hit.h); if (!bm) continue;          // already broken this tick
+      const b = sim.world.builds.find((x) => x.id === bm[0]);
+      if (!b || hit.F < breakForce(b.mods[bm[1]], CFG)) continue;
       this.smash(bm[0], bm[1], hit);
     }
     this.hits.clear();
@@ -207,7 +196,7 @@ export class Builds {
     const vs = at2(body.isFixed() ? null : body, selfPre), vo = other ? at2(other, otherPre) : [0, 0, 0];
     const rel = [vo[0] - vs[0], vo[1] - vs[1], vo[2] - vs[2]], sp = Math.hypot(rel[0], rel[1], rel[2]);
     this.burst = {
-      P, sp, dir: sp > 1e-6 ? rel.map((x) => x / sp) : [0, 0, 0], vSelf: selfPre.slice(0, 3),
+      P, sp, vSelf: selfPre.slice(0, 3), wSelf: selfPre.slice(3, 6),
       other: other && other.isDynamic() ? other : null, otherPre,
     };
     const { loose } = regroup(b, m.body, mi);
