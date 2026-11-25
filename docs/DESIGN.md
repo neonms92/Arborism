@@ -862,7 +862,7 @@ The HUD and lobby name controls for whichever device was touched last
 |---|---|---|
 | Move; climb along / around the stem | ESDF (E forward, S left, D back, F right) | left stick |
 | Look | mouse (click to capture) | right stick |
-| Lanyard (hold `LANYARD_TIME`, 4 s): spur in on the wood looked at, or move the lanyard there | R | X |
+| Lanyard (hold `LANYARD_TIME`, 2 s): spur in on the wood looked at, or move the lanyard there | R | X |
 | On the ground (press): grab the wood looked at / let go of it (a short rope from the hands to that point; pulled harder than `GRAB_MAX`, it tears out of the hands). Near the lowering device: grab or let go of the rope tail. At the chipper: with wood in hand, feed it in; at its grip, take hold of it to tow it | R | X |
 | Rigging (press): hang the block on the wood looked at; with a block hung, tie the rope to the wood looked at, or take the block down when looking at it; looking at the knot, untie | W | Y |
 | Punch the wood looked at (press; presses faster than `PUNCH_DECAY` stack up to `PUNCH_MAX`) | G | RB |
