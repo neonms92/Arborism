@@ -1193,3 +1193,11 @@ cut every button caption to two words at most.
   (the long text is the tooltip and still searchable); Testing: Main menu,
   View default, "Click again". Hints and help text that are not on a button
   (the lobby help, "Look at wood within reach...") are unchanged.
+
+
+**D84 — Fibres are lit.** Owner (2026-11-25): at night the fibres stayed
+super bright. They were `MeshBasicMaterial` (unlit) so the stress colour
+read the same from every side. Now `MeshLambertMaterial`, like the bark:
+they follow the sun, the moon and the headlamps. By day the colours are the
+same, with a little face shading that helps tell neighbouring fibres apart;
+at night stress colours are read by headlamp.
