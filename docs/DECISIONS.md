@@ -645,3 +645,20 @@ every dynamic body gets soft CCD (`TERRAIN_CCD`, 0.5 m) on terrain; Rapier's
 hard CCD did not stop it. The engine tests keep the flat slab so their
 results stay comparable; the smoke run is unchanged (18 / 22, the same four
 failing as before).
+
+**D63 — The chipper crumples like a shed; chips can be carried.** The owner
+asked for the chipper to "crumple like sheds do if it takes a strong hit",
+for a "Respawn chipper" button that removes the old one, broken or not, and
+for players to pick up and drop a limited amount of chips with {interact}.
+The crumple uses the shed's model (D59 and D60: a summed contact force in one
+step, from wood or structures; the parts slump with no scatter kick; the
+impactor keeps its pre-step velocity). The threshold is 120 kN rather than
+the shed's 25 kN. At 40 kN, the chipper was wrecked just by being dragged into
+the trunk at about 1 m/s by the rope feed (66 kN, because force is impulse
+per step on a 600 kg body). A 1 t log dropped from 4 m measured 256 kN and
+crumpled it. For its first second after being put down, it cannot crumple,
+because a new chipper placed under a log measured a large spurious push.
+Carrying is a volume, `CHIP_CARRY` (40 L), shown on the status line. The
+chips are not drawn in the hands. Respawning keeps the chip piles. A new tree
+still clears them.
+
