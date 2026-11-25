@@ -966,3 +966,27 @@ defaults of every test parameter in `tests.js`, which used to read
 and "Grow a new tree" still start from `CFG_DEFAULTS` (22 m, 1.2 m). This
 brings FM-22, which grows the default tree, back to the tree it was written
 for (see D71).
+
+**D76 — Back and swipe-back ask before leaving a game.** Owner: players
+lose the game to swipe-back gestures. No browser lets a page turn the
+gesture off, so: (1) CSS `overscroll-behavior: none` on the page (stops
+pull-to-refresh and Chrome / Edge's overscroll swipe-back, touch and
+trackpad) and `touch-action: none` on the game canvas. (2) `src/leave.js`
+keeps one history entry of its own on top while in a game: Back, the
+Android back gesture and iOS Safari's edge swipe pop that entry instead of
+leaving, and an in-game "Leave the game? Stay / Leave" box comes up. When
+the last of ours is popped another goes straight back on, so a second swipe
+is caught too. Entries are pushed only from a tap, click or key (Chrome
+skips, on Back, entries the user never touched), so `?solo` arms at the
+first tap; Stay pushes one more, never more than two of ours. Leave goes
+back past them; with nothing before the game (fresh tab) it says to close
+the tab. (3) `beforeunload` asks on closing the tab or anything that gets
+past the trap (Chrome / Firefox / Edge only; iOS Safari has none). (4)
+`apple-mobile-web-app-capable`: added to the home screen on iOS it opens
+full screen without Safari's back swipe. `LEAVE_GUARD` (Tab menu,
+Controls) turns all of it off for anyone reloading a lot while working on
+the game. What remains: on iOS Safari in a tab the edge swipe still plays
+its slide animation and then lands back in the game with the box up;
+quitting through the app switcher or closing the tab on iOS is not asked
+about. The test viewer's own Back handling (it closes on Back) is
+unchanged; the guard is only armed in a game.

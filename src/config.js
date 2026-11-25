@@ -13,6 +13,7 @@ export const CFG = {
   LOOK_SENS: 0.008,         // rad of look per pixel of mouse travel
   TOUCH_LOOK_SENS: 0.006,  // rad of look per pixel a finger drags on the right of the screen
   TOUCH_SAW_SENS: 1.5,     // touch: the bar pivots this many times as far per pixel as with the mouse (SAW_SENS)
+  LEAVE_GUARD: true,       // in a game, Back / swipe-back asks before leaving, and so does closing the tab (src/leave.js)
   TOUCH_STICK_R: 60,       // px a thumb moves from where it landed for full speed (CSS px)
   // --- view (all in the Tab menu) ---
   BARK_OPACITY: 1,         // 0 = bark hidden, 1 = solid bark (the test viewer starts from TEST_DEFAULTS instead)
