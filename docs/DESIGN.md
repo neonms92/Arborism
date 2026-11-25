@@ -633,13 +633,14 @@ client never depends on its own settings. They are laid fresh with every new
 tree, and each slab lies on the ground under its middle, tilted with it: the
 tree's circle is not levelled, so on a ledge it steps with the ground.
 
-The slabs are flush with the ground, so physics is unchanged: wood and
-players land on the ground collider, and the host (`sim/pavers.js`) works out
+The slabs are flush with the ground, so physics is unchanged: wood,
+players and the chipper (whole or wrecked) land on the ground collider, and the host (`sim/pavers.js`) works out
 which paver is under each contact point. An impact's energy is
 ½·m_eff·v_n², with v_n the closing speed at the contact before the step and
 m_eff the mass the body presents there (a log landing on its end hits with
 less than its whole mass). It is shared out between the pavers under the
-contact by impulse. A paver whose share is at least `PAVER_CRACK_E` gains
+contact by impulse (on the heightfield ground Rapier gives no per-point
+impulses, so then the nearest contact points share it equally). A paver whose share is at least `PAVER_CRACK_E` gains
 share / `PAVER_CRACK_E` damage (`crack` event). Damage has no cap. Resting or
 rolling wood closes at ≈ 0 and does nothing.
 
@@ -756,8 +757,8 @@ Siding and roof colours are picked per house in the view.
   Modules joined to a module that stands on the ground (`ground`), directly
   or through intact glue, are in the build's fixed body.
 - **Breaking.** Each tick the contact forces on an intact module from wood,
-  or from loose parts and bodies of a build, are added up; players and the
-  chipper do not count. At `SHED_BREAK_F` (shed), `FENCE_BREAK_F` (one
+  or from loose parts and bodies of a build, or from the chipper or its
+  wrecked parts, are added up; players do not count. At `SHED_BREAK_F` (shed), `FENCE_BREAK_F` (one
   fence section) or `HOUSE_BREAK_F` (one room) the module breaks (`smash` event) and each part becomes a
   loose body where it was, moving as the module was. It gives way rather than
   stopping what hit it: that body gets back its velocity from before the step,

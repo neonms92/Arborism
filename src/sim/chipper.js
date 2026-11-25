@@ -39,6 +39,7 @@ export class Chipper {
     this.pileCols = new Map();       // pile index -> {col, r}
     this.colPile = new Map();        // pile collider handle -> pile index
     this.parts = new Map();          // wreck part body id -> RigidBody, once it has crumpled
+    this.partCols = new Set();       // collider handles of those parts
     this.hit = null;                 // strongest push on it this step from wood or a structure: {F, o (other collider)}
     this.busy = 0;                   // ticks left of chips flying out of the chute (aux)
     this.stick = { A: null, J: null }; // where the tyres under the axle (A) and the jockey wheel (J) stopped and grip
@@ -94,7 +95,7 @@ export class Chipper {
     const sim = this.sim, R = sim.R;
     this.removeBody();
     for (const b of this.parts.values()) sim.rapier.removeRigidBody(b);
-    this.parts.clear(); this.stick = { A: null, J: null };
+    this.parts.clear(); this.partCols.clear(); this.stick = { A: null, J: null };
     if (!ev.keep) { for (const { col } of this.pileCols.values()) sim.rapier.removeCollider(col, false); this.pileCols.clear(); this.colPile.clear(); }
     const body = sim.rapier.createRigidBody(sim.dynamic().setTranslation(ev.p[0], ev.p[1], ev.p[2])
       .setRotation({ x: ev.q[0], y: ev.q[1], z: ev.q[2], w: ev.q[3] }).setLinearDamping(0.05).setAngularDamping(0.3));
@@ -158,7 +159,9 @@ export class Chipper {
       const desc = pt.mat === 'wheel'
         ? R.ColliderDesc.cylinder(Math.max(0.02, pt.h[2]), pt.h[0]).setRotation({ x: Math.SQRT1_2, y: 0, z: 0, w: Math.SQRT1_2 })
         : R.ColliderDesc.cuboid(pt.h[0], pt.h[1], pt.h[2]);
-      sim.rapier.createCollider(desc.setMass(Math.max(1, pt.m * CFG.CHIP_MASS)).setFriction(0.7).setRestitution(0.1), body);
+      const col = sim.rapier.createCollider(desc.setMass(Math.max(1, pt.m * CFG.CHIP_MASS)).setFriction(0.7).setRestitution(0.1)
+        .setActiveEvents(R.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(300), body);
+      this.partCols.add(col.handle);
       this.parts.set(ev.ids[k], body);
     });
     if (B.other && B.otherPre) { const o = B.otherPre; B.other.setLinvel({ x: o[0], y: o[1], z: o[2] }, true); B.other.setAngvel({ x: o[3], y: o[4], z: o[5] }, true); }
@@ -195,6 +198,11 @@ export class Chipper {
     sim.emit({ t: 'chips', drop: [+x.toFixed(2), +z.toFixed(2), +p.chips.toFixed(5)] });
     p.chips = 0;
   }
+
+  /** Is collider h the chipper or one of its wreck parts (something heavy that can crack pavers and break structures)? */
+  solid(h) { return this.cols.has(h) || this.partCols.has(h); }
+  /** Calls fn(body) for the chipper's body, or its wreck parts. */
+  eachRigid(fn) { if (this.body) fn(this.body); for (const b of this.parts.values()) fn(b); }
 
   /** Is collider handle h part of the chipper? */
   has(h) { return this.cols.has(h); }
