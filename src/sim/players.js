@@ -264,7 +264,7 @@ export class Players {
         sim.stands.wake(stand.i);
         p.replay = { interact: pressed.interact, rig: pressed.rig };
         pressed.interact = pressed.rig = false;
-      } else if (near) standHint = (stand.dist <= CFG.SAW_REACH ? '{raise}: plant the saw   ' : '') + '{interact}: grab, or hold to spur in   {rig}: hang the rigging block here';
+      } else if (near) standHint = (stand.dist <= CFG.SAW_REACH ? '{raise}: plant saw   ' : '') + '{interact}: grab   hold {interact}: spur in   {rig}: hang block';
     }
     if (p.ch) p.ch.seen = false;
     if (!inp.hi) p.chLock.delete('lanyard');
@@ -279,7 +279,7 @@ export class Players {
     if (p.mode !== MODE.GROUND || !control) p.grab = null;
 
     if (p.mode === MODE.ROPE) {
-      p.prompt = '{throttle}: ease   {raise}: haul   {wraps}: wraps   {interact}: let go (ties off)';
+      p.prompt = '{throttle}: ease   {raise}: haul   {wraps}: wraps   {interact}: tie off';
       sim.rope.operate(p, inp, pressed, dt);
       if (pressed.interact || !control) this.leaveRope(p);
       p.body.setLinvel({ x: 0, y: p.body.linvel().y, z: 0 }, true);
@@ -298,7 +298,7 @@ export class Players {
     const out = first ? [first] : [];
     const r = this.sim.rope.prompt(p, aim); if (r) out.push(r);
     if (aim && aim.dist < CFG.REACH) out.push('{punch}: punch');
-    if (!p.saw.on && aim && aim.dist <= CFG.SAW_REACH && !p.ride) out.push('{raise}: plant the saw');
+    if (!p.saw.on && aim && aim.dist <= CFG.SAW_REACH && !p.ride) out.push('{raise}: plant saw');
     return out.join('   ');
   }
 
@@ -358,13 +358,13 @@ export class Players {
     if (pressed.rig) rope.place(p, aim);
     const reach = aim && aim.dist < CFG.REACH;
     if (nearDev && rope.holder < 0 && !p.grab) {
-      first = '{interact}: take the rope tail';
+      first = '{interact}: take tail';
       if (pressed.interact) { p.mode = MODE.ROPE; rope.holder = p.id; }
     } else if (p.chips > 0 && !p.grab) {
       // hands full of chips: {interact} takes more off the pile looked at, while there is room, or puts them all down
       const pile = control ? sim.chipper.aimPile(p) : -1, room = p.chips < CFG.CHIP_CARRY - 1e-5;
       if (pressed.interact) { if (pile >= 0 && room) sim.chipper.take(p, pile); else sim.chipper.drop(p); p.chLock.add('lanyard'); }
-      first = pile >= 0 && room ? '{interact}: pick up more chips' : '{interact}: put the chips down';
+      first = pile >= 0 && room ? '{interact}: more chips' : '{interact}: drop chips';
     } else {
       // {interact} toggles holding the wood. Letting go does not start a lanyard throw until the button is
       // released; a press that grabs standing wood and keeps being held goes on to throw the lanyard.
@@ -380,19 +380,21 @@ export class Players {
       else if (pressed.interact && atChip && ca.grip) this.grabChipper(p, ca);
       else if (pressed.interact && pile >= 0) { sim.chipper.take(p, pile); p.chLock.add('lanyard'); }
       else if (pressed.interact && reach) this.grabStart(p, aim);
-      if (wood && atChip) first = loose ? '{interact}: feed it into the chipper' : 'Only loose wood can go in the chipper';
-      else if (p.grab) first = p.grab.chip ? '{interact}: let go of the chipper   {move}: tow it' : '{interact}: let go of the wood';
+      // the weight of the wood in hand, or of loose wood looked at, goes on the button (nothing for wood still on the tree)
+      const kg = (piece) => { const m = sim.weightOf(piece); return isFinite(m) ? ` {mass:${Math.round(m)}}` : ''; };
+      if (wood && atChip) first = loose ? '{interact}: feed' + kg(wood.piece) : 'Only loose wood can go in the chipper';
+      else if (p.grab) first = p.grab.chip ? '{interact}: let go   {move}: tow' : '{interact}: let go' + (wood ? kg(wood.piece) : '');
       else if (atChip && sim.chipper.seized()) first = 'The chipper\'s rollers have seized on wood too heavy for it: saw it smaller';
-      else if (atChip) first = ca.grip ? '{interact}: take hold of the chipper' : 'Chipper: grab a limb, then {interact} here to feed it in. Its grip is at the front';
-      else if (pile >= 0) first = '{interact}: pick up chips';
-      else first = reach ? '{interact}: grab the wood' : '';
+      else if (atChip) first = ca.grip ? '{interact}: grab chipper' : 'Chipper: grab a limb, then {interact} here to feed it in. Its grip is at the front';
+      else if (pile >= 0) first = '{interact}: take chips';
+      else first = reach ? '{interact}: grab' + kg(sim.world.segs.get(aim.seg).piece) : '';
     }
     if (reach && !(nearDev && rope.holder < 0 && !p.grab)) {
       const s = sim.world.segs.get(aim.seg), piece = sim.world.pieces.get(s.piece);
       if (piece.fixed && p.inj < INJ.HURT) {
         const loc = sim.segToLocal(s, aim.point), tt = Math.min(1, Math.max(0, segParam(s, loc)));
         if (segRadius(s, tt) >= CFG.SPUR_MIN_R) {
-          if (!p.chLock.has('lanyard')) first += '   hold {interact}: spur in and throw the lanyard round';
+          if (!p.chLock.has('lanyard')) first += '   hold {interact}: spur in';
           if (this.hold(p, 'lanyard', inp.hi, CFG.LANYARD_TIME, dt)) {
             const ax = segAxis(s), c = lerp3(s.a, s.b, tt);
             // side = from the stem toward the player, perpendicular to the stem
@@ -405,7 +407,7 @@ export class Players {
         }
       } else if (piece.fixed) first += '   (too hurt to climb)';
     }
-    if (p.ch && p.ch.kind === 'lanyard') first = 'keep holding {interact}: spur in and throw the lanyard round';
+    if (p.ch && p.ch.kind === 'lanyard') first = 'keep holding {interact}: spur in';
     this.grabStep(p, dt);
     p.prompt = this.extras(p, aim, first);
   }
@@ -429,7 +431,7 @@ export class Players {
       // throw the lanyard round another stem within reach: the way past a union
       const s2 = w.segs.get(aim.seg), loc = sim.segToLocal(s2, aim.point), t2 = Math.min(1, Math.max(0, segParam(s2, loc)));
       if (w.pieces.get(s2.piece).fixed && segRadius(s2, t2) >= CFG.SPUR_MIN_R && (s2.id !== s.id || Math.abs(t2 - cl.t) * segLen(s) > 0.3)) {
-        first = 'hold {interact}: move the lanyard here';
+        first = 'hold {interact}: move lanyard';
         if (this.hold(p, 'lanyard', inp.hi, CFG.LANYARD_TIME, dt)) {
           const c = lerp3(s2.a, s2.b, t2), pl = sim.segToLocal(s2, p.body.translation());
           cl.seg = s2.id; cl.t = t2; cl.side = perp([pl[0] - c[0], pl[1] - c[1], pl[2] - c[2]], segAxis(s2));
@@ -484,7 +486,7 @@ export class Players {
       cl.py = pos.y; cl.vy = vy; cl.ad = (cl.ad || 0) + 0.1 * (-ay - (cl.ad || 0));
       const share = fixed ? 1 : Math.max(0, Math.min(1, 1 - cl.ad / CFG.GRAVITY));
       sim.applyForce(s.id, sim.segToWorld(s, c, _b), _c.set(0, -CFG.P_MASS * CFG.GRAVITY * dyn * share, 0));
-      p.prompt = (control ? this.extras(p, aim, first) + '   ' : '') + '{move}: climb   hold {drop}: let go of the tree';
+      p.prompt = (control ? this.extras(p, aim, first) + '   ' : '') + '{move}: climb   hold {drop}: let go';
     } else {
       // riding a falling piece because we are lanyarded to it
       const rd = p.ride;

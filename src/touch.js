@@ -12,6 +12,7 @@
 // On by default on touch-first screens; ?touch forces it on, ?touch=0 off.
 
 import { CFG, MODE } from './config.js';
+import { describe } from './view/hud.js';
 
 const CSS = `
 #touch { position: fixed; inset: 0; z-index: 5; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; display: none; }
@@ -42,11 +43,11 @@ const BUTTONS = [
   ['jump', 'Jump', 'jump', null, ['r', 140, 18, 64]],
   ['punch', 'Punch', 'punch', null, ['r', 146, 92, 64]],
   ['rig', 'Rig', 'rig', null, ['r', 108, 160, 84]],
-  ['letgo', 'Hold:\nlet go', 'drop', 'hd', ['r', 28, 150, 72]],
+  ['letgo', '⏳ Let go', 'drop', 'hd', ['r', 28, 150, 72]],
   ['saw', 'Saw', null, null, ['r', 214, 22, 64]],
   ['cut', 'Cut', null, null, ['l', 24, 150, 84]],
-  ['wup', 'Wrap\n+', 'wrapUp', null, ['l', 104, 196, 56]],
-  ['wdn', 'Wrap\n−', 'wrapDn', null, ['l', 104, 124, 56]],
+  ['wup', 'Wrap +', 'wrapUp', null, ['l', 104, 196, 56]],
+  ['wdn', 'Wrap −', 'wrapDn', null, ['l', 104, 124, 56]],
 ];
 
 /** True on a screen where touch is the main way in (a phone or tablet with no mouse). */
@@ -212,10 +213,10 @@ export class Touch {
     show1(b.jump, !a || a.m === MODE.GROUND);
     show1(b.punch, has('punch'));
     show1(b.rig, !!rig || waiting); b.rig.classList.toggle('dim', waiting);
-    b.rig.textContent = rig ? rig.replace(/^\w/, (c) => c.toUpperCase()) : 'Tie: get closer';
+    b.rig.textContent = rig || 'Get closer';
     show1(b.letgo, has('drop'));
     show1(b.saw, !rope && (has('raise') || this.saw || sawOut)); b.saw.classList.toggle('on', this.saw);
-    b.saw.textContent = this.saw ? 'Saw\n(lift)' : 'Saw';
+    b.saw.textContent = this.saw ? 'Lift saw' : 'Saw';
     show1(b.cut, !rope && (this.saw || sawOut));
     show1(b.wup, rope); show1(b.wdn, rope);
     this.slider.style.display = rope ? 'block' : 'none';
@@ -232,9 +233,10 @@ export function actionLabel(pr, token = 'interact') {
     if (i < 0) continue;
     let s = part.slice(i + tok.length).replace(/^[:\s]+/, '');
     const hold = /hold/i.test(part.slice(0, i));
-    s = s.replace(/\{\w+\}/g, '').trim();
-    if (s.length > 34) s = s.slice(0, 32).replace(/\s+\S*$/, '') + '…';
-    return (hold ? 'Hold: ' : '') + (s || 'Action');
+    // quantities ({mass:42}) in the HUD's units, other tokens dropped; captions are kept to two words plus a weight
+    s = describe(s, 'touch').trim();
+    s = s.replace(/^\w/, (c) => c.toUpperCase());
+    return (hold ? '⏳ ' : '') + (s || 'Action');
   }
   return '';
 }

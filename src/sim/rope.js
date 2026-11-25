@@ -26,10 +26,10 @@ export class Rope {
   }
   prompt(p, aim) {
     const st = this.sim.world.rope.state, t = this.target(p, aim);
-    if (st === 0) return t && t.fixed ? '{rig}: hang the rigging block here' : '';
+    if (st === 0) return t && t.fixed ? '{rig}: hang block' : '';
     if (st === 1) return !t ? 'Look at wood within reach to tie the rope to it, or at the block to take it down'
-      : this.node(this.sim.world.rope.block).distanceTo(t.point) < 0.7 ? '{rig}: take the block down' : '{rig}: tie the rope here';
-    if (this.fed()) return t && this.node(this.sim.world.rope.block).distanceTo(t.point) < 0.7 ? '{rig}: take the block down (the chipper takes the rope)' : '';
+      : this.node(this.sim.world.rope.block).distanceTo(t.point) < 0.7 ? '{rig}: remove block' : '{rig}: tie rope';
+    if (this.fed()) return t && this.node(this.sim.world.rope.block).distanceTo(t.point) < 0.7 ? '{rig}: remove block' : '';
     if (t && this.node(this.sim.world.rope.anchor).distanceTo(t.point) < 0.7) return '{rig}: untie';
     return '';
   }

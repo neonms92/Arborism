@@ -141,7 +141,7 @@ class Testing {
     r.append(
       el('div', { class: 'bar', style: 'justify-content: space-between' },
         el('div', {}, el('h2', {}, 'Engine tests'), el('div', { class: 'muted' }, 'Fibre mechanics tests from docs/TESTS.md. Each run is a separate worker with its own copy of the settings; results are kept in this browser.')),
-        el('button', { onclick: () => this.close() }, 'Back to the main menu')),
+        el('button', { onclick: () => this.close() }, 'Main menu')),
       el('div', { class: 'bar' }, mode, n,
         el('button', { class: 'go', onclick: () => this.runSelected() }, 'Run selected'),
         el('button', { onclick: () => this.stop() }, 'Stop'),
@@ -151,7 +151,7 @@ class Testing {
         el('button', { onclick: () => file.click() }, 'Import results'), file,
         el('button', { onclick: async (e) => {        // two clicks, so a stray one does not wipe the history
           const b = e.target;
-          if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Click again to clear all results'; setTimeout(() => { delete b.dataset.armed; b.textContent = 'Clear results'; }, 3000); return; }
+          if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Click again'; setTimeout(() => { delete b.dataset.armed; b.textContent = 'Clear results'; }, 3000); return; }
           await store.clear(); this.load();
         } }, 'Clear results')),
       el('div', { class: 'bar' }, this.bar, this.status),
@@ -193,7 +193,7 @@ class Testing {
       })));
     }
     kids.push(el('div', { class: 'muted' }, 'Parameters: ', Object.entries(t.params).map(([k, d]) => `${k} ${fmtRange(d.must)} (explore ${fmtRange(d.explore)}) ${d.unit || ''}`).join(' · ') || 'none'));
-    kids.push(el('div', { class: 'bar' }, el('button', { class: 'go', onclick: () => this.viewDefault(t.id) }, 'View the default point')));
+    kids.push(el('div', { class: 'bar' }, el('button', { class: 'go', onclick: () => this.viewDefault(t.id) }, 'View default')));
     if (!s) { this.detail.replaceChildren(...kids); return; }
     kids.push(el('h3', {}, `Latest batch (${s.mode}, ${new Date(s.time).toLocaleString()})`));
     kids.push(el('table', {}, el('tr', {}, el('th', {}, 'Criterion'), el('th', {}, 'Failed'), el('th', {}, 'Worst margin')),
