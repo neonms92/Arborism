@@ -150,6 +150,7 @@ export const CFG = {
   // --- player ---
   P_MASS: 85, P_RADIUS: 0.28, P_HALF: 0.6,
   WALK: 3.5, JUMP: 3.4,
+  WALK_SLOPE: 0.785,       // rad (45°): ground up to this steep is stood on (the legs work on it)
   JUMP_SLOPE: 1.22,        // rad (70°): sliding on ground up to this steep (a ledge face), a jump still pushes off it
   CLIMB: 1.1,              // m/s along the stem
   AROUND: 1.4,             // m/s around the stem
@@ -170,11 +171,13 @@ export const CFG = {
   PUNCH_MAX: 4000,         // N, most that stacked punches add up to
   // --- grabbing wood on the ground ({interact} toggles): a short rope from the hands to the point grabbed ---
   GRAB_K: 20000,           // N/m, stiffness of that rope (capped for stability on light pieces)
-  GRAB_MAX: 1200,          // N, pull at which the wood is pulled out of the player's hands
-  PULL_FORCE: 600,         // N, most a player pulls with by walking away from what they hold (keep under GRAB_MAX)
+  GRAB_STEER: 3000,        // N/m: walking with what can move in hand, the arms keep it on the line of the walk (at most LEG_FORCE)
+  GRAB_TAU: 0.1,           // s over which the force on the hands is averaged before it can tear the hold out
+  GRAB_MAX: 2500,          // N, pull at which the wood is pulled out of the player's hands
+  LEG_FORCE: 1000,         // N, most a player's legs push the body across the ground with: walking, pushing and pulling alike (keep under GRAB_MAX)
   GRAB_HEIGHT: 0.3,        // m, hands above the body centre
   // --- wood chipper (sim/chipper.js): a towable chipper on two wheels and a jockey wheel ---
-  CHIP_MASS: 600,          // kg (applies when it is put back by a new tree)
+  CHIP_MASS: 350,          // kg (applies when it is put back by a new tree or respawned)
   CHIP_GAP: 3,             // m between the tree's paving (or the trunk) and the chipper, where it is parked
   CHIP_PULL: 15000,        // N, most the feed rollers pull with (on wood and on rope); they slip past it
   CHIP_FEED_V: 0.6,        // m/s the feed rollers draw wood and rope in

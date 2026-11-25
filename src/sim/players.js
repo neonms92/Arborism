@@ -26,7 +26,7 @@ export class Players {
     sp[1] += sim.groundY(sp[0], sp[2]);
     const body = sim.rapier.createRigidBody(sim.dynamic().setTranslation(sp[0], sp[1], sp[2]).lockRotations());
     const col = sim.rapier.createCollider(R.ColliderDesc.capsule(CFG.P_HALF, CFG.P_RADIUS).setMass(CFG.P_MASS)
-      .setFriction(0.2).setActiveEvents(R.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(300), body);
+      .setFriction(0).setFrictionCombineRule(R.CoefficientCombineRule.Min).setActiveEvents(R.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(300), body);
     sim.colPlayer.set(col.handle, id);
     const p = {
       id, body, col, spawn: sp, input: blankInput(), last: { ...blankInput().c }, primed: false,
@@ -164,7 +164,7 @@ export class Players {
     p.grab = { chip: 1, p: ca.local, L0: Math.max(0.2, this.hands(p, _a).distanceTo(ca.point)), prev: 0 };
   }
   grabStep(p, dt) {
-    const g = p.grab, sim = this.sim; p.pull = 0; p.lean = null; if (!g) return;
+    const g = p.grab, sim = this.sim; p.pull = 0; if (!g) return;
     const ch = sim.chipper;
     const s = g.chip ? null : sim.world.segs.get(g.seg);
     if (g.chip ? !ch.body : !s) { p.grab = null; return; }
@@ -172,23 +172,43 @@ export class Players {
     const dir = _c.copy(h).sub(w), len = dir.length();
     const stretch = len - g.L0, rate = (stretch - g.prev) / dt; g.prev = stretch;
     const piece = g.chip ? null : sim.world.pieces.get(s.piece);
-    // something that can move (loose wood, the chipper): the feet cannot walk away from it faster than it follows
-    const mover = g.chip ? ch.body : piece.fixed ? null : sim.bodies.get(s.piece);
-    const hx = dir.x, hz = dir.z, hl = Math.hypot(hx, hz);
-    if (mover && hl > 1e-6 && stretch > -0.1) {       // taut, or nearly
-      const v = mover.velocityAtPoint(w);
-      p.lean = { x: hx / hl, z: hz / hl, v: (v.x * hx + v.z * hz) / hl };
-    }
-    if (stretch <= 0 || len < 1e-6) return;
+    if (len < 1e-6) return;
+    // The arms: a stiff spring from the hands to the point held, at the length it was taken hold at. It pulls when
+    // stretched and pushes when squeezed. Walking away from it or into it, the legs (LEG_FORCE) give way before the
+    // hold does (GRAB_MAX), so pushing and pulling what is held are the same and the walk speed sorts itself out.
     const m = g.chip || piece.fixed ? CFG.P_MASS : Math.min(CFG.P_MASS, sim.bodies.get(s.piece).mass());
     const k = Math.min(CFG.GRAB_K, CFG.ROPE_KCAP * m / (dt * dt)), c = 2 * CFG.ROPE_DAMP * Math.sqrt(k * m);
-    const T = Math.max(0, k * stretch + c * rate);
+    // > 0 pulls the two together, < 0 pushes them apart. Squeezed harder than GRAB_MAX, the arms fold rather than let go.
+    const T = Math.max(-CFG.GRAB_MAX, k * stretch + c * rate);
     p.pull = T;
-    if (T > CFG.GRAB_MAX) { p.grab = null; p.pull = 0; this.say(p, g.chip ? 'The chipper pulled out of your hands' : 'The wood pulled out of your hands'); return; }
+    // what tears it out of the hands is a pull kept up (over about GRAB_TAU), not a one-tick jolt of the spring's damping
+    g.held = (g.held || 0) + (Math.max(0, T) - (g.held || 0)) * Math.min(1, dt / Math.max(dt, CFG.GRAB_TAU));
+    if (g.held > CFG.GRAB_MAX) { p.grab = null; p.pull = 0; this.say(p, g.chip ? 'The chipper pulled out of your hands' : 'The wood pulled out of your hands'); return; }
     dir.divideScalar(len);
+    // a push goes level from the hands (arms push forward, not down into the ground through what they hold)
+    if (T < 0) { const hl = Math.hypot(dir.x, dir.z); if (hl > 0.2) dir.set(dir.x / hl, 0, dir.z / hl); }
     if (g.chip) ch.body.applyImpulseAtPoint({ x: dir.x * T * dt, y: dir.y * T * dt, z: dir.z * T * dt }, w, true);   // chipper pulled toward the hands
     else sim.applyForce(s.id, w, dir.clone().multiplyScalar(T));               // wood pulled toward the hands
     p.body.applyImpulse({ x: -dir.x * T * dt, y: -dir.y * T * dt, z: -dir.z * T * dt }, true);   // and the hands toward the wood
+    // Steering: walking with it, the hands also keep it on the line of the walk: behind when walking away from it,
+    // ahead when pushing it, so a drawbar or a log follows the path (a hitch held by one point would jackknife),
+    // with at most LEG_FORCE across the arms. Only for what can move: on standing wood the arms only pull or push.
+    const mover = g.chip ? ch.body : piece.fixed ? null : sim.bodies.get(s.piece);
+    const rx = w.x - h.x, rz = w.z - h.z, rl = Math.hypot(rx, rz), wk = p.walk;
+    if (!mover || rl < 0.1 || !wk) return;
+    const along = (rx * wk.x + rz * wk.z) / rl;
+    if (Math.abs(along) < 0.3) return;                // walking across it: nothing to keep it in line with
+    const tx = Math.sign(along) * wk.x, tz = Math.sign(along) * wk.z;
+    const ux = rx / rl, uz = rz / rl, ex = h.x + tx * rl - w.x, ez = h.z + tz * rl - w.z;
+    const er = ex * ux + ez * uz, lx = ex - ux * er, lz = ez - uz * er;          // the error across the arms
+    const vm = mover.velocityAtPoint(w), vp = p.body.linvel();
+    const dvx = vm.x - vp.x, dvz = vm.z - vp.z, dvr = dvx * ux + dvz * uz;
+    let fx = CFG.GRAB_STEER * lx - 2 * Math.sqrt(CFG.GRAB_STEER * m) * (dvx - ux * dvr);
+    let fz = CFG.GRAB_STEER * lz - 2 * Math.sqrt(CFG.GRAB_STEER * m) * (dvz - uz * dvr);
+    const fl = Math.hypot(fx, fz); if (fl > CFG.LEG_FORCE) { fx *= CFG.LEG_FORCE / fl; fz *= CFG.LEG_FORCE / fl; }
+    if (g.chip) ch.body.applyImpulseAtPoint({ x: fx * dt, y: 0, z: fz * dt }, w, true);
+    else sim.applyForce(s.id, w, new THREE.Vector3(fx, 0, fz));
+    p.body.applyImpulse({ x: -fx * dt, y: 0, z: -fz * dt }, true);
   }
 
   // ---- punch: each press adds a shove along the look direction that fades; spamming stacks it ----
@@ -282,9 +302,9 @@ export class Players {
     return out.join('   ');
   }
 
-  /** Is p touching anything under it no steeper than JUMP_SLOPE (something to push a jump off)? n: set to its normal. */
-  footing(p, n) {
-    const sim = this.sim, minY = Math.cos(CFG.JUMP_SLOPE);
+  /** Is p touching anything under it no steeper than slope (default JUMP_SLOPE: something to push a jump off)? n: set to its normal. */
+  footing(p, n, slope = CFG.JUMP_SLOPE) {
+    const sim = this.sim, minY = Math.cos(slope);
     let ok = false;
     sim.rapier.contactPairsWith(p.col, (o) => {
       if (ok) return;
@@ -304,20 +324,23 @@ export class Players {
     const sim = this.sim, body = p.body, t = body.translation(), v = body.linvel();
     const hit = sim.rapier.castRay(new sim.R.Ray(t, { x: 0, y: -1, z: 0 }), CFG.P_HALF + CFG.P_RADIUS + 0.12, true,
       undefined, undefined, undefined, body);
-    p.grounded = !!hit;
+    // standing: ground under the middle, or anything under the body no steeper than WALK_SLOPE (the side of a ditch)
+    p.grounded = !!hit || this.footing(p, null, CFG.WALK_SLOPE);
     if (!control) { if (p.grounded) body.setLinvel({ x: v.x * 0.8, y: v.y, z: v.z * 0.8 }, true); return; }
     const speed = CFG.WALK * (p.inj >= INJ.HURT ? 0.45 : 1);
     const sy = Math.sin(inp.yaw), cy = Math.cos(inp.yaw);
     // yaw 0 looks toward -Z; forward = (-sin, 0, -cos), right = (cos, 0, -sin)
     let wx = (-sy * inp.my + cy * inp.mx) * speed, wz = (-cy * inp.my - sy * inp.mx) * speed;
-    // dragging something that moves (loose wood, the chipper): lean into it rather than walk out of the hold.
-    // Away from it, the feet go no faster than it follows, plus a little while the pull is under PULL_FORCE.
-    const ln = p.grab && p.lean;
-    if (ln) {
-      const away = wx * ln.x + wz * ln.z, allow = Math.max(0, ln.v) + ((p.pull || 0) < CFG.PULL_FORCE ? 0.15 : 0);
-      if (away > allow) { wx -= (away - allow) * ln.x; wz -= (away - allow) * ln.z; }
+    const wl = Math.hypot(wx, wz); p.walk = wl > 0.1 && p.grounded ? { x: wx / wl, z: wz / wl } : null;   // for grabStep's steering
+    if (p.grounded) {
+      // The legs: they push the body toward the walking velocity with at most LEG_FORCE across the ground. The body
+      // has no friction of its own, so this is all its traction: what it pushes or pulls (the chipper, a log) gets
+      // that force at most, either way, and what pulls on it (a held rope) moves it once past that.
+      const jx = CFG.P_MASS * (wx - v.x), jz = CFG.P_MASS * (wz - v.z), jl = Math.hypot(jx, jz), cap = CFG.LEG_FORCE * dt;
+      const f = jl > cap ? cap / jl : 1;
+      body.applyImpulse({ x: jx * f, y: 0, z: jz * f }, true);
+      if (pressed.jump) { const u = body.linvel(); body.setLinvel({ x: u.x, y: CFG.JUMP, z: u.z }, true); }
     }
-    if (p.grounded) body.setLinvel({ x: wx, y: pressed.jump ? CFG.JUMP : v.y, z: wz }, true);
     // sliding on ground too steep to stand on (a ledge face): a jump still pushes off it, so a ledge just over
     // jump height can be scrambled up in two or three jumps; a wall (steeper than JUMP_SLOPE) gives no footing
     // (the push has nothing into the face: the feet push off it, not through it)

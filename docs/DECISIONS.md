@@ -1104,3 +1104,42 @@ drawing fibre bundles that are fully intact and to measure it.
   one instanced draw), but the CPU work per aux tick and per bend scales with
   the boxes drawn. The fibre lines that used to poke through the bark at
   segment joints are gone too.
+
+**D81 — Legs push and pull with one force; the arms hold both ways.** Owner:
+pulling was far weaker than pushing even with 50 kN of pull force set, and
+both must move the chipper truck over rough ground (its weight may come
+down).
+- *Why pulling was weak.* Walking set the body's velocity outright every
+  tick, and the hold's pull on the player went in as an impulse after it, so
+  the rope dragged the player back each step. The pull settled near
+  0.15 m/s × 85 kg / tick ≈ 760 N, whatever `PULL_FORCE` said. Measured with
+  50 kN set: 756 N at most. Pushing went through the same velocity
+  overwrite, so it was unlimited: it shoved a 600 kg chipper with its brake
+  on, and ramming it left the player shaken.
+- *Legs.* Standing players get no friction of their own (friction 0,
+  combine Min). Each tick the legs push the body toward the walking velocity
+  with at most `LEG_FORCE` (1000 N, which replaces `PULL_FORCE`) across the
+  ground. That is all their traction, so pushing with the body and pulling
+  through the hands are both capped at `LEG_FORCE`, and a hold pulling on
+  the player moves them only past it. Standing counts the ground under the
+  middle, or anything under the body no steeper than `WALK_SLOPE` (45°, so
+  the sides of a ditch). Walking reaches 3.5 m/s in about 0.2 s and stops as
+  fast. Standing still on a 34° slope drifts 0.1 m in 3 s. The "lean" rule,
+  which limited walking speed away from held wood, is gone: the legs give
+  way first.
+- *Arms.* The hold is now a spring both ways: it pulls when stretched and
+  pushes when squeezed (a push goes level, not down into the ground through
+  the drawbar). Squeezed past `GRAB_MAX` the arms fold. Only a pull averaged
+  over `GRAB_TAU` (0.1 s) above `GRAB_MAX` (2500 N) tears the hold out, so a
+  one-tick jolt does not. While walking with something that can move, the
+  arms also keep it on the line of the walk (`GRAB_STEER`, 3000 N/m, at most
+  `LEG_FORCE`): behind when towing, ahead when pushing. A drawbar held at one
+  point otherwise jackknifes.
+- *Chipper.* `CHIP_MASS` 600 → 350 kg (a small towable chipper).
+- *Measured* (headless; default yards; the chipper placed on the three
+  steadiest rises found; one player, 15 s, the drawbar held). Before: 9.3°
+  did not move it. After: towing up 9.3° covered 53 m, 3.2° 30 m, 2.3° 12 m
+  (stopped by something in the way), with the pull near `LEG_FORCE`.
+  Pushing the drawbar uphill, a scripted walk toward the grip moved it 2 to
+  9 m: it is faster where the player keeps behind the drawbar, which the
+  script steers only crudely.

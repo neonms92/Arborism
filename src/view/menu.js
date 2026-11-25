@@ -25,7 +25,7 @@ export const ROWS = [
   ['PUNCH_FORCE', 'Punch: force added per press (N)', 0, 3000, 10, 1, true],
   ['PUNCH_DECAY', 'Punch: how long each one lasts (s)', 0.02, 1, 0.01, 1, true],
   ['PUNCH_MAX', 'Punch: most force stacked presses reach (N)', 0, 20000, 100, 1, true],
-  ['PULL_FORCE', 'Pulling: most force you pull wood or the chipper with by walking away (N)', 50, 5000, 10, 1, true],
+  ['LEG_FORCE', 'Legs: most force you push or pull with (walking into things, or away from what you hold; N)', 50, 5000, 10, 1, true],
   ['GRAB_MAX', 'Pulling: force that tears what you hold out of your hands (N)', 50, 10000, 10, 1, true],
   ['GRAB_K', 'Grabbed wood: stiffness of the hold (N/m)', 500, 100000, 500, 1, true],
   ['View'],
