@@ -92,6 +92,8 @@ export const ROWS = [
   ['FOLD_DAMP', 'Drag on folding fibres (s)', 0, 1, 0.01, 1, true],
   ['DENSITY', 'Wood density (kg/m3)', 200, 1400, 10, 1, true],
   ['ROLL_RESIST', 'How hard the ground stops a log rolling (cm; 0 = rolls for ever)', 0, 10, 0.5, 0.01],
+  ['GROUND_PUSH_K', 'Wood pushed into the ground: how hard the ground pushes it back out (1/s² per cm)', 0, 100, 1, 100, true],
+  ['GROUND_PUSH_DAMP', 'Wood pushed into the ground: damping as it comes back out (1/s)', 0, 200, 1, 1, true],
   ['Wood chipper'],
   ['CHIP_PULL', 'Feed rollers: most they pull with (N)', 500, 40000, 100, 1, true],
   ['CHIP_CAPACITY', 'Feed rollers: heaviest piece they take before seizing (kg)', 5, 2000, 5, 1, true],

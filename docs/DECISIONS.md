@@ -1265,3 +1265,27 @@ it by the U.S. federal minimum wage, $7.50 per player per scaled hour of the
   1.00 (lots ... wide against ...), to the nearest $500") and a toast says
   the budget when a job starts. Damage toasts are unchanged. Settings in the
   Tab menu under "Money: budget, wages and damage".
+
+**D88 — The ground is solid: wood inside it is pushed back out.** Owner
+(2026-11-25): parts of branches get stuck under the ground and are hard to
+move. The heightfield (D62) has nothing under it, and a segment whose axis is
+under the surface is pushed further down by it while the rest of the piece
+is pushed up, so the piece is pinned through the ground. Headless, a 25 kg,
+2.6 m branch put down with its butt 0.3 m under the surface sank to 0.9 m and
+a pull of 1.5 times its weight moved it 0 to 0.12 m. The owner chose one
+general rule over a minimum twig thickness or teleporting: `sim/ground.js`
+checks the axis of each segment on a moving body (ends and middle) against
+`groundY` before each step. If any of it is under the surface, that
+collider's collision groups leave out the ground and the ground pushes back
+at the deepest point along its normal as a damped spring, sharing the body's
+mass between its sunk points (`GROUND_PUSH_K` 1000/s², about 1 cm under its
+own weight; `GROUND_PUSH_MAX` 0.05 m; `GROUND_PUSH_DAMP` 40/s; it never
+pulls). Once the whole axis is half a radius above the surface, the ordinary
+contact takes over again. A first version pushed with the segment's own mass
+and let a twig under an 11.6 t felled tree sink 0.3 m where the old contact
+had held it, so the spring uses the body's mass. The same branch now
+comes out within 3 s and drags as it does on open ground. Fells on three
+seeds land as before. The check costs about 0.05 ms a step with a whole
+felled tree awake (segments too high to reach the ground are skipped). Flat
+ground (the engine tests) has a solid slab and skips it. Only wood is
+covered: players, chips and loose shed or chipper parts are not.
