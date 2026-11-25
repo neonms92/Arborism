@@ -219,7 +219,7 @@ means "interact has been pressed 17 times since join"); the host acts on the
 difference from the last value it saw. A lost packet therefore never loses a
 press and never duplicates one.
 
-### 2.6 Network statistics (D85)
+### 2.6 Network statistics (D86)
 
 A joined client shows a box top right (Tab menu → View: "Network box when
 joined") and a short `ping / loss` on the status line; the host's status
@@ -432,7 +432,7 @@ Debris: pieces under 2 kg are removed 10 s after creation.
 
 Both are built from the bundles, so neither can disagree with the physics.
 
-**Fibres** — every fibre is its own unlit box, converging with the stem's
+**Fibres** — every fibre is its own box, lit like the bark (dark at night, D84), converging with the stem's
 taper exactly as the physics has it, split in two where sawn.
 With `STRESS_COLORS`:
 

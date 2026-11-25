@@ -451,7 +451,7 @@ export class Players {
       if (ang) cl.side = rotateAbout(cl.side, ax, ang);
       // along the stem
       let t = cl.t + inp.my * sign * CFG.CLIMB * dt / L;
-      // The end of the wood stops you once (D84): to climb off it, let go of {move} and push on again. A late
+      // The end of the wood stops you once (D85): to climb off it, let go of {move} and push on again. A late
       // view (a joined client sees itself ~0.1-0.2 s behind) can then never carry anyone off the top unawares.
       const push = Math.sign(inp.my * sign);
       if (cl.end && push !== cl.end) cl.armed = true;

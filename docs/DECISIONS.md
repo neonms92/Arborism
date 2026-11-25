@@ -1195,7 +1195,14 @@ cut every button caption to two words at most.
   (the lobby help, "Look at wood within reach...") are unchanged.
 
 
-**D84 — The end of the wood stops a climber once.** Owner (2026-11-25): on
+**D84 — Fibres are lit.** Owner (2026-11-25): at night the fibres stayed
+super bright. They were `MeshBasicMaterial` (unlit) so the stress colour
+read the same from every side. Now `MeshLambertMaterial`, like the bark:
+they follow the sun, the moon and the headlamps. By day the colours are the
+same, with a little face shading that helps tell neighbouring fibres apart;
+at night stress colours are read by headlamp.
+
+**D85 — The end of the wood stops a climber once.** Owner (2026-11-25): on
 a LAN a client climbing a limbless trunk kept going over the top without
 noticing, because they see themselves 0.1–0.2 s late (D3). Climbing past
 the free end of the wood (the top of a stem with nothing above it, or the
@@ -1204,7 +1211,7 @@ bottom of a hanging piece) now stops at the end with a toast; letting go of
 Moving 0.3 m back from the end forgets the stop. This is a host rule, so it
 holds whatever the network does. Unions and stem changes are unchanged.
 
-**D85 — Network statistics on the client; inputs carry a sequence number.**
+**D86 — Network statistics on the client; inputs carry a sequence number.**
 Owner (2026-11-25): show at least ping and packet loss when joined. See
 DESIGN 2.6. Ping rides the unreliable channel on purpose, so it measures
 what snapshots and inputs see and its own loss is a third loss figure.
