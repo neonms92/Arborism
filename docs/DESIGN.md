@@ -792,6 +792,15 @@ The HUD and lobby name controls for whichever device was touched last
 | Settings menu | Tab | Back |
 | Respawn (prototype) | Enter | Start |
 
+**Touch** (`src/touch.js`, D61): a floating stick under the left thumb;
+drag on the right to look (or pivot the planted bar); one big context
+button for interact, labelled with what it will do now (hold it to spur in
+or move the lanyard); Rig, Punch, Let go (hold) and Saw appear only while
+the prompt offers them; Saw is a toggle, and Cut (hold) appears on the left
+while it is on; on the rope tail a spring-centred slider hauls (up) and
+eases (down), with Wrap + / − beside it; ⚙ and ↺ top right. On by default
+on touch-first screens; `?touch` / `?touch=0` force it.
+
 There are no tools to switch between: the chainsaw, the rigging and the
 lanyard are all to hand, and what a button does depends on what is looked
 at. A held action shows a ring filling round the reticle (`ch` in the

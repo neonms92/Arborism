@@ -148,6 +148,9 @@ const HELP = '{move} move / climb   {look} look   hold {interact}: spur in / mov
   '{rig}: hang the block, then tie the rope to the wood looked at, or untie at the knot   {punch}: punch the wood (press again and again to push harder)   ' +
   '{raise} plant the saw on the wood you are looking at, then {look} pivots the bar and {throttle} presses it in   ' +
   'on the rope tail: {throttle} ease, {raise} haul, {wraps} wraps   {menu} settings   {respawn} respawn';
+const TOUCH_HELP = '{move} move / climb   {look} look   the big button does what the prompt says (hold it to spur in or move the lanyard)   ' +
+  'hold {drop} to let go of the tree   {rig}, {punch} and {raise} appear when they can be used; with the saw planted, {look} pivots the bar and hold {throttle} to press it in   ' +
+  'on the rope tail: the slider hauls (up) and eases (down), {wraps}   {menu} settings   {respawn} respawn';
 let helpDevice = '';
 
 function frame(now) {
@@ -155,8 +158,8 @@ function frame(now) {
   if (testing) { last = now; return; }             // the Testing menu covers the game; do not draw behind it
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   if (!input.active) {
-    lobbyPad(); input.poll(dt);
-    if (helpDevice !== input.device) { helpDevice = input.device; $('help').textContent = (helpDevice === 'pad' ? 'Controller: ' : 'Keyboard and mouse: ') + describe(HELP, helpDevice);
+    lobbyPad(); input.poll(dt); input.touch.sync(null, false);
+    if (helpDevice !== input.device) { helpDevice = input.device; $('help').textContent = (helpDevice === 'pad' ? 'Controller: ' : helpDevice === 'touch' ? 'Touch: ' : 'Keyboard and mouse: ') + describe(helpDevice === 'touch' ? TOUCH_HELP : HELP, helpDevice);
       const pad = helpDevice === 'pad';
       $('bHost').textContent = pad ? 'Host (A)' : 'Host'; $('bSolo').textContent = pad ? 'Solo (Y)' : 'Solo'; $('bJoin').textContent = pad ? 'Join (X)' : 'Join';
     }
@@ -167,7 +170,8 @@ function frame(now) {
   input.sawOut = !!(mine && mine.saw);
   if (menu.open) { input.mouse.l = input.mouse.r = false; }
   const inp = input.poll(dt);
-  if (input.menuToggled) { input.menuToggled = false; menu.toggle(); input.menuOpen = menu.open; }
+  if (input.menuToggled) { input.menuToggled = false; menu.toggle(); }
+  input.menuOpen = menu.open;                      // the menu's Close button shuts it too
 
   if (sim) {
     sim.players.setInput(me, inp);
@@ -193,6 +197,7 @@ function frame(now) {
   view.update(dt, sim ? hostSource : interp, aux, me, inp);
   const info = role === 'solo' ? 'solo' : role === 'host' ? `HOST  room ${room}  (${net.clients.size} joined)` : `joined ${room}`;
   hud.update(dt, aux, me, info, input.device);
+  input.touch.sync(mine, !menu.open);
 }
 requestAnimationFrame(frame);
 

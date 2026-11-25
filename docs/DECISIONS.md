@@ -588,9 +588,34 @@ own threshold, `FENCE_BREAK_F` 10 kN: a 127 kg log from 3–4 m (50 kN) broke
 one section of the privacy and of the two-rail fence; a 42 kg log from 1.6 m
 (8.5 kN) did not break the two-rail.
 
+**D61 — Touch is a third input device; the saw by finger is a viewer prototype.**
+Owner asked for true phone controls and approved: "build idea 1 first, since
+it's cheap and makes everything playable. At the same time, try the
+draw-to-cut saw from idea 2 in the test viewer." Idea 1 is `src/touch.js`:
+it fills the same InputState as the keyboard and the pad, so `sim/` has no
+idea a finger was used (the only sim change is `Sim.ray`, split out of
+`aim` for the viewer). Judgment calls, none reviewed by the owner yet:
+the left 42 % of the screen is the floating stick and the rest drags to
+look; one big context button is `{interact}` and is labelled with the words
+after `{interact}` in the host's prompt; Rig, Punch, Let go and Saw show
+only while the prompt names their token, Jump only on the ground; Saw is a
+**toggle** on touch (a thumb cannot hold it and pivot and cut at once) and
+Cut sits on the left, above the stick; on the rope tail a spring-centred
+slider replaces the saw's buttons (up = `lt` haul, down = `rt` ease). Touch
+look uses `INVERT_Y` like the mouse. Prompt, rope line and toasts move to the
+top of the screen while touch controls are shown. On by default when the
+primary pointer is coarse and there is no fine pointer; `?touch` forces it on,
+`?touch=0` off, and a finger on the canvas turns it on on other touch screens.
+The Tab menu gained a Close button (phones have no Tab key).
+Idea 2 lives only in the test viewer (`Saw` button): a stand-in climber with
+no body, its eyes 1 m back along the finger's ray, drives the real
+`sawStep`, so bar, pivot limits, cutting rate and pinch are the game's own.
+With Saw on, the viewer keeps simulating after the test ends, at the test's
+settings.
+
 ## Ground
 
-**D61 — Terrain is one seeded height field with level pads; things are seated on it, not the other way round.**
+**D62 — Terrain is one seeded height field with level pads; things are seated on it, not the other way round.**
 The owner asked for hills and ledges before procedural yards. A Rapier
 heightfield, generated from a small spec, so only the spec crosses the
 network and late joiners rebuild it. Ledges are a stair over a noise field
@@ -613,4 +638,3 @@ every dynamic body gets soft CCD (`TERRAIN_CCD`, 0.5 m) on terrain; Rapier's
 hard CCD did not stop it. The engine tests keep the flat slab so their
 results stay comparable; the smoke run is unchanged (18 / 22, the same four
 failing as before).
-

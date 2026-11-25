@@ -280,7 +280,11 @@ export class Sim {
   /** What a player is looking at on a tree: {seg, point:Vector3, dist} or null. */
   aim(p) {
     const { o, d } = this.eye(p);
-    const hit = this.rapier.castRay(new RAPIER.Ray(o, d), 8, true, undefined, undefined, undefined, p.body);
+    return this.ray(o, d, 8, p.body);
+  }
+  /** The wood a ray from o along unit d meets within max m: {seg, point:Vector3, dist} or null. `skip`: a body to see through. */
+  ray(o, d, max, skip) {
+    const hit = this.rapier.castRay(new RAPIER.Ray(o, d), max, true, undefined, undefined, undefined, skip);
     if (!hit) return null;
     const seg = this.colSeg.get(hit.collider.handle);
     if (seg === undefined) return null;
