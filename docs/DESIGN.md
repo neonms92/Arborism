@@ -69,6 +69,7 @@ synced by different mechanisms (section 2).
 | `src/model/world.js` | `World`: segments (each with its fibre bundle), pieces, rope; `apply(event)`; `serialize()` | all |
 | `src/model/flex.js` | Elastic bending: per-segment frames from the bundles' stress planes | all |
 | `src/model/treegen.js` | Seeded tree generator → segment list | host |
+| `src/model/terrain.js` | The ground: seeded height field from a spec (hills, ledges, level pads); `heightAt`, `normalAt`, `slopeAt`, `range` | all |
 | `src/model/fibres.js` | Fibre bundles: layout, severing, static load sharing (pure functions) | all (analysis host only) |
 | `src/sim/sim.js` | Host simulation: Rapier world, fixed step, orchestration, `emit` | host |
 | `src/sim/structure.js` | Beam pass, stiff bundles (static solve), live bundles (per-fibre springs, implicit solve) | host |
@@ -720,6 +721,50 @@ the shed and the chipper. Procedural yard boundaries will place these later.
   `smash` event carries their ids and the pose the module's body had, so a
   client draws the parts where they were until their first transform.
 - **Reset.** A new tree puts the shed and fences up again, intact (`builds` event).
+- **On the ground.** A shed gets a level pad (6.7) and stands at the highest
+  ground under its footprint. A fence follows the ground in steps: each
+  section is level at the lower of its two posts (`ys` in the `builds` list),
+  so its posts sink deeper on the uphill side.
+
+### 6.7 The ground: hills and ledges
+
+The ground (`model/terrain.js`) is a square height field, `TERRAIN_SIZE`
+across with a height every `TERRAIN_CELL`, centred on the tree. It is made
+from a **spec** (seed, the `TERRAIN_*` settings and a list of pads), sent in
+a `terrain` event and in the welcome; every machine builds the same grid from
+it. `world.terrain` null is flat ground at y = 0 (the slab the engine tests
+use: the harness keeps it, `Sim` option `terrain: true` turns it on).
+
+- **Hills**: three octaves of seeded gradient noise, about `TERRAIN_HILL_H`
+  high and `TERRAIN_HILL_W` from top to top.
+- **Ledges**: a stair over a second noise field, `TERRAIN_LEDGES` levels of
+  `TERRAIN_LEDGE_H`: flat treads, and a riser (`TERRAIN_LEDGE_SHARP` of the
+  gap between ledges, so about a cell wide) wherever the field crosses a
+  level; they wind about `TERRAIN_LEDGE_W` apart. A third field eases about
+  `TERRAIN_LEDGE_GAPS` of each ledge's length into a slope you can walk up,
+  so no hollow is walled in.
+- **Pads**: level ground `{x, z, r, blend, y}`, flat within r and blending
+  into the natural ground over `blend`. The tree's yard (paving +
+  `TERRAIN_YARD`, at y = 0 where the tree is rooted), the shed and the
+  parked chipper each get one (`sim.pads()`). The yard generator will add
+  pads for houses and anything else that must be level.
+- **Queries**: `heightAt(x, z)`, `normalAt`, `slopeAt` and `range(points)`
+  (lowest and highest ground over a footprint) on the model, and
+  `sim.groundY` / `sim.groundN`, which also work on flat ground. Heights
+  between grid points follow the collider's own triangles (each cell split
+  along its (x1, z0)–(x0, z1) diagonal), so `heightAt` is exactly the surface
+  things rest on.
+- **Physics**: a Rapier heightfield collider. A heightfield is a surface
+  with nothing under it, unlike the 1 m slab of the flat ground, so every
+  dynamic body looks `TERRAIN_CCD` ahead for contacts (soft CCD) on terrain.
+  Without it, sticks dropped at 12 m/s went through.
+- **What sits on it**: pavers lie on the ground under their middle (the
+  physics surface is the ground itself, as before); the chipper is parked on
+  its pad with its wheels on the ground and its tyre model works in the
+  ground's tangent plane; chip piles sit on the ground; players spawn 1.2 m
+  above it, and a new ground lifts anyone it would bury.
+- **Reset.** A new tree makes the ground again from the current settings
+  (and the menu's `TERRAIN_SEED`), before the pavers, chipper and builds.
 
 ---
 

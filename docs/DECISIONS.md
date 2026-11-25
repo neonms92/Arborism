@@ -587,3 +587,30 @@ a log takes out the section it hits and the rest of the run stands. Their
 own threshold, `FENCE_BREAK_F` 10 kN: a 127 kg log from 3–4 m (50 kN) broke
 one section of the privacy and of the two-rail fence; a 42 kg log from 1.6 m
 (8.5 kN) did not break the two-rail.
+
+## Ground
+
+**D61 — Terrain is one seeded height field with level pads; things are seated on it, not the other way round.**
+The owner asked for hills and ledges before procedural yards. A Rapier
+heightfield, generated from a small spec, so only the spec crosses the
+network and late joiners rebuild it. Ledges are a stair over a noise field
+rather than placed features, so they wind and nest like natural benches;
+part of each ledge eases into a walkable slope (`TERRAIN_LEDGE_GAPS`) because
+with 0.8 m ledges and a 0.59 m jump a pure stair walls players into hollows.
+The default ledge is 0.8 m because stepping off one lands at about 4 m/s,
+the `DV_SHAKEN` threshold; a 1 m ledge shook a walker.
+Anything that needs level ground asks for a **pad** in the spec rather than
+the ground being flattened by special cases: the tree's yard, the shed and
+the parked chipper today, houses later. Fences do not get pads (a flat strip
+through a hill looks wrong): each section is level at its lower post, so a
+run steps.
+
+Two physics notes. Rapier's `FIX_INTERNAL_EDGES` flag on the heightfield let
+5 cm sticks slide through the crease at the foot of a ledge even when dropped
+from rest, so it is off. And a heightfield has no thickness, so a stick at
+12 m/s could pass through in one step where the old 1 m slab stopped it:
+every dynamic body gets soft CCD (`TERRAIN_CCD`, 0.5 m) on terrain; Rapier's
+hard CCD did not stop it. The engine tests keep the flat slab so their
+results stay comparable; the smoke run is unchanged (18 / 22, the same four
+failing as before).
+

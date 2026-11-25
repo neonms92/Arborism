@@ -39,6 +39,21 @@ export const CFG = {
   SEG_CAP: 900,            // stop adding branches once the tree has this many segments
   SEG_LEN: 0.8,            // m, length of a fibre segment (how finely stems are divided along their length)
 
+  // --- the ground (model/terrain.js; made again with every new tree) ---
+  TERRAIN_SEED: 3,         // shape of the hills and ledges
+  TERRAIN_SIZE: 200,       // m, side of the square of ground (centred on the tree)
+  TERRAIN_CELL: 0.5,       // m between ground heights (a ledge is at least this wide)
+  TERRAIN_HILL_H: 2,       // m, about how high the hills rise and fall (0 = no hills)
+  TERRAIN_HILL_W: 35,      // m, about how far from one hilltop to the next
+  TERRAIN_LEDGES: 4,       // ledge levels across the ledge field (0 = no ledges)
+  TERRAIN_LEDGE_H: 0.8,    // m, height of one ledge (stepping off one at 0.8 m lands under DV_SHAKEN)
+  TERRAIN_LEDGE_W: 40,     // m, scale over which ledges wind (bigger = fewer, longer ledges)
+  TERRAIN_LEDGE_SHARP: 0.015, // fraction of the gap between two ledges taken by the riser (smaller = steeper)
+  TERRAIN_LEDGE_GAPS: 0.3, // about what fraction of a ledge's length eases into a slope you can walk up
+  TERRAIN_YARD: 1,         // m of level ground beyond the paving round the tree
+  TERRAIN_CCD: 0.5,        // m a moving body looks ahead for ground contacts (the ground is a surface with nothing under it)
+  TERRAIN_BLEND: 4,        // m over which level ground (the yard, under the shed and chipper) blends into the hills
+
   // --- concrete pavers round the tree (laid again, undamaged, with every new tree) ---
   PAVER_SIZE: 0.6,         // m, a paver is PAVER_SIZE x PAVER_SIZE / 2 (two to a basket-weave cell)
   PAVER_RADIUS: 0.5,       // paved circle round the trunk, as a fraction of TREE_HEIGHT (whole pavers only)

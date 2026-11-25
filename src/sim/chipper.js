@@ -38,10 +38,21 @@ export class Chipper {
     this.busy = 0;                   // ticks left of chips flying out of the chute (aux)
   }
 
-  /** Park it fresh for the current tree (with every new tree). */
+  /** Level ground where it is parked (the terrain is made before it is placed): a pad round its middle. */
+  pads(blend) {
+    const pose = parkedPose(CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, CFG.CHIP_GAP), S = SHAPE;
+    const x0 = S.INFEED[0] - 0.2, x1 = S.GRIP[0] + 0.2, mid = (x0 + x1) / 2;
+    return [{ x: pose.p[0] + mid, z: pose.p[2], r: Math.hypot((x1 - x0) / 2, S.WHEELS[0][2] + S.WHEEL_R), blend }];
+  }
+
+  /** Park it fresh for the current tree (with every new tree), its wheels on the ground. */
   place() {
-    const pose = parkedPose(CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, CFG.CHIP_GAP);
-    this.sim.emit({ t: 'chipper', p: pose.p, q: pose.q });
+    const sim = this.sim, pose = parkedPose(CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, CFG.CHIP_GAP), S = SHAPE;
+    // the highest ground under a wheel or the jockey wheel, so none starts in the ground; it settles from there
+    let y = -Infinity;
+    for (const w of [...S.WHEELS, S.JOCKEY]) y = Math.max(y, sim.groundY(pose.p[0] + w[0], pose.p[2] + w[2]));
+    pose.p[1] += y;
+    sim.emit({ t: 'chipper', p: pose.p, q: pose.q });
   }
 
   // ---- model -> physics ----
@@ -67,7 +78,7 @@ export class Chipper {
     if (this.body) sim.rapier.removeRigidBody(this.body);
     for (const { col } of this.pileCols.values()) sim.rapier.removeCollider(col, false);
     this.pileCols.clear(); this.cols.clear(); this.feeding.clear(); this.busy = 0;
-    const body = sim.rapier.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(ev.p[0], ev.p[1], ev.p[2])
+    const body = sim.rapier.createRigidBody(sim.dynamic().setTranslation(ev.p[0], ev.p[1], ev.p[2])
       .setRotation({ x: ev.q[0], y: ev.q[1], z: ev.q[2], w: ev.q[3] }).setLinearDamping(0.05).setAngularDamping(0.3));
     const M = CFG.CHIP_MASS, S = SHAPE;
     const add = (desc, c, mass, friction = 0.8) => {
@@ -176,19 +187,23 @@ export class Chipper {
       const J = Math.max(-cap, Math.min(cap, -v * meff(P, n)));
       if (J) b.applyImpulseAtPoint({ x: n.x * J, y: n.y * J, z: n.z * J }, P, true);
     };
+    // directions along the ground under a point (its tangent plane)
+    const flat = (d, n) => d.addScaledVector(n, -d.dot(n)).normalize();
+    const sim = this.sim, gn = (P) => { const n = sim.groundN(P.x, P.z); return new THREE.Vector3(n[0], n[1], n[2]); };
+    const above = (P) => P.y - sim.groundY(P.x, P.z);
     const A = this.toWorld(S.AXLE, new THREE.Vector3());
-    if (A.y < 0.06) {
-      const N = m * g * share;
-      const side = this.dirToWorld([0, 0, 1], new THREE.Vector3()); side.y = 0; side.normalize();
-      const fwd = this.dirToWorld([1, 0, 0], new THREE.Vector3()); fwd.y = 0; fwd.normalize();
+    if (above(A) < 0.06) {
+      const N = m * g * share, n = gn(A);
+      const side = flat(this.dirToWorld([0, 0, 1], new THREE.Vector3()), n);
+      const fwd = flat(this.dirToWorld([1, 0, 0], new THREE.Vector3()), n);
       let v = b.velocityAtPoint(A);
-      push(A, side, v.x * side.x + v.z * side.z, CFG.CHIP_GRIP * N * dt);
+      push(A, side, v.x * side.x + v.y * side.y + v.z * side.z, CFG.CHIP_GRIP * N * dt);
       v = b.velocityAtPoint(A);
-      push(A, fwd, v.x * fwd.x + v.z * fwd.z, (towed ? CFG.CHIP_ROLL : CFG.CHIP_BRAKE) * N * dt);
+      push(A, fwd, v.x * fwd.x + v.y * fwd.y + v.z * fwd.z, (towed ? CFG.CHIP_ROLL : CFG.CHIP_BRAKE) * N * dt);
     }
     const J = this.toWorld([S.JOCKEY[0], S.JOCKEY[1] - S.JOCKEY_R, S.JOCKEY[2]], new THREE.Vector3());
-    if (J.y < 0.06) {
-      const v = b.velocityAtPoint(J), h = new THREE.Vector3(v.x, 0, v.z), sp = h.length();
+    if (above(J) < 0.06) {
+      const v = b.velocityAtPoint(J), n = gn(J), h = new THREE.Vector3(v.x, v.y, v.z), sp = h.addScaledVector(n, -h.dot(n)).length();
       if (sp > 1e-4) push(J, h.multiplyScalar(1 / sp), sp, (towed ? CFG.CHIP_ROLL : CFG.CHIP_BRAKE) * m * g * (1 - share) * dt);
     }
   }
@@ -244,7 +259,7 @@ export class Chipper {
     const sim = this.sim, R = sim.R, { r, h } = pileShape(pl[2]), old = this.pileCols.get(i);
     if (r < 0.05 || (old && Math.abs(old.r - r) < 0.02)) return;
     if (old) sim.rapier.removeCollider(old.col, false);
-    const col = sim.rapier.createCollider(R.ColliderDesc.cone(h / 2, r).setTranslation(pl[0], h / 2, pl[1]).setFriction(1));
+    const col = sim.rapier.createCollider(R.ColliderDesc.cone(h / 2, r).setTranslation(pl[0], sim.groundY(pl[0], pl[1]) + h / 2, pl[1]).setFriction(1));
     this.pileCols.set(i, { col, r });
   }
 

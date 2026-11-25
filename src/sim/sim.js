@@ -15,13 +15,17 @@ import { Pavers } from './pavers.js';
 import { Chipper } from './chipper.js';
 import { Builds } from './builds.js';
 import { CHIPPER_BODY_ID } from '../model/chipper.js';
+import { terrainSpec, groundY, groundN } from '../model/terrain.js';
 
 export const PLAYER_BODY_ID = 60000;   // snapshot ids >= this are players
 const Y = new THREE.Vector3(0, 1, 0);
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
 
 export class Sim {
-  /** opts.tree = false: start with no wood (the test harness builds its own with a `tree` event). */
+  /**
+   * opts.tree = false: start with no wood (the test harness builds its own with a `tree` event); the ground
+   * then stays flat when it grows a tree, unless opts.terrain = true.
+   */
   static async create(world, opts = {}) {
     await RAPIER.init();
     return new Sim(world, opts);
@@ -45,8 +49,9 @@ export class Sim {
     this.contactRaw = new Map();      // seg id -> [fx,fy,fz] from last rapier step
     this.contactF = new Map();        // filtered
 
-    const g = RAPIER.ColliderDesc.cuboid(200, 0.5, 200).setTranslation(0, -0.5, 0).setFriction(0.9);
-    this.groundCol = this.rapier.createCollider(g);
+    this.flat = opts.terrain === undefined ? opts.tree === false : !opts.terrain;
+    this.groundCol = null;
+    this.makeGround();
 
     // wood still joined by a live fibre bundle must not also collide across that joint
     const noHit = (c1, c2) => {
@@ -74,7 +79,44 @@ export class Sim {
     if (opts.tree !== false) this.grow();
   }
 
-  grow() { this.pavers.lay(); this.chipper.place(); this.builds.place(); this.emit({ t: 'tree', piece: this.world.newId(), segs: generateTree(CFG.TREE_SEED, () => this.world.newId()) }); }
+  grow() {
+    this.emit({ t: 'terrain', spec: this.flat ? null : terrainSpec(CFG, this.pads()) });
+    this.pavers.lay(); this.chipper.place(); this.builds.place();
+    this.emit({ t: 'tree', piece: this.world.newId(), segs: generateTree(CFG.TREE_SEED, () => this.world.newId()) });
+  }
+
+  /** Level ground for the tree's yard (the paving and a margin) and under whatever is put up round it. */
+  pads() {
+    const paveR = CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, blend = CFG.TERRAIN_BLEND;
+    return [{ x: 0, z: 0, r: paveR + CFG.TERRAIN_YARD, blend, y: 0 }, ...this.chipper.pads(blend), ...this.builds.pads(blend)];
+  }
+
+  // ---- the ground ----
+  /** Height of the ground at world (x, z), m. */
+  groundY(x, z) { return groundY(this.world.terrain, x, z); }
+  /** Upward unit normal of the ground at world (x, z), [3]. */
+  groundN(x, z) { return groundN(this.world.terrain, x, z); }
+
+  /**
+   * A dynamic body's description. On terrain the ground is a surface with nothing under it (a heightfield),
+   * not a 1 m slab, so a fast thin piece could pass through it in one step: every moving body looks
+   * TERRAIN_CCD ahead for contacts (Rapier's soft CCD). Flat ground keeps the slab and needs none.
+   */
+  dynamic() { return RAPIER.RigidBodyDesc.dynamic().setSoftCcdPrediction(this.ccd()); }
+  ccd() { return this.world.terrain ? CFG.TERRAIN_CCD : 0; }
+
+  /** The ground collider for world.terrain: a heightfield, or a slab with its top at y = 0 when flat. */
+  makeGround() {
+    const R = RAPIER, t = this.world.terrain;
+    if (this.groundCol) this.rapier.removeCollider(this.groundCol, false);
+    let g;
+    if (!t) g = R.ColliderDesc.cuboid(200, 0.5, 200).setTranslation(0, -0.5, 0);
+    // (no FIX_INTERNAL_EDGES: with it, thin rods slid through the crease at the foot of a ledge)
+    else g = R.ColliderDesc.heightfield(t.n, t.n, t.h, { x: t.n * t.cell, y: 1, z: t.n * t.cell });
+    this.groundCol = this.rapier.createCollider(g.setFriction(0.9));
+    const d = this.ccd();
+    this.rapier.forEachRigidBody((b) => { if (b.isDynamic()) b.setSoftCcdPrediction(d); });
+  }
   /** Clear all wood and grow a new tree from the current TREE_* settings. */
   regrow() { this.emit({ t: 'reset' }); this.grow(); this.toast('A new tree'); }
 
@@ -83,6 +125,7 @@ export class Sim {
 
   // ---- model -> physics ----
   onEvent(ev, info) {
+    if (ev.t === 'terrain') { this.makeGround(); this.players.onTerrain(); return; }
     this.chipper.onEvent(ev, info);
     this.builds.onEvent(ev, info);
     if (ev.t === 'tree') {
@@ -111,7 +154,7 @@ export class Sim {
       const q0 = new THREE.Quaternion(or.x, or.y, or.z, or.w), t0 = new THREE.Vector3(ot.x, ot.y, ot.z);
       if (fr) { t0.add(new THREE.Vector3(fr.t[0], fr.t[1], fr.t[2]).applyQuaternion(q0)); q0.multiply(new THREE.Quaternion(fr.q[0], fr.q[1], fr.q[2], fr.q[3])); }
       this.structure.flex.release(info.moved, fr);
-      const desc = RAPIER.RigidBodyDesc.dynamic().setTranslation(t0.x, t0.y, t0.z)
+      const desc = this.dynamic().setTranslation(t0.x, t0.y, t0.z)
         .setRotation({ x: q0.x, y: q0.y, z: q0.z, w: q0.w }).setLinvel(old.linvel().x, old.linvel().y, old.linvel().z).setAngvel(old.angvel())
         .setLinearDamping(0.05).setAngularDamping(0.2);
       const body = this.rapier.createRigidBody(desc);

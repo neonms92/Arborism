@@ -7,12 +7,14 @@
 
 import * as THREE from 'three';
 import { CFG } from '../config.js';
+import { groundY, groundN } from '../model/terrain.js';
 
-const TOP = 0.012;        // m, drawn top of a slab (the physics surface is the ground at y = 0)
+const TOP = 0.012;        // m, drawn top of a slab above the ground (the physics surface is the ground itself)
 const THICK = 0.07;
 const GAP = 0.006;        // m, joint between slabs
 const RAYS = 14;          // most cracks from one hit
 const CONCRETE = [0.66, 0.65, 0.62], CRACK = [0.08, 0.08, 0.08], SAND = 0xa89b80;
+const _up = new THREE.Vector3(0, 1, 0), _n = new THREE.Vector3();
 const _m = new THREE.Matrix4(), _c = new THREE.Color(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _q = new THREE.Quaternion();
 
 function rng(seed) {      // mulberry32
@@ -55,7 +57,7 @@ export class PaverView {
     // jointing sand under each paver (shows in the joints), so the bed follows the paved circle and leaves the pit open
     this.bed = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: SAND }), n);
     this.bed.receiveShadow = true;
-    for (let i = 0; i < n; i++) { const p = list[i]; this.bed.setMatrixAt(i, _m.compose(_p.set(p.x, 0.003, p.z), _q.identity(), _s.set(2 * p.hx, 1, 2 * p.hz))); }
+    for (let i = 0; i < n; i++) { const p = list[i], y = this.seat(p, _q); this.bed.setMatrixAt(i, _m.compose(_p.set(p.x, y + 0.003, p.z), _q, _s.set(2 * p.hx, 1, 2 * p.hz))); }
     this.group.add(this.bed);
 
     this.slabs = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), this.slabMat, n);
@@ -68,8 +70,15 @@ export class PaverView {
   place(i, hidden = false) {
     const p = this.world.paving.L.list[i];
     _s.set(hidden ? 0 : 2 * p.hx - GAP, hidden ? 0 : THICK, hidden ? 0 : 2 * p.hz - GAP);
-    _m.compose(_p.set(p.x, TOP - THICK / 2, p.z), _q.identity(), _s);
+    const y = this.seat(p, _q);
+    _m.compose(_p.set(p.x, y, p.z).addScaledVector(_n, TOP - THICK / 2), _q, _s);
     this.slabs.setMatrixAt(i, _m); this.slabs.instanceMatrix.needsUpdate = true;
+  }
+  /** A paver lies on the ground under its middle: returns that height, sets q to its tilt (and _n to the normal). */
+  seat(p, q) {
+    const t = this.world.terrain, g = groundN(t, p.x, p.z);
+    q.setFromUnitVectors(_up, _n.set(g[0], g[1], g[2]));
+    return groundY(t, p.x, p.z);
   }
   tint(i) {
     const r = rng(hash(i, 999))(), lvl = Math.min(1, this.world.paving.dmg[i] / Math.max(1, CFG.PAVER_GRAVEL));
@@ -87,6 +96,8 @@ export class PaverView {
     this.place(i, gravel); this.tint(i);
     const geo = gravel ? gravelGeo(pv.L.list[i], i, D, G) : crackGeo(pv.L.list[i], i, pv.hits[i], D, G);
     const mesh = new THREE.Mesh(geo, this.dmgMat); mesh.receiveShadow = true;
+    const p = pv.L.list[i];             // drawn round the paver's middle at y = 0, then laid on the ground there
+    geo.translate(-p.x, 0, -p.z); mesh.position.set(p.x, this.seat(p, mesh.quaternion), p.z);
     this.group.add(mesh);
     this.broken.set(i, { mesh, dmg: D });
   }

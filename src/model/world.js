@@ -7,11 +7,13 @@
 //        or, for an anchor the chipper has taken in, {chip: 1} (the rope runs into its infeed until it comes free)
 // chipper: model/chipper.js
 // builds: breakable structures (the shed), model/builds.js
+// terrain: the ground, model/terrain.js (null = flat at y = 0)
 
 import { makeBundle, cutFibres, packBundle, unpackBundle, gridFor, layout, bundleBasis, CUT, isGone, setGone, presence } from './fibres.js';
 import { CFG } from '../config.js';
 import { newPaving, crackPaver, packPaving, unpackPaving } from './pavers.js';
 import { addChips } from './chipper.js';
+import { makeTerrain } from './terrain.js';
 import { newBuild, smashBuild } from './builds.js';
 
 export const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -72,6 +74,7 @@ export class World {
     this.paving = null;           // concrete pavers round the tree (model/pavers.js)
     this.chipper = null;          // the wood chipper and its chip piles (model/chipper.js)
     this.builds = [];             // breakable structures: the shed (model/builds.js)
+    this.terrain = null;          // the ground (model/terrain.js); null = flat at y = 0
     this.nextId = 1;              // host allocates all ids
     this.listeners = [];
     this._kids = null; this._order = null;
@@ -167,6 +170,7 @@ export class World {
       case 'builds': this.builds = ev.list.map(newBuild); break;   // put up fresh (all intact)
       case 'smash': smashBuild(this.builds, ev); break;           // a module came apart (sim/builds.js)
       case 'rope': this.rope = ev.rope; break;
+      case 'terrain': this.terrain = makeTerrain(ev.spec); break;   // the ground, made from its spec on every machine
       case 'pavers': this.paving = newPaving(ev.c, ev.r, ev.pit); break;   // laid fresh (no damage)
       case 'crack':                 // impacts on pavers this tick: h = [[paver, x, z, damage added], ...]
         if (this.paving) for (const [i, x, z, add] of ev.h) crackPaver(this.paving, i, x, z, add);
@@ -306,6 +310,7 @@ export class World {
     return {
       segs: [...this.segs.values()].map((s) => ({ ...s, f: packBundle(s.f) })), pieces: [...this.pieces.values()],
       rope: this.rope, players: [...this.players.values()], paving: packPaving(this.paving), chipper: this.chipper, builds: this.builds,
+      terrain: this.terrain ? this.terrain.spec : null,
     };
   }
   load(o) {
@@ -317,6 +322,7 @@ export class World {
     this.paving = unpackPaving(o.paving);
     this.chipper = o.chipper || null;
     this.builds = o.builds || [];
+    this.terrain = makeTerrain(o.terrain || null);
     this._dirty();
     for (const fn of this.listeners) fn({ t: 'load' }, {});
   }

@@ -3,6 +3,7 @@
 
 import * as THREE from 'three';
 import { SHAPE, CHIPPER_BODY_ID, pileShape, chipToWorld } from '../model/chipper.js';
+import { groundY } from '../model/terrain.js';
 
 const CHUTE = [[0.2, 0.45, 0.3], [0.2, 1.45, 0.35], [0.2, 1.75, 0.8], [0.2, 1.55, 1.35]];   // discharge chute, chipper-local
 const SPRAY = 48;
@@ -73,12 +74,13 @@ export class ChipperView {
     }
     g.computeVertexNormals();
     const mesh = new THREE.Mesh(g, this.pileMat);
-    mesh.scale.set(r, h, r); mesh.position.set(pl[0], 0, pl[1]); mesh.castShadow = mesh.receiveShadow = true;
+    const gy = groundY(this.world.terrain, pl[0], pl[1]);
+    mesh.scale.set(r, h, r); mesh.position.set(pl[0], gy, pl[1]); mesh.castShadow = mesh.receiveShadow = true;
     const n = Math.min(400, 30 + Math.round(pl[2] * 150));
     const chips = new THREE.InstancedMesh(new THREE.BoxGeometry(0.05, 0.012, 0.03), this.chipMat, n);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), c = new THREE.Color(), s = new THREE.Vector3(1, 1, 1);
     for (let i = 0; i < n; i++) {
-      const ang = rnd() * Math.PI * 2, f = Math.sqrt(rnd()) * 1.05, y = Math.max(0, (1 - f) * h) + 0.01;
+      const ang = rnd() * Math.PI * 2, f = Math.sqrt(rnd()) * 1.05, y = gy + Math.max(0, (1 - f) * h) + 0.01;
       q.setFromEuler(e.set(rnd() * 3, rnd() * 3, rnd() * 3));
       m.compose(new THREE.Vector3(pl[0] + Math.cos(ang) * f * r, y, pl[1] + Math.sin(ang) * f * r), q, s.setScalar(0.7 + rnd() * 0.8));
       chips.setMatrixAt(i, m);
@@ -110,7 +112,7 @@ export class ChipperView {
     this.t += dt;
     const A = this.toWorld(CHUTE[CHUTE.length - 1]), q = this.group.quaternion, p = this.group.position;
     const land = chipToWorld([p.x, p.y, p.z], [q.x, q.y, q.z, q.w], [SHAPE.DISCHARGE[0], -SHAPE.BODY_Y, SHAPE.DISCHARGE[1]]);
-    const B = new THREE.Vector3(land[0], 0.3, land[2]), m = new THREE.Matrix4(), rq = new THREE.Quaternion(), e = new THREE.Euler(), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
+    const B = new THREE.Vector3(land[0], groundY(this.world.terrain, land[0], land[2]) + 0.3, land[2]), m = new THREE.Matrix4(), rq = new THREE.Quaternion(), e = new THREE.Euler(), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
     for (let i = 0; i < SPRAY; i++) {
       const u = (this.t * 1.4 + i / SPRAY) % 1, j = (i * 0.618) % 1 - 0.5;
       v.lerpVectors(A, B, u); v.y += Math.sin(u * Math.PI) * 0.6; v.x += j * 0.4 * u; v.z += ((i * 0.37) % 1 - 0.5) * 0.4 * u;

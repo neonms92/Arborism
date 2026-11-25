@@ -16,7 +16,8 @@
 // one loose body, which can break again where it lands.
 
 import { CFG } from '../config.js';
-import { compose, regroup, partMass, breakForce } from '../model/builds.js';
+import { groundRange } from '../model/terrain.js';
+import { compose, regroup, partMass, breakForce, qrot, SHED, FENCE } from '../model/builds.js';
 
 const CONTACT_EVENT_F = 300;      // N: contact force below which Rapier does not report a pair on a module (too small to matter)
 
@@ -33,19 +34,50 @@ export class Builds {
     this.log = null;              // set to [] in the console to see every contact on a module: arb.sim.builds.log = []
   }
 
-  /** Put the shed up, intact, for the current tree (with every new tree). */
-  place() {
-    const D = 1.8, r = CFG.TREE_HEIGHT * CFG.PAVER_RADIUS + CFG.SHED_GAP + D / 2;
+  /** Where the shed and the fence runs go round the current tree, before their heights are known. */
+  sites() {
+    const D = SHED.D, r = CFG.TREE_HEIGHT * CFG.PAVER_RADIUS + CFG.SHED_GAP + D / 2;
     const w = this.sim.world, F = CFG.TREE_HEIGHT * CFG.PAVER_RADIUS + CFG.FENCE_GAP;
     const ry = (deg) => { const a = deg * Math.PI / 360; return [0, Math.sin(a), 0, Math.cos(a)]; };   // turned about y; a fence runs along its +x
-    this.sim.emit({ t: 'builds', list: [
+    return [
       // on the far side of the trunk from the chipper's chute, door toward the trunk
       { id: w.newId(), kind: 'shed', p: [0, 0, -r], q: [0, 0, 0, 1] },
       // a run of each fence: privacy on the -x side, two-rail on the +z side, split rail between the shed and the chipper
       { id: w.newId(), kind: 'fence:privacy', n: 4, p: [-F, 0, -4.88], q: ry(-90) },
       { id: w.newId(), kind: 'fence:rail2', n: 4, p: [-4.88, 0, F], q: ry(0) },
       { id: w.newId(), kind: 'fence:split', n: 3, p: [F - 5.5, 0, -F - 0.5], q: ry(-45) },
-    ] });
+    ];
+  }
+
+  /** Level ground under each shed (fences follow the ground in steps instead). */
+  pads(blend) {
+    this.planned = this.sites();
+    return this.planned.filter((b) => !b.kind.startsWith('fence:'))
+      .map((b) => ({ x: b.p[0], z: b.p[2], r: Math.hypot(SHED.W, SHED.D) / 2 + 0.3, blend }));
+  }
+
+  /**
+   * Put the shed and fences up, intact, for the current tree (with every new tree), on the ground as it
+   * is: a shed at the highest ground under its footprint (its pad makes that level), and each fence
+   * section level at the lower of its two posts, so a run steps down a slope and its posts go deeper
+   * into the ground on the uphill side.
+   */
+  place() {
+    const sim = this.sim, list = this.planned || this.sites();
+    this.planned = null;
+    for (const b of list) {
+      const toW = (l) => { const r = qrot(b.q, l); return [b.p[0] + r[0], b.p[2] + r[2]]; };
+      if (b.kind.startsWith('fence:')) {
+        const span = FENCE[b.kind.slice(6)].SPAN, post = [];
+        for (let i = 0; i <= b.n; i++) { const [x, z] = toW([i * span, 0, 0]); post.push(sim.groundY(x, z)); }
+        b.p[1] = post[0];
+        b.ys = []; for (let i = 0; i < b.n; i++) b.ys.push(+(Math.min(post[i], post[i + 1]) - b.p[1]).toFixed(4));
+      } else {
+        const { W, D } = SHED, foot = [[-W / 2, -D / 2], [W / 2, -D / 2], [W / 2, D / 2], [-W / 2, D / 2]].map(([x, z]) => toW([x, 0, z]));
+        b.p[1] = +groundRange(sim.world.terrain, foot).hi.toFixed(4);
+      }
+    }
+    sim.emit({ t: 'builds', list });
   }
 
   body(id) { return this.bodies.get(id) || null; }
@@ -100,7 +132,7 @@ export class Builds {
     const lv = old && !old.isFixed() ? old.linvel() : { x: 0, y: 0, z: 0 }, la = [lv.x, lv.y, lv.z];
     const av = old && !old.isFixed() ? old.angvel() : { x: 0, y: 0, z: 0 }, aa = [av.x, av.y, av.z];
     for (const l of ev.loose) {
-      const body = sim.rapier.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(l.p[0], l.p[1], l.p[2]).setRotation({ x: l.q[0], y: l.q[1], z: l.q[2], w: l.q[3] })
+      const body = sim.rapier.createRigidBody(sim.dynamic().setTranslation(l.p[0], l.p[1], l.p[2]).setRotation({ x: l.q[0], y: l.q[1], z: l.q[2], w: l.q[3] })
         .setLinvel(la[0], la[1], la[2]).setAngvel({ x: aa[0], y: aa[1], z: aa[2] }).setLinearDamping(0.05).setAngularDamping(0.2).setCcdEnabled(true));
       this.bodies.set(l.body, body);
       for (const i of l.mods) { this.dropModule(b.id, i); this.addModule(b, i, body); }
@@ -112,7 +144,7 @@ export class Builds {
     const v = B ? B.vSelf : la, w = B ? B.wSelf : aa;
     m.parts.forEach((pt, k) => {
       const l = compose(m.p, m.q, pt.c, pt.q), f = compose(ev.at.p, ev.at.q, l.p, l.q);
-      const body = sim.rapier.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(f.p[0], f.p[1] + 0.002, f.p[2]).setRotation({ x: f.q[0], y: f.q[1], z: f.q[2], w: f.q[3] })
+      const body = sim.rapier.createRigidBody(sim.dynamic().setTranslation(f.p[0], f.p[1] + 0.002, f.p[2]).setRotation({ x: f.q[0], y: f.q[1], z: f.q[2], w: f.q[3] })
         .setLinvel(v[0], v[1], v[2]).setAngvel({ x: w[0], y: w[1], z: w[2] }).setLinearDamping(0.05).setAngularDamping(0.3).setCcdEnabled(true));
       const c = sim.rapier.createCollider(R.ColliderDesc.cuboid(pt.h[0], pt.h[1], pt.h[2]).setMass(partMass(pt, CFG.SHED_DENSITY)).setFriction(0.7).setRestitution(0.1), body);
       this.bodies.set(ev.parts[k], body); this.partCol.set(c.handle, ev.parts[k]);

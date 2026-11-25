@@ -143,9 +143,10 @@ function layout(kind, n = 4) {
   return { mods: [{ p: [0, 0, 0], q: I, ground: true, shape: 'shed' }], glue: [] };
 }
 
-/** A build, fresh and intact, from {id, kind, p, q, n}. */
+/** A build, fresh and intact, from {id, kind, p, q, n, ys}. ys: each module's height above p (a fence stepping down a slope). */
 export function newBuild(b) {
   const L = layout(b.kind, b.n);
+  if (b.ys) L.mods.forEach((m, i) => { if (b.ys[i]) m.p = [m.p[0], m.p[1] + b.ys[i], m.p[2]]; });
   return {
     id: b.id, kind: b.kind, p: b.p, q: b.q, glue: L.glue, bodies: {},
     mods: L.mods.map((m) => ({ p: m.p, q: m.q, ground: m.ground, shape: m.shape, end: !!m.end, parts: modParts(m), body: b.id, ids: null, at: null })),
