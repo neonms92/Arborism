@@ -58,6 +58,7 @@ export class Hud {
     this.fps += (1 / Math.max(dt, 1e-3) - this.fps) * 0.05;
     const a = aux && aux.pl.find((p) => p.id === me);
     let s = `${info}  |  ${Math.round(this.fps)} fps`;
+    if (this.view && this.view.drawDist < CFG.DRAW_DIST - 0.5) s += `  |  view ${qty('len', this.view.drawDist, 0)}`;   // ridden down for the frame rate
     if (this.world.damage > 0) s += `  |  damage ${money(this.world.damage)}`;
     if (a && a.ck > 0) s += `  |  carrying ${qty('vol', a.ck * 1000, 0)} of chips`;
     if (a) s += `  |  ${a.m === MODE.CLIMB ? 'on spurs, lanyard on' : a.m === MODE.ROPE ? 'on the rope' : 'on the ground'}  |  ${INJ_NAME[a.inj]}`;
