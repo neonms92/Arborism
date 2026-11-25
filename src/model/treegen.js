@@ -1,8 +1,10 @@
 // Seeded tree generator, shaped by the TREE_* / BRANCH_* / SEG_LEN / FIBRE_*
-// values in config (the Tab menu). Host only: the result travels to clients as
-// data, so this does not need to be bit-identical across machines.
+// values in config (the Tab menu), or by an explicit shape `o` (treeShape) so
+// that every machine grows the same tree from the same numbers whatever its own
+// menu says (the other trees in the yards, model/stands.js, are drawn on every
+// machine from their shape before any of their wood exists).
 // Returns [{id, parent, a, b, r0, r1, leaf, N}] with parents before children
-// (N = fibres across that segment's bundle).
+// (N = fibres across that segment's bundle). The trunk comes first, base to top.
 
 import { CFG } from '../config.js';
 import { gridFor } from './fibres.js';
@@ -17,13 +19,18 @@ function rng(seed) {
   };
 }
 
-export function generateTree(seed, newId, origin = [0, 0, 0]) {
+/** The job tree's shape from the menu: height, diameter, branch density and length, segment length, segment cap, fibre width. */
+export function treeShape(over = {}) {
+  return { h: CFG.TREE_HEIGHT, d: CFG.TREE_DIAMETER, dens: CFG.BRANCH_DENSITY, blen: CFG.BRANCH_LENGTH, sl: CFG.SEG_LEN, cap: CFG.SEG_CAP, pitch: CFG.FIBRE_PITCH, ...over };
+}
+
+export function generateTree(seed, newId, origin = [0, 0, 0], o = treeShape()) {
   const R = rng(seed), segs = [];
   const rnd = (a, b) => a + (b - a) * R();
-  const H = CFG.TREE_HEIGHT, rBase = CFG.TREE_DIAMETER / 2, SL = Math.max(0.1, CFG.SEG_LEN);
-  const scale = H / 11, thick = rBase / 0.27, dens = CFG.BRANCH_DENSITY, blen = CFG.BRANCH_LENGTH * scale;
+  const H = o.h, rBase = o.d / 2, SL = Math.max(0.1, o.sl), cap = o.cap;
+  const scale = H / 11, thick = rBase / 0.27, dens = o.dens, blen = o.blen * scale;
   const add = (parent, a, b, r0, r1, leaf = 0) => {
-    const s = { id: newId(), parent, a, b, r0, r1, leaf, N: gridFor(r0) }; segs.push(s); return s;
+    const s = { id: newId(), parent, a, b, r0, r1, leaf, N: gridFor(r0, o.pitch) }; segs.push(s); return s;
   };
   const norm = (v) => { const l = Math.hypot(v[0], v[1], v[2]); return [v[0] / l, v[1] / l, v[2] / l]; };
   /** How many branches to start here, for `per` expected per metre of stem. */
@@ -54,7 +61,7 @@ export function generateTree(seed, newId, origin = [0, 0, 0]) {
     const t = trunk[i], sl = H / trunk.length;
     h += sl;
     if (h < 0.34 * H || i === trunk.length - 1) continue;                    // clear stem below the crown
-    for (let c = first ? Math.max(1, count(0.9, sl)) : count(0.9, sl); c > 0 && segs.length < CFG.SEG_CAP; c--) {
+    for (let c = first ? Math.max(1, count(0.9, sl)) : count(0.9, sl); c > 0 && segs.length < cap; c--) {
       az += 2.4 + rnd(-0.4, 0.4);
       const frac = h / H, elev = rnd(0.25, 0.75) + frac * 0.4;
       const dir = [Math.cos(az) * Math.cos(elev), Math.sin(elev), Math.sin(az) * Math.cos(elev)];
@@ -64,7 +71,7 @@ export function generateTree(seed, newId, origin = [0, 0, 0]) {
       first = false;
       for (let j = 0; j < limb.length - 1; j++) {
         const l = limb[j];
-        for (let c2 = count(0.9, length / limb.length); c2 > 0 && segs.length < CFG.SEG_CAP; c2--) {
+        for (let c2 = count(0.9, length / limb.length); c2 > 0 && segs.length < cap; c2--) {
           const a2 = rnd(0, Math.PI * 2), tl = rnd(1.0, 2.2) * blen;
           const d2 = [dir[0] * 0.5 + Math.cos(a2), 0.3 + rnd(0, 0.6), dir[2] * 0.5 + Math.sin(a2)];
           chain(l.id, l.b, d2, tl, Math.max(0.018 * tl, l.r1 * rnd(0.45, 0.6)), 0.015, 0.11, 0.14);   // long twigs are thicker: they must carry themselves

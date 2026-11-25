@@ -6,7 +6,9 @@ import * as THREE from '../../vendor/three/three.module.js';
 import { CFG } from '../config.js';
 import { segLen, segAxis, segMass, segParam, lerp3 } from '../model/world.js';
 import { layout, bundleBasis, isGone } from '../model/fibres.js';
-import { generateTree } from '../model/treegen.js';
+import { generateTree, treeShape } from '../model/treegen.js';
+import { markOn } from '../model/stands.js';
+import { Stands } from './stands.js';
 import { frameApply, frameDir, frameInverse } from '../model/flex.js';
 import { Players } from './players.js';
 import { Rope } from './rope.js';
@@ -76,6 +78,7 @@ export class Sim {
     this.chipper = new Chipper(this);  // its body is made by the first 'chipper' event (grow)
     this.damage = new Damage(this);
     this.builds = new Builds(this);    // the shed; its bodies are made by the 'builds' event (grow)
+    this.stands = new Stands(this);    // the other trees in the yards while dormant; made by the 'stands' event (grow)
     this.onLoads = null;              // optional fn(dt), called each tick where point loads go in (test harness)
 
     if (opts.tree !== false) this.grow();
@@ -85,7 +88,22 @@ export class Sim {
     const plan = this.builds.plan();      // the yards round the tree: the ground is made with the level pads they ask for
     this.emit({ t: 'terrain', spec: this.flat ? null : terrainSpec(CFG, plan.pads) });
     this.pavers.lay(plan.areas); this.chipper.place(false, plan.chipper); this.builds.place();
-    this.emit({ t: 'tree', piece: this.world.newId(), segs: generateTree(CFG.TREE_SEED, () => this.world.newId()) });
+    if (plan.trees.length) this.emit({ t: 'stands', ...this.standList(plan.trees) });
+    const segs = generateTree(CFG.TREE_SEED, () => this.world.newId());
+    // the job tree is marked with an orange X, sprayed on the side facing its street (not on flat ground: the engine tests)
+    this.emit({ t: 'tree', piece: this.world.newId(), segs, mark: this.flat ? undefined : markOn(segs, CFG.MARK_HEIGHT, plan.front) });
+  }
+
+  /** The 'stands' event for the planned trees: each stands on the lowest ground round its trunk, so it never floats. */
+  standList(trees) {
+    const g = treeShape({ pitch: CFG.YARD_TREES_PITCH });
+    delete g.h; delete g.d;
+    const list = trees.map(([x, z, seed, h, d]) => {
+      let y = Infinity;
+      for (let k = 0; k < 8; k++) y = Math.min(y, this.groundY(x + Math.cos(k * Math.PI / 4) * d / 2, z + Math.sin(k * Math.PI / 4) * d / 2));
+      return [x, +(y - 0.05).toFixed(4), z, seed, h, d];
+    });
+    return { g, list };
   }
 
   // ---- the ground ----
@@ -125,6 +143,7 @@ export class Sim {
     if (ev.t === 'terrain') { this.makeGround(); this.players.onTerrain(); return; }
     this.chipper.onEvent(ev, info);
     this.builds.onEvent(ev, info);
+    this.stands.onEvent(ev, info);
     this.damage.onEvent(ev, info);
     if (ev.t === 'tree') {
       const body = this.rapier.createRigidBody(RAPIER.RigidBodyDesc.fixed());

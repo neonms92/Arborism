@@ -924,3 +924,38 @@ costs, settings search.**
   adapts, and its edge shows).
 - Defaults keep the old look: the fixed fog was 40 to 140 m.
 
+**D74 — Other trees in the yards: drawn until touched, wood once sawn or climbed; an orange X on the job tree.**
+- *Dormant.* The yard plan puts `YARD_TREES` trees per lot on average
+  (1.5), `YARD_TREES_HMIN` to `YARD_TREES_HMAX` tall (8 to 16 m), trunk
+  `YARD_TREES_THICK` × height across, wherever they fit: clear of the lot's
+  edges by 1 m and of everything else by a fifth of their height. They use
+  their own random numbers seeded by the lot, so adding them moved nothing
+  else in the plan. A dormant tree has no wood in the model: `world.stands`
+  holds only its place and its shape numbers (one small `stands` event).
+  Every machine grows the same skeleton from those numbers
+  (`generateTree` now takes an explicit shape, so a client's own menu cannot
+  change it) and draws bark and foliage from bundles made just for drawing.
+  All dormant trees are one bark mesh and one foliage mesh. The host gives
+  each only fixed colliders along its trunk, so players bump into it and can
+  look at it. The crown catches nothing: a felled tree passes through
+  another's branches and stops only on its trunk.
+- *Waking.* A player who starts sawing one (holding the saw trigger within
+  saw reach), presses {interact} on it (grab, or hold to spur in) or {rig}
+  wakes it: the host grows its wood with the same numbers and
+  `YARD_TREES_PITCH`-wide fibres (60 mm, against 30 mm on the job tree:
+  about a quarter of the fibres), as an ordinary rooted tree (a `tree` event
+  with `stand` set). It is then wood like the job tree in every way. Rapier
+  finds new colliders only after a step, so the press that woke it is
+  replayed on the next tick. Looking at one is not enough, so walking about
+  wakes nothing.
+- *Cost (headless, default yards, 15 trees).* Dormant: no step cost that
+  could be measured, about 70 ms more to grow the world, 191 trunk
+  colliders. All 15 awake: 816 more segments and 11 600 more fibres, step
+  median 1.5 → 3.9 ms. Waking one is about 11 ms on the host.
+- *The X.* The host sprays it on the job tree `MARK_HEIGHT` (1.4 m) up,
+  on the trunk segment nearest that height, on the side facing the tree
+  lot's street (`world.mark`, piece-local). It is paint on the bark: drawn
+  in the bark mesh of the segment it is on, it bends with the bark, a kerf
+  through it is a gap in it, and the part on a piece that falls goes with
+  that piece. Engine tests (flat ground) get no X and no other trees.
+

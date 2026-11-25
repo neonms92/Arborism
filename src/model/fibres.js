@@ -35,9 +35,9 @@ export function layout(N) {
   }
   return l;
 }
-/** How many fibres across for a stem of radius R. Always odd. */
-export function gridFor(R) {
-  let N = Math.round(2 * R / CFG.FIBRE_PITCH);
+/** How many fibres across for a stem of radius R (fibres `pitch` m wide). Always odd. */
+export function gridFor(R, pitch = CFG.FIBRE_PITCH) {
+  let N = Math.round(2 * R / pitch);
   if (N % 2 === 0) N++;
   return Math.max(3, Math.min(CFG.GRID_MAX, N));
 }

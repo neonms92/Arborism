@@ -175,6 +175,13 @@ export const CFG = {
   YARD_STREET: 9,          // m, street between blocks of lots
   YARD_FENCE: 0.5,         // chance a lot is fenced round its sides and back
   YARD_TREE_CLEAR: 4,      // m beyond the trunk kept clear of houses, sheds and the chipper (players spawn 4 m from the tree)
+  // --- other trees in the yards (model/stands.js): drawn, with only a trunk to bump into, until someone saws or climbs one ---
+  YARD_TREES: 1.5,         // trees per lot, on average (as many as fit)
+  YARD_TREES_HMIN: 8,      // m, shortest
+  YARD_TREES_HMAX: 16,     // m, tallest
+  YARD_TREES_THICK: 0.045, // m of trunk diameter per metre of height
+  YARD_TREES_PITCH: 0.06,  // m, fibre width once one comes to life (FIBRE_PITCH is the job tree's): wider = fewer fibres, cheaper
+  MARK_HEIGHT: 1.4,        // m above the ground of the orange X sprayed on the job tree
   // --- what breaking things costs (sim/damage.js), in dollars, added to a running total on the HUD ---
   PAVER_COST: 25,          // one paver, the first time it cracks
   FENCE_COST: 300,         // one fence section broken apart

@@ -13,7 +13,8 @@
 //   a house (rooms glued on a foundation, model/builds.js) facing the street, with a porch of pavers
 //     at its door, a paver sidewalk out to the street, or both;
 //   a patio of pavers behind the house; a shed in a back corner;
-//   a fence round its sides and back, and sometimes along the front with a gap where the path is.
+//   a fence round its sides and back, and sometimes along the front with a gap where the path is;
+//   trees (model/stands.js), wherever there is room left, clear of everything above.
 // DENSITY (0..1) raises the chance of each of these, and lots get smaller as it rises (LOT_MAX at 0,
 // LOT_MIN at 1). The plan is laid out in x, z only: heights come later from the ground, which is made
 // with the pads the plan asks for (houses, patios and sheds stand on level ground; fences and sidewalks
@@ -21,7 +22,8 @@
 //
 // plan = {lots: [{x0, x1, z0, z1, face, tree}], builds: [{kind, p:[x, 0, z], q, ...}],
 //         areas: [paver areas, model/pavers.js], pads: [{x, z, r, blend, yAt?}],
-//         chipper: {x, z, yaw} | null (where it is parked), treePave: radius of the tree's paving (or undefined)}
+//         chipper: {x, z, yaw} | null (where it is parked), treePave: radius of the tree's paving (or undefined),
+//         trees: [[x, z, seed, height, diameter]] (the other trees), front: [x, z] (the tree's lot faces its street this way)}
 
 import { HOUSE, SHED, FENCE, houseFoot } from './builds.js';
 
@@ -47,7 +49,7 @@ const r4 = (v) => +v.toFixed(4);
 export function planYards(o) {
   const R = rng(o.seed * 7919 + 17), d = Math.min(1, Math.max(0, o.density));
   const lotW = o.lotMax + (o.lotMin - o.lotMax) * d, lotD = lotW * 1.4, E = o.extent, ST = o.street;
-  const plan = { lots: [], builds: [], areas: [], pads: [], chipper: null };
+  const plan = { lots: [], builds: [], areas: [], pads: [], chipper: null, trees: [], front: [0, 1] };
   const jit = (v, f = 0.15) => v * (1 + (R() * 2 - 1) * f);
 
   // The tree's lot is a lot like the others (the same width and depth for the density), placed so that the tree
@@ -84,6 +86,7 @@ export function planYards(o) {
       if (!tree && (Math.abs((x0 + x1) / 2) > E || Math.abs((row.z0 + row.z1) / 2) > E)) continue;
       const lot = { x0, x1, z0: row.z0, z1: row.z1, face: row.face, tree };
       plan.lots.push(lot);
+      if (tree) plan.front = [0, row.face];
       fillLot(plan, lot, R, d, o, posts, edges, key);
     }
   }
@@ -243,6 +246,25 @@ function fillLot(plan, lot, R, d, o, posts, edges, key) {
       const g = house ? house.door : 0, gap = 0.8;
       fenceRun(plan, style, corners.fr, L(g + gap, D), posts, edges, key);
       fenceRun(plan, style, L(g - gap, D), corners.fl, posts, edges, key);
+    }
+  }
+
+  // ---- trees, where there is room left: their own random numbers (seeded by the lot), so that adding them did
+  // not move anything else ----
+  const TR = o.trees;
+  if (TR && TR.n > 0) {
+    const Rt = rng(o.seed * 9973 + Math.round(lot.x0 * 10) * 7919 + Math.round(lot.z0 * 10) * 104729);
+    const want = Math.floor(TR.n) + (Rt() < TR.n - Math.floor(TR.n) ? 1 : 0);
+    for (let i = 0, got = 0; i < want * 12 && got < want; i++) {
+      const h = TR.hmin + (Math.max(TR.hmin, TR.hmax) - TR.hmin) * Rt(), dia = h * TR.thick * (0.8 + 0.4 * Rt());
+      const u = (Rt() - 0.5) * W, w = Rt() * D, seed = 1 + Math.floor(Rt() * 1e6);
+      // the trunk clear of the lot's edges (its fences) and of everything else by a fifth of its height
+      const k = dia / 2 + Math.max(1.5, 0.2 * h);
+      if (!free(u - k, u + k, w - k, w + k, 1)) continue;
+      take(u - k, u + k, w - k, w + k);
+      const [x, z] = toW(u, w);
+      plan.trees.push([r4(x), r4(z), seed, r4(h), r4(dia)]);
+      got++;
     }
   }
 }
