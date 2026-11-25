@@ -20,6 +20,10 @@ export const CFG = {
   STRESS_COLORS: true,     // colour fibres by load (off: plain wood)
   LEAF_OPACITY: 0.7,
   EYE: 0.65,               // m, eye height above the body centre
+  DOWN_EYE: 0.1524,        // m (6 in): eye height above the ground while down (the view is also turned on its side)
+  WOBBLE: 0.08,            // rad, how far the view swims while shaken (0 = steady)
+  WOBBLE_HZ: 0.6,          // how fast it swims (cycles per second)
+  IMPERIAL: true,          // HUD numbers in feet, pounds, mph... (the settings menu stays in SI)
   PEER_PREFIX: 'arborism-',
 
   // --- wood (green hardwood) ---

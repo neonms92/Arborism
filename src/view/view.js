@@ -404,7 +404,7 @@ export class View {
     this.chipperView.update(dt, src, aux);
     this.buildsView.update(src);
     const seen = new Set();
-    let mePos = null;
+    let mePos = null, meA = null;
     if (aux) for (const a of aux.pl) {
       seen.add(a.id);
       const pm = this.playerMesh(a.id), pose = src.pose(60000 + a.id);
@@ -412,7 +412,7 @@ export class View {
       pm.group.rotation.y = a.yaw;
       pm.group.rotation.z = a.inj === INJ.DOWN ? Math.PI / 2 : 0;
       pm.group.visible = a.id !== me;                 // first person: you do not see your own body
-      if (a.id === me) mePos = pm.group.position;
+      if (a.id === me) { mePos = pm.group.position; meA = a; }
       this.poseSaw(pm, a);
       this.poseLanyard(pm, a);
       this.poseGrab(pm, a);
@@ -422,7 +422,19 @@ export class View {
 
     if (mePos) {                                      // first person
       this.camera.position.copy(mePos).addScaledVector(Y, CFG.EYE);
-      this.camera.quaternion.setFromEuler(new THREE.Euler(inp.pitch, inp.yaw, 0, 'YXZ'));
+      let pitch = inp.pitch, yaw = inp.yaw, roll = 0;
+      if (meA && meA.inj === INJ.DOWN) {
+        // down: the eyes are on the ground, the head turned on its side
+        this.camera.position.y = groundY(this.world.terrain, mePos.x, mePos.z) + CFG.DOWN_EYE;
+        roll = Math.PI / 2;
+      }
+      // shaken (or the shock of being hurt): the view swims, easing in and out over the pause
+      this.wobble = Math.max(0, Math.min(1, (this.wobble || 0) + (meA && meA.sk ? dt : -dt) / 0.4));
+      if (this.wobble > 0 && CFG.WOBBLE > 0) {
+        const t = (this.wobT = (this.wobT || 0) + dt) * 2 * Math.PI * CFG.WOBBLE_HZ, A = CFG.WOBBLE * this.wobble;
+        roll += A * Math.sin(t); pitch += 0.6 * A * Math.sin(1.7 * t + 1); yaw += 0.5 * A * Math.sin(0.8 * t + 2);
+      }
+      this.camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, roll, 'YXZ'));
     }
     this.renderer.render(this.scene, this.camera);
   }

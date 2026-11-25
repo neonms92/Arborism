@@ -436,7 +436,7 @@ export class Chipper {
       // Once seized they stay seized (the wood is clamped at the drum) until it is light enough or out of the chipper.
       const heavy = eat.length || f.seized ? this.weight(piece) : 0;
       if ((eat.length || (f.seized && inAny)) && heavy > CFG.CHIP_CAPACITY) {
-        if (!f.seized) sim.toast(isFinite(heavy) ? `The chipper's rollers seized: that piece is too heavy (${Math.round(heavy)} kg). Saw it smaller`
+        if (!f.seized) sim.toast(isFinite(heavy) ? `The chipper's rollers seized: that piece is too heavy ({mass:${Math.round(heavy)}}). Saw it smaller`
           : 'The chipper\'s rollers seized: that wood is still part of the tree. Saw it free');
         f.seized = true; continue;
       }
