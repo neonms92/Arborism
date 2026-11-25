@@ -59,10 +59,12 @@ export class Players {
     let lvl = INJ.OK;
     if (dv > CFG.DV_DOWN) lvl = INJ.DOWN; else if (dv > CFG.DV_HURT) lvl = INJ.HURT; else if (dv > CFG.DV_SHAKEN) lvl = INJ.SHAKEN;
     if (lvl === INJ.OK) return;
-    if (lvl === INJ.SHAKEN) { p.shakenT = CFG.SHAKEN_TIME; if (p.inj < INJ.SHAKEN) p.inj = INJ.SHAKEN; }
+    // any injury shakes first: a pause with no control (the view swims, view.js)
+    p.shakenT = Math.max(p.shakenT, CFG.SHAKEN_TIME);
+    if (lvl === INJ.SHAKEN) { if (p.inj < INJ.SHAKEN) p.inj = INJ.SHAKEN; }
     else if (lvl > p.inj) {
       p.inj = lvl;
-      this.sim.toast(lvl === INJ.DOWN ? `Player ${p.id} is DOWN (${dv.toFixed(1)} m/s impact) - job failed` : `Player ${p.id} is hurt (${dv.toFixed(1)} m/s impact)`);
+      this.sim.toast(lvl === INJ.DOWN ? `Player ${p.id} is DOWN ({speed:${dv.toFixed(1)}} impact) - job failed` : `Player ${p.id} is hurt ({speed:${dv.toFixed(1)}} impact)`);
     }
     sawOff(this.sim, p);
     if (p.mode === MODE.CLIMB && lvl >= INJ.HURT) this.toGround(p);
@@ -454,7 +456,7 @@ export class Players {
         rd.still = sp < 0.4 ? rd.still + 1 : 0;
         if (rd.still > 20 && rd.max > 1) {
           const dv = rd.max; this.toGround(p);
-          sim.toast(`You rode it down at ${dv.toFixed(1)} m/s`, p.id);
+          sim.toast(`You rode it down at {speed:${dv.toFixed(1)}}`, p.id);
           this.impact(p, dv);
           return;
         }
@@ -488,7 +490,7 @@ export class Players {
     for (const p of this.list.values()) {
       const s = p.saw;
       out.push({
-        id: p.id, m: p.mode, inj: p.inj, ck: +(p.chips || 0).toFixed(4), gr: p.grab ? [p.grab.chip ? -1 : p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pr: p.prompt,
+        id: p.id, m: p.mode, inj: p.inj, sk: p.shakenT > 0 ? 1 : 0, ck: +(p.chips || 0).toFixed(4), gr: p.grab ? [p.grab.chip ? -1 : p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pr: p.prompt,
         cl: p.cl ? [p.cl.seg, +p.cl.t.toFixed(3), p.cl.side.map((x) => +x.toFixed(3))] : 0,
         saw: s.on ? [...s.A.toArray(), ...s.b.toArray(), ...s.f.toArray(), s.stuck ? 1 : 0, s.cutting ? 1 : 0, CFG.BAR_LEN].map((x) => +x.toFixed(3)) : 0,
       });
