@@ -591,8 +591,16 @@ The view is first person: the camera is `EYE` above the body centre.
   stem. Climbing *is* being lanyarded; there is no unclipped climbing.
 - **Letting go** (B / C) drops the lanyard. The player falls from wherever
   they are.
-- The lanyard cannot slide past a union (a joint where another branch longer
-  than `STUB_LEN` still attaches). To get past, look at the stem you want —
+- The lanyard slides only along one stem: onto the child segment that turns
+  least from the one it is on, and only if that turn is under `STEM_BEND`
+  (20°). It never slides from a stem onto a branch by itself.
+- The lanyard cannot slide past a union (a joint where another branch that
+  juts out at least `STUB_LEN` past the bark still attaches). How far a
+  branch juts out is measured at right angles to the stem: the farthest its
+  wood gets from the stem's axis line, less the stem's radius, so a branch of
+  length L leaving at angle θ juts out about L sin θ.
+- Climbing on past the end of the wood (a cut top, the tip of a stump, the
+  bottom of a hanging piece) takes the lanyard off it: the climber falls. To get past, look at the stem you want —
   the trunk above, or the limb — and **interact with hands: the lanyard is
   thrown round that stem** and the player moves to it. (A real climber throws
   a second lanyard, clips it, and unclips the first; this is that, in one
@@ -669,7 +677,7 @@ log can still drag, tip or hoist it.
 - **Grip.** The ring at the end of the drawbar is grabbed like wood
   ({interact}); the hold is the same short rope from the hands. Dragging
   anything that can move, the feet go no faster away from it than it follows
-  (plus a creep while the pull is under half of `GRAB_MAX`), so the player
+  (plus a creep while the pull is under `PULL_FORCE`), so the player
   leans into the load instead of walking out of the hold.
 - **Feeding.** Holding loose wood, {interact} while looking at the chipper
   hands the piece to the feed rollers. They take the end of the wood nearest
