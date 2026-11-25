@@ -904,3 +904,11 @@ costs, settings search.**
 - *Settings menu.* Sections are collapsible (closed by default, and the
   open ones are remembered), with a search box that shows only the
   settings whose label or config name contains every word typed.
+
+**D73 — Tests keep the old tree size.** Owner: keep the 22 m × 1.2 m tree
+for play only. `TEST_DEFAULTS` (the test runner, its viewer, and the
+defaults of every test parameter in `tests.js`, which used to read
+`CFG_DEFAULTS`) sets `TREE_HEIGHT` 11 and `TREE_DIAMETER` 0.54 again. Play
+and "Grow a new tree" still start from `CFG_DEFAULTS` (22 m, 1.2 m). This
+brings FM-22, which grows the default tree, back to the tree it was written
+for (see D71).

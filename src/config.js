@@ -181,8 +181,9 @@ export const CFG = {
 // The values above as shipped, before the Tab menu loads saved settings over them (the test runner starts from these).
 export const CFG_DEFAULTS = Object.freeze({ ...CFG });
 // What the test runner and its viewer start from instead: the same, except that tests are watched for their
-// fibres, so the bark starts hidden there. The viewer's Tune panel can still change it.
-export const TEST_DEFAULTS = Object.freeze({ ...CFG_DEFAULTS, BARK_OPACITY: 0 });
+// fibres, so the bark starts hidden there (the viewer's Tune panel can still change it), and tests keep the
+// smaller tree they were written for (play grows the bigger one, D73).
+export const TEST_DEFAULTS = Object.freeze({ ...CFG_DEFAULTS, BARK_OPACITY: 0, TREE_HEIGHT: 11, TREE_DIAMETER: 0.54 });
 
 export const INJ = { OK: 0, SHAKEN: 1, HURT: 2, DOWN: 3 };
 export const INJ_NAME = ['ok', 'shaken', 'HURT', 'DOWN'];
