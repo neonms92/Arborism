@@ -105,7 +105,7 @@ export class Chipper {
     };
     const box = (b, mass) => add(R.ColliderDesc.cuboid(b.h[0], b.h[1], b.h[2]), b.c, mass);
     box(S.CHASSIS, M * 0.8);
-    box(S.HOPPER, M * 0.08);
+    box(S.HOPPER, M * 0.08); this.hopperCol = [...this.cols].pop();
     box(S.DRAWBAR, M * 0.02);
     add(R.ColliderDesc.cuboid(S.GRIP_H[0], S.GRIP_H[1], S.GRIP_H[2]), S.GRIP, M * 0.005);
     for (const w of S.WHEELS) add(R.ColliderDesc.ball(S.WHEEL_R), w, M * 0.04, 0);       // the tyres' grip is modelled in tyres()
@@ -207,13 +207,18 @@ export class Chipper {
   noHit(h, seg) {
     if (!this.cols.has(h) || seg === undefined) return false;
     const s = this.sim.world.segs.get(seg);
-    return !!s && !!this.feeding.get(s.piece)?.entered;           // until it is in the mouth, it bumps into the chipper
+    const f = s && this.feeding.get(s.piece); if (!f) return false;
+    // Fed wood folds into the hopper (a funnel, not a box): side branches and a log's rim never catch on it. The rest
+    // of the chipper it bumps into until its end is in the mouth, then it passes through on its way to the drum.
+    return f.entered || h === this.hopperCol;
   }
 
   /** How far a chipper-local point is from the line through the hopper mouth and the drum, and whether it is inside. */
-  throat(l) {
+  throat(l, r = 0) {
+    // in the mouth once the end of the wood (r: its radius there) has reached the hopper's opening: a log's end
+    // meets the hopper's face while its centre line is still r short of it
     const S = SHAPE, lat = Math.hypot(l[1] - S.INFEED[1], l[2]);
-    return { lat, inMouth: l[0] > S.INFEED[0] - 0.1 && lat < THROAT };
+    return { lat, inMouth: l[0] > S.INFEED[0] - 0.1 - r && lat < THROAT };
   }
 
   toWorld(l, target = new THREE.Vector3()) {
@@ -243,7 +248,21 @@ export class Chipper {
   }
 
   /** Hand loose wood to the feed rollers, drawn in by piece-local point pl on segment seg. */
-  feed(piece, seg, pl) { this.feeding.set(piece, { seg, p: pl }); }
+  feed(piece, seg, pl) {
+    // The rollers take the end of the wood nearest the hopper's mouth (a cut end or a tip, not a fork), wherever the
+    // player was holding it: wood held by its middle would otherwise meet the chipper end-first and stall there.
+    const f = { seg, p: pl }; this.feeding.set(piece, f);
+    const sim = this.sim, w = sim.world, segs = w.segsOf(piece), used = new Map();
+    const key = (e) => e.map((v) => v.toFixed(3)).join(',');
+    for (const s of segs) for (const e of [s.a, s.b]) used.set(key(e), (used.get(key(e)) || 0) + 1);
+    const M = this.infeed(new THREE.Vector3());
+    let best = Infinity;
+    for (const s of segs) for (const e of [s.a, s.b]) {
+      if (used.get(key(e)) > 1) continue;                     // a joint between segments, not an end of the wood
+      const d = sim.segToWorld(s, e, _a).distanceTo(M);
+      if (d < best) { best = d; f.seg = s.id; f.p = e.slice(); }
+    }
+  }
 
   // ---- per tick, before physics ----
   pre(dt) {
@@ -257,29 +276,81 @@ export class Chipper {
       if (!s || s.piece !== piece) { if (!this.pickFeed(piece, f)) { this.feeding.delete(piece); continue; } s = w.segs.get(f.seg); }
       // The rollers: drive the feed point at CHIP_FEED_V, with no more than CHIP_PULL. First to the hopper mouth
       // (round behind it if the wood is beside the chipper), then straight down the throat to the drum.
-      const P = sim.segToWorld(s, f.p, _a), l = this.toLocal(P), th = this.throat(l);
+      const P = sim.segToWorld(s, f.p, _a), l = this.toLocal(P), th = this.throat(l, feedR(s, f.p));
       if (!f.entered && th.inMouth) f.entered = true;
       let aim;
       if (f.entered) aim = [S.DRUM_X + 0.3, S.INFEED[1], 0];                               // down the axis, centred, to the drum
-      else if (l[0] > S.INFEED[0] - 0.3) aim = [S.INFEED[0] - 0.9, S.INFEED[1], 0];        // beside or ahead of the mouth: go round
-      else aim = [S.INFEED[0] + 0.3, S.INFEED[1], 0];                                       // behind it: into the mouth
+      else {
+        // Beside, above or ahead of the mouth (off its axis): first round to a point on the axis behind it, all the
+        // way there, then in. (Deciding afresh each tick flipped between the two where they meet and held the wood
+        // there, short of the mouth, for ever.)
+        const back = [S.INFEED[0] - 0.9, S.INFEED[1], 0];
+        if (!f.round && l[0] > S.INFEED[0] - 0.3 && th.lat > THROAT) f.round = true;
+        if (f.round && Math.hypot(l[0] - back[0], l[1] - back[1], l[2] - back[2]) < 0.3) f.round = false;
+        aim = f.round ? back : [S.INFEED[0] + 0.3, S.INFEED[1], 0];
+      }
       // seized (post found it too heavy at the drum): the rollers stop and clamp it where it is
       const dir = f.seized ? new THREE.Vector3(1, 0, 0) : this.toWorld(aim, _b).sub(P);
       const dist = f.seized ? 0 : dir.length(); dir.multiplyScalar(1 / (dist || 1));
       const vp = b.velocityAtPoint(P), want = f.seized ? 0 : Math.min(CFG.CHIP_FEED_V, dist * 4);   // at the drum they press the wood onto it
-      const along = vp.x * dir.x + vp.y * dir.y + vp.z * dir.z;
       const err = new THREE.Vector3(dir.x * want - vp.x, dir.y * want - vp.y, dir.z * want - vp.z), el = err.length();
-      // stiff rollers: close the speed error in a few ticks, through the mass the wood presents at the feed point...
-      const F = err.multiplyScalar(el > 1e-6 ? effMass(b, P, err.clone().multiplyScalar(1 / el)) / 0.05 : 0);
-      // ...and a motor that pulls harder the longer it is held back: up to CHIP_PULL within about a second of stalling
-      f.F = f.seized ? 0 : Math.max(0, Math.min(CFG.CHIP_PULL, (f.F || 0) + (want - along) / Math.max(0.05, want) * CFG.CHIP_PULL * dt));
+      // The rollers drive the feed point at their speed. Each tick they give it the impulse that brings it to that
+      // speed through the mass the wood presents there (so a twig gets the few newtons a twig needs, and any overshoot
+      // is taken straight back), plus a motor term for a load that holds it back (a rope, branches dragging on the
+      // ground): it rises toward CHIP_PULL while the wood lags and drops back to nothing as soon as it keeps up.
+      // The total is never more than CHIP_PULL: past it they slip. (Before, a softer drive let that motor term fling
+      // small branches about at 40-60 m/s when what held them let go.)
+      const along = vp.x * dir.x + vp.y * dir.y + vp.z * dir.z;
+      // (half the gap each tick: with the guide below also driving the same body, two dead-beat drives would fight)
+      const F = err.multiplyScalar(el > 1e-6 ? 0.5 * effMass(b, P, err.clone().multiplyScalar(1 / el)) / dt : 0);
+      // held back = its speed along the feed, smoothed over a few ticks (a rope's stretch makes it shiver), is short
+      f.vs = (f.vs ?? along) * 0.85 + along * 0.15;
+      if (f.seized || f.vs >= want) f.F = 0;
+      // The loads it can be making up for: the wood dragging, snagging and being lifted over the ground (up to ten
+      // times its weight), and a rope tied to it. With no cap a small branch caught on a ledge was pulled at 15 kN,
+      // and flung when it came free; capped like this the most it can gain in a tick is about 1.6 m/s, and the drive
+      // takes that back at once.
+      else {
+        const r = w.rope, roped = r.state === 2 && r.anchor.seg !== undefined && w.segs.get(r.anchor.seg)?.piece === piece;
+        const load = 10 * b.mass() * CFG.GRAVITY + (roped ? 1.2 * (sim.rope.T || 0) : 0);
+        f.F = Math.max(0, Math.min(CFG.CHIP_PULL, load, (f.F || 0) + (want - along) / Math.max(0.05, want) * CFG.CHIP_PULL * dt));
+      }
       F.addScaledVector(dir, f.F);
-      F.y += b.mass() * CFG.GRAVITY * 0.5;          // the rollers carry the end they hold (about half its weight)
+      // the rollers carry the end they hold (about half its weight); once it is in the throat, the throat's floor and
+      // the rollers carry all of it (its weight is taken at its centre of mass below), so nothing sags through the
+      // chipper's floor into the ground
+      if (!f.entered || f.seized) F.y += b.mass() * CFG.GRAVITY * 0.5;
+      if (!f.seized) {
+        // and the rest of it rides on the hopper's tray and in the throat: all of it once it is in, half of it on the
+        // way (so a branch is not ploughed into the ground by its tips, which caught and held it short of the mouth)
+        const mg = b.mass() * CFG.GRAVITY * dt * (f.entered ? 1 : 0.5);
+        b.applyImpulse({ x: 0, y: mg, z: 0 }, true); this.body.applyImpulseAtPoint({ x: 0, y: -mg, z: 0 }, this.infeed(_b), true);
+      }
       if (F.length() > CFG.CHIP_PULL) F.setLength(CFG.CHIP_PULL);
       sim.applyForce(s.id, P, F);
       const I = this.infeed(_b);
       this.body.applyImpulseAtPoint({ x: -F.x * dt, y: -F.y * dt, z: -F.z * dt }, I, true);
+      // In the throat the rollers also hold the wood in line with it: the far end of the segment they have is brought
+      // across to the throat's axis, so the wood goes in straight. Without this, wood that passes through the chipper's
+      // body pivots on the one point held and folds out through its sides and floor into the ground.
+      if (f.entered && !f.seized) this.guide(b, s, f, dt);
     }
+  }
+
+  /** Bring the far end of feed segment s across to the throat's axis (sideways only), with no more than CHIP_PULL. */
+  guide(b, s, f, dt) {
+    const sim = this.sim, S = SHAPE, far = Math.abs(f.p[0] - s.a[0]) + Math.abs(f.p[1] - s.a[1]) + Math.abs(f.p[2] - s.a[2]) < 1e-6 ? s.b : s.a;
+    const Q = sim.segToWorld(s, far, new THREE.Vector3()), l = this.toLocal(Q);
+    const ly = S.INFEED[1] - l[1], lz = -l[2], off = Math.hypot(ly, lz);
+    const toW = (d) => this.dirToWorld(d, new THREE.Vector3());
+    const vq = b.velocityAtPoint(Q), V = new THREE.Vector3(vq.x, vq.y, vq.z);
+    const ex = toW([1, 0, 0]), lat = V.clone().addScaledVector(ex, -V.dot(ex));               // its sideways velocity
+    const want = off > 1e-4 ? toW([0, ly / off, lz / off]).multiplyScalar(Math.min(CFG.CHIP_FEED_V, off * 4)) : new THREE.Vector3();
+    const err = want.sub(lat), el = err.length(); if (el < 1e-5) return;
+    const F = err.multiplyScalar(0.5 * effMass(b, Q, err.clone().multiplyScalar(1 / el)) / dt);
+    if (F.length() > CFG.CHIP_PULL) F.setLength(CFG.CHIP_PULL);
+    sim.applyForce(s.id, Q, F);
+    this.body.applyImpulseAtPoint({ x: -F.x * dt, y: -F.y * dt, z: -F.z * dt }, this.infeed(_b), true);
   }
 
   /** The feed point becomes the end of the remaining wood nearest the throat (where the last of it was chipped). */
@@ -290,7 +361,8 @@ export class Chipper {
       const l = this.toLocal(sim.segToWorld(s, e, _a)), sc = Math.min(l[0], SHAPE.DRUM_X) - 2 * this.throat(l).lat;
       if (sc > best) { best = sc; bl = l; f.seg = s.id; f.p = e.slice(); }
     }
-    f.entered = !!bl && bl[0] > SHAPE.INFEED[0] - 0.1 && this.throat(bl).lat < SHAPE.CHASSIS.h[2];   // already inside the chipper
+    // once in the rollers, what is left of it stays in them; otherwise it is in if that end is already inside the chipper
+    f.entered = f.entered || (!!bl && bl[0] > SHAPE.INFEED[0] - 0.1 && this.throat(bl).lat < SHAPE.CHASSIS.h[2]);
     return f.seg >= 0;
   }
 
@@ -356,7 +428,7 @@ export class Chipper {
         // chipped when it reaches the drum with all of it inside the hopper and the chipper's body
         const inside = (l) => this.inside(l);
         if (inside(a) || inside(b)) inAny = true;
-        if (!inJoint && f.entered && inside(a) && inside(b) && Math.max(a[0], b[0]) > SHAPE.DRUM_X - 0.1) eat.push(s); else left += segMass(s) + s.leaf;
+        if (!inJoint && f.entered && this.through(a, b)) eat.push(s); else left += segMass(s) + s.leaf;
       }
       if (f.split) { f.split = false; if (!inAny) { this.feeding.delete(piece); continue; } }   // sawn off outside: the rollers let it go
       // The rollers seize on wood they cannot take: when it reaches the drum, the whole contiguous piece (and anything
@@ -379,6 +451,15 @@ export class Chipper {
   inside(l) {
     const S = SHAPE;
     return l[0] > S.INFEED[0] - 0.1 && Math.abs(l[2]) < S.CHASSIS.h[2] && Math.abs(l[1] - S.CHASSIS.c[1]) < S.CHASSIS.h[1] + 0.05;
+  }
+
+  /** Has the segment from chipper-local a to b (of wood in the rollers) reached the drum? Its front end is past the
+   * drum and within the chipper's length and about its width: side branches fold in with the stem, so a segment is
+   * not left hanging because its back end, or a fork beside it, is still outside the body. */
+  through(a, b) {
+    const S = SHAPE, fr = a[0] >= b[0] ? a : b, C = S.CHASSIS;
+    return fr[0] > S.DRUM_X - 0.1 && fr[0] < C.c[0] + C.h[0] + 0.3
+      && Math.abs(fr[2]) < C.h[2] + 0.5 && Math.abs(fr[1] - C.c[1]) < C.h[1] + 0.5;
   }
 
   /** Mass of the contiguous wood: this piece and every piece joined to it by live fibres (Infinity if that is the tree). */
@@ -422,6 +503,27 @@ export class Chipper {
     sim.emit({ t: 'chip', segs: ids, V: +V.toFixed(5), x: +out.x.toFixed(2), z: +out.z.toFixed(2) });
     this.busy = 40;
     if (ids.includes(f.seg)) f.seg = -1;
+    f.F = 0;                          // the wood that held the motor back is gone: it starts again from nothing
+    this.fallApart(piece);
+  }
+
+  /** What chipping cut through leaves in bits: each bit of the piece no longer joined to the rest becomes its own
+   * piece (a side branch whose fork went into the drum falls free instead of staying rigidly fixed out beside the
+   * truck). The rollers keep the bit nearest the drum; a split-off bit with no wood inside the chipper is let go (post). */
+  fallApart(piece) {
+    const sim = this.sim, w = sim.world; if (!w.pieces.has(piece)) return;
+    const segs = w.segsOf(piece), ids = new Set(segs.map((s) => s.id));
+    const roots = segs.filter((s) => !ids.has(s.parent));
+    if (roots.length < 2) return;
+    let keep = null, best = -Infinity;
+    for (const rt of roots) for (const id of w.subtree(rt.id)) {
+      const s = w.segs.get(id); if (!s || s.piece !== piece) continue;
+      for (const e of [s.a, s.b]) {
+        const l = this.toLocal(sim.segToWorld(s, e, _a)), sc = Math.min(l[0], SHAPE.DRUM_X) - 2 * this.throat(l).lat;
+        if (sc > best) { best = sc; keep = rt; }
+      }
+    }
+    for (const rt of roots) if (rt !== keep && w.segs.get(rt.id)?.piece === piece) sim.emit({ t: 'split', seg: rt.id, at: 0, newPiece: w.newId() });
   }
 
   /** A pile is a fixed cone collider, rebuilt as it grows or shrinks; an emptied pile has none. */
@@ -436,6 +538,13 @@ export class Chipper {
 
   aux() { return this.body ? { on: this.busy > 0 ? 1 : 0, jam: this.seized() ? 1 : 0 } : null; }
   static get ID() { return CHIPPER_BODY_ID; }
+}
+
+/** The radius of segment s at piece-local point p on its axis (an end, for a feed point). */
+function feedR(s, p) {
+  const ax = [s.b[0] - s.a[0], s.b[1] - s.a[1], s.b[2] - s.a[2]], L2 = ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2] || 1;
+  const t = Math.max(0, Math.min(1, ((p[0] - s.a[0]) * ax[0] + (p[1] - s.a[1]) * ax[1] + (p[2] - s.a[2]) * ax[2]) / L2));
+  return s.r0 + (s.r1 - s.r0) * t;
 }
 
 /** The mass body b presents to an impulse at world point P along unit n: 1 / (1/m + (r x n) . I^-1 (r x n)). */

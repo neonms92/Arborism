@@ -672,15 +672,25 @@ log can still drag, tip or hoist it.
   (plus a creep while the pull is under half of `GRAB_MAX`), so the player
   leans into the load instead of walking out of the hold.
 - **Feeding.** Holding loose wood, {interact} while looking at the chipper
-  hands the piece to the feed rollers. They drive the point held at
-  `CHIP_FEED_V`: first to the hopper mouth (round behind it when the wood is
-  beside or ahead of it, and colliding with the chipper until then), then
-  centred down the throat to the drum: a stiff velocity servo plus a motor term that rises
-  to `CHIP_PULL` within about a second of being held back. The reaction goes
-  into the chipper. Once in the mouth a fed piece passes through the chipper's colliders;
-  a segment that has reached the drum with both ends inside the hopper and
-  the chipper's body (and in no live joint) is removed by a `chip` event, and its wood (plus leaves) × `CHIP_SWELL` lands as chips at the
-  discharge point. Standing wood cannot be fed.
+  hands the piece to the feed rollers. They take the end of the wood nearest
+  the hopper's mouth (a cut end or a tip), wherever it was held, and drive it
+  at `CHIP_FEED_V`: first to the mouth (round to a point on the axis behind it
+  when the wood is beside, above or ahead of it), then centred down the
+  throat to the drum. Each tick they give that point the impulse that takes
+  it halfway to the roller speed through the mass the wood presents there,
+  plus a motor term for a load that holds it back, which rises while the
+  wood lags and is capped at ten times the wood's weight plus the tension of
+  a rope tied to it; the total never exceeds `CHIP_PULL`. Half the wood's
+  weight is carried on the way and all of it in the throat, and in the
+  throat the far end of the held segment is drawn onto the axis, so the wood
+  goes in straight. The reaction goes into the chipper. Fed wood passes
+  through the hopper all along (a funnel: side branches fold in) and through
+  the rest of the chipper once its end, radius included, is in the mouth.
+  A segment of it is chipped (`chip` event) once its front end has passed
+  the drum, within the chipper's length and about its width; its wood (plus
+  leaves) × `CHIP_SWELL` lands as chips at the discharge point. Bits that
+  chipping leaves unconnected become pieces of their own; the rollers keep
+  the bit nearest the drum. Standing wood cannot be fed.
 - **Seizing.** When wood would be chipped, the rollers weigh the
   contiguous piece: the fed piece plus anything still joined to it by live
   fibres (wood still part of the standing tree counts as too heavy). Above
