@@ -462,20 +462,7 @@ export class Chipper {
   }
 
   /** Mass of the contiguous wood: this piece and every piece joined to it by live fibres (Infinity if that is the tree). */
-  weight(piece) {
-    const w = this.sim.world, live = this.sim.structure.live, seen = new Set([piece]), todo = [piece];
-    let m = 0;
-    while (todo.length) {
-      const id = todo.pop();
-      if (w.pieces.get(id)?.fixed) return Infinity;
-      for (const s of w.segsOf(id)) m += segMass(s) + s.leaf;
-      const near = [];
-      const j = live.get(id); if (j) near.push(j.parent);
-      for (const [c, jc] of live) if (jc.parent === id) near.push(c);
-      for (const n of near) if (!seen.has(n)) { seen.add(n); todo.push(n); }
-    }
-    return m;
-  }
+  weight(piece) { return this.sim.weightOf(piece); }
 
   /** Are the rollers seized on something? (They stop reeling a rope in too.) */
   seized() { for (const f of this.feeding.values()) if (f.seized) return true; return false; }

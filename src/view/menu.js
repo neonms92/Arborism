@@ -54,7 +54,7 @@ export const ROWS = [
   ['Day, night and moon'],
   ['DAY_LENGTH', 'Length of a whole day and night (minutes; 0 = time stands still)', 0, 120, 0.5, 60, true],
   ['MOON_DAYS', 'Days from one full moon to the next', 1, 30, 1, 1, true],
-  ['@skip', 'Skip ahead to the next sunrise, noon, sunset or midnight'],
+  ['@skip', 'Skip ahead', 'Skip ahead to the next sunrise, noon, sunset or midnight'],
   ['SUN_LIGHT', 'Sunlight brightness', 0, 5, 0.05, 1],
   ['MOON_LIGHT', 'Moonlight brightness under a full moon', 0, 2, 0.01, 1],
   ['NIGHT_AMBIENT', 'Sky glow on a moonless night', 0, 1, 0.01, 1],
@@ -99,7 +99,7 @@ export const ROWS = [
   ['CHIP_SWELL', 'Chips: loose volume per volume of wood', 1, 5, 0.1, 1, true],
   ['CHIP_CARRY', 'Chips a player can carry (litres)', 1, 500, 1, 0.001, true],
   ['CHIP_BREAK_F', 'Hit that crumples it (kN, from wood or a structure)', 1, 500, 1, 1000, true],
-  ['@chipper', 'Respawn chipper (removes the old one, broken or not; chip piles stay)'],
+  ['@chipper', 'New chipper', 'Respawn the chipper (removes the old one, broken or not; chip piles stay)'],
   ['Houses, sheds and fences (breakable structures)'],
   ['HOUSE_BREAK_F', 'House: force from wood that breaks one room apart (N)', 500, 400000, 500, 1, true],
   ['SHED_BREAK_F', 'Shed: force from wood that breaks it apart (N)', 500, 200000, 500, 1, true],
@@ -140,7 +140,7 @@ export const ROWS = [
   ['YARD_TREES_HMAX', 'Other trees: tallest (m)', 3, 30, 0.5, 1, true],
   ['YARD_TREES_THICK', 'Other trees: trunk diameter per metre of height (cm)', 1, 10, 0.1, 0.01, true],
   ['YARD_TREES_PITCH', 'Other trees: fibre width once sawn or climbed (mm; bigger = fewer fibres, faster)', 8, 200, 1, 0.001, true],
-  ['@grow', 'Clear all wood and grow a new tree'],
+  ['@grow', 'Grow tree', 'Clear all wood and grow a new tree'],
   ['Chainsaw'],
   ['CUT_RATE', 'Cutting rate (cm2 of wood per second)', 10, 1000, 10, 1e-4, true],
   ['BAR_LEN', 'Chainsaw bar length (cm)', 20, 150, 5, 0.01, true],
@@ -209,14 +209,14 @@ export class Menu {
       }
       const into = sec ? sec.d : el;
       if (r[0] === '@grow' || r[0] === '@chipper') {   // actions: kept out of the sections, beside the reset button
-        const b = document.createElement('button'); b.textContent = r[1]; b.className = 'go';
+        const b = document.createElement('button'); b.textContent = r[1]; b.title = r[2] || ''; b.className = 'go';
         b.onclick = () => (r[0] === '@grow' ? this.onGrow() : this.onChipper && this.onChipper());
         actions.push(b); continue;
       }
       if (r[0] === '@skip') {                           // an action that belongs to its section
-        const b = document.createElement('button'); b.textContent = r[1]; b.className = 'go';
+        const b = document.createElement('button'); b.textContent = r[1]; b.title = r[2] || ''; b.className = 'go';
         b.onclick = () => this.onSkip && this.onSkip();
-        into.appendChild(b); if (sec) sec.rows.push({ el: b, text: r[1].toLowerCase() }); continue;
+        into.appendChild(b); if (sec) sec.rows.push({ el: b, text: (r[1] + ' ' + (r[2] || '')).toLowerCase() }); continue;
       }
       const [key, label, min, max, step, scale] = r;
       const row = document.createElement('label'); row.className = 'row';
@@ -250,7 +250,7 @@ export class Menu {
         sc.d.open = words.length ? any : !!open[sc.title];
       }
     };
-    const reset = document.createElement('button'); reset.textContent = 'Reset everything to defaults';
+    const reset = document.createElement('button'); reset.textContent = 'Reset all'; reset.title = 'Reset everything to defaults';
     reset.onclick = () => { Object.assign(CFG, this.defaults); localStorage.removeItem(KEY); for (const f of this.inputs) f(); this.onChange(); };
     const foot = document.createElement('div'); foot.className = 'actions';
     for (const b of actions) foot.appendChild(b);

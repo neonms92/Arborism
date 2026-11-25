@@ -139,6 +139,21 @@ export class Sim {
 
   emit(ev) { this.world.apply(ev); this.outbox.push(ev); }
   toast(msg, to = -1) { this.emit({ t: 'toast', msg, to }); }
+  /** Mass of the contiguous wood: this piece and every piece joined to it by live fibres (Infinity if that is the tree). */
+  weightOf(piece) {
+    const w = this.world, live = this.structure.live, seen = new Set([piece]), todo = [piece];
+    let m = 0;
+    while (todo.length) {
+      const id = todo.pop();
+      if (w.pieces.get(id)?.fixed) return Infinity;
+      for (const s of w.segsOf(id)) m += segMass(s) + s.leaf;
+      const near = [];
+      const j = live.get(id); if (j) near.push(j.parent);
+      for (const [c, jc] of live) if (jc.parent === id) near.push(c);
+      for (const n of near) if (!seen.has(n)) { seen.add(n); todo.push(n); }
+    }
+    return m;
+  }
 
   // ---- model -> physics ----
   onEvent(ev, info) {

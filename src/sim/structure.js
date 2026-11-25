@@ -365,7 +365,7 @@ export class Structure {
       mode[i] = j.st[i] === ELASTIC || E[i] <= 0 ? LIN : OFF;    // OFF = not touching
       KF[i] = j.st[i] === ELASTIC && E[i] > 0 ? kt : kc;      // stiffer or softer depending on which way it is strained
     }
-    if (!alive) { this.endJoint(id, j); if (j.age > 1) sim.toast('it came free'); return; }
+    if (!alive) { this.endJoint(id, j); if (j.age > 1) { const m = sim.weightOf(id); sim.toast(isFinite(m) ? `It came free: {mass:${Math.round(m)}}` : 'It came free'); } return; }
 
     const W = _W; for (let a = 0; a < 36; a++) W[a] = 0;
     addInvMass(W, B, Ow); addInvMass(W, P, Ow);

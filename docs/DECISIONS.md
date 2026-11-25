@@ -1172,3 +1172,24 @@ Slow the clouds 10x. Take the running total out of the damage toasts.
 - *Damage toasts* say only what broke and its cost; the running total stays
   on the status line.
 
+
+**D83 — Weight on the grab button and the "came free" toast; two-word captions.**
+Owner (2026-11-25): show how heavy a piece is in the action button text when
+grabbing; show the weight in the "it came free" toast; apart from the weight,
+cut every button caption to two words at most.
+- *Weight.* `sim.weightOf(piece)` (moved from the chipper's capacity check,
+  same rule): the piece plus everything still joined to it by live fibres,
+  Infinity if that reaches the tree. The {interact} caption carries it as
+  `{mass:N}` on "grab" (loose wood looked at), "let go" (wood in hand) and
+  "feed" (at the chipper); wood still on the tree shows no number. The toast
+  is "It came free: 95 lb" (HUD units).
+- *Captions.* The host prompts' action phrases are what the touch buttons
+  and the desktop prompt line show, so they were cut: grab, let go, feed,
+  plant saw, hang block, tie rope, remove block, untie, take tail, take
+  chips, more chips, drop chips, grab chipper, tow, spur in, move lanyard,
+  tie off, pivot, cut, lift. A held touch action shows ⏳ instead of the
+  word "Hold:". Fixed touch buttons: "⏳ Let go", "Lift saw", "Wrap +",
+  "Get closer". Menu buttons: Grow tree, New chipper, Skip ahead, Reset all
+  (the long text is the tooltip and still searchable); Testing: Main menu,
+  View default, "Click again". Hints and help text that are not on a button
+  (the lobby help, "Look at wood within reach...") are unchanged.

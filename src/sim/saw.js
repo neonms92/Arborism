@@ -78,7 +78,7 @@ export function sawStep(sim, p, inp, dt, can, aim) {
   }
   sw.stuck = pinch > CFG.PINCH_STUCK;
   sw.cutting = false;
-  p.prompt = '{look}: pivot the bar   {throttle}: press it forward   release {raise} to lift it off';
+  p.prompt = '{look}: pivot   {throttle}: cut   release {raise}: lift';
   if (sw.stuck) p.prompt = 'BAR PINCHED - the kerf has closed on it';
   else if (run && blockers.length) {
     // the chain works through whatever the bar is being pushed against
