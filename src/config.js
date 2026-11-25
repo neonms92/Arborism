@@ -48,6 +48,12 @@ export const CFG = {
   HEADLAMPS: true,         // players switch headlamps on when the sun goes down
   HEADLAMP: 14,            // candela: brightness of a headlamp (lights a surface 1 m away with this, 3 m away with a ninth)
   HEADLAMP_ANGLE: 0.45,    // rad, half-width of a headlamp's beam
+  // clouds: the host drifts one number, cover (0 clear .. 1 overcast), and sends it with the clock
+  CLOUDS: -1,              // -1 = the weather changes by itself; 0..1 = hold the cover there
+  CLOUD_HOURS: 3,          // game hours, about how long between changes in the weather
+  CLOUD_CHANGE: 120,       // s of play for the cover to go all the way from clear to overcast
+  CLOUD_DIM: 0.85,         // fraction of sunlight and moonlight that full cover blocks
+  CLOUD_WIND: 6,           // m/s the cloud layer drifts overhead
 
   // --- wood (green hardwood) ---
   DENSITY: 900,            // kg/m^3

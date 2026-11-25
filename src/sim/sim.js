@@ -39,6 +39,7 @@ export class Sim {
     this.world = world;
     this.tick = 0;
     this.days = CFG.DAY_START;        // the clock: days since the first midnight (view/sky.js draws the sun and moon from it)
+    this.cloud = 0.25; this.cloudTo = 0.25; this.cloudNext = this.days;   // cloud cover now, where it is heading, and when it picks again
     this.outbox = [];                 // events waiting to go to clients
     this.rapier = new RAPIER.World({ x: 0, y: -CFG.GRAVITY, z: 0 });
     this.rapier.timestep = CFG.TICK;
@@ -315,6 +316,7 @@ export class Sim {
     const dt = CFG.TICK;
     this.tick++;
     if (CFG.DAY_LENGTH > 0) this.days += dt / CFG.DAY_LENGTH;
+    this.stepClouds(dt);
     this.loads.length = 0;
     // filtered contact loads from the previous physics step
     const k = Math.min(1, dt / CFG.CONTACT_TAU);
@@ -420,10 +422,26 @@ export class Sim {
     return b ? { p: b.translation(), q: b.rotation() } : null;
   }
   /** Jump the clock to the next sunrise, noon, sunset or midnight (the Tab menu). */
+  /**
+   * Weather: cover drifts towards a target at 1 / CLOUD_CHANGE per second. With CLOUDS at -1 a new
+   * target is drawn about every CLOUD_HOURS game hours (clear and overcast spells both common, a
+   * broken sky most common); otherwise the target is CLOUDS. Only the host runs this.
+   */
+  stepClouds(dt) {
+    if (CFG.CLOUDS >= 0) this.cloudTo = Math.min(1, CFG.CLOUDS);
+    else if (this.days >= this.cloudNext || this.days < this.cloudNext - 2) {   // (the second: the clock was set back)
+      const r = Math.random();
+      this.cloudTo = r < 0.25 ? 0.1 * Math.random() : r < 0.45 ? 0.8 + 0.2 * Math.random() : 0.15 + 0.65 * Math.random();
+      this.cloudNext = this.days + CFG.CLOUD_HOURS / 24 * (0.5 + Math.random());
+    }
+    const d = this.cloudTo - this.cloud, step = dt / Math.max(1, CFG.CLOUD_CHANGE);
+    this.cloud += Math.max(-step, Math.min(step, d));
+  }
+
   skipTime() { this.days = (Math.floor(this.days * 4 + 1e-6) + 1) / 4; }
 
   aux() {
-    // sky: [days, s per day] so a client can run its clock smoothly between packets
-    return { t: 'aux', tick: this.tick, sky: [+this.days.toFixed(6), CFG.DAY_LENGTH], pl: this.players.aux(), rope: this.rope.aux(), chip: this.chipper.aux(), ...this.structure.aux() };
+    // sky: [days, s per day, cloud cover] so a client can run its clock smoothly between packets
+    return { t: 'aux', tick: this.tick, sky: [+this.days.toFixed(6), CFG.DAY_LENGTH, +this.cloud.toFixed(3)], pl: this.players.aux(), rope: this.rope.aux(), chip: this.chipper.aux(), ...this.structure.aux() };
   }
 }

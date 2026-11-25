@@ -14,6 +14,12 @@
 // (1 full, 0 new). Moonlight and the night sky's glow scale with lit, so a
 // full moon lights the yard and a new moon leaves it to the headlamps.
 //
+// Clouds: the host drifts one number, cover (0 clear .. 1 overcast; sim
+// stepClouds), and sends it with the clock. Cover dims the sun and moon by up
+// to CFG.CLOUD_DIM and softens their shadows, greys the sky, hides the stars,
+// moon and sun, and thickens one layer of drifting cloud overhead (a noise
+// pattern on a plane above the eye, fading out towards the draw distance).
+//
 // Background and fog share one colour (view.js adaptDraw): the fog has to be
 // the sky's colour or fogged ground shows a seam against it.
 
@@ -25,7 +31,8 @@ const AXIS = new THREE.Vector3(0, Math.sin(TILT), -Math.cos(TILT)).normalize(); 
 const DAY = new THREE.Color(0x9fc4e0), DUSK = new THREE.Color(0xe39a72), NIGHT = new THREE.Color(0x070b16), MOONLIT = new THREE.Color(0x1d2a46);
 const HEMI_DAY = new THREE.Color(0xdfeeff), HEMI_NIGHT = new THREE.Color(0x8ea4d8), GROUND_DAY = new THREE.Color(0x4a5a3a), GROUND_NIGHT = new THREE.Color(0x1a1f24);
 const SUN_HIGH = new THREE.Color(0xfff2d8), SUN_LOW = new THREE.Color(0xffa25e), MOON_COL = new THREE.Color(0xb4c8ff);
-const _c = new THREE.Color();
+const GREY_DAY = new THREE.Color(0xa3aab2), GREY_NIGHT = new THREE.Color(0x0b0d11);
+const _c = new THREE.Color(), _g = new THREE.Color();
 const EAST = new THREE.Vector3(1, 0, 0), UP_S = new THREE.Vector3(0, Math.cos(TILT), Math.sin(TILT));   // sunrise, and noon
 
 export const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -73,6 +80,11 @@ export class Sky {
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     this.starMat = new THREE.PointsMaterial({ size: 2, sizeAttenuation: false, vertexColors: true, transparent: true, fog: false, depthWrite: false });
     this.stars = new THREE.Points(g, this.starMat); this.stars.frustumCulled = false; scene.add(this.stars);
+
+    this.cloud = CFG.CLOUDS >= 0 ? CFG.CLOUDS : 0.25; this.drift = new THREE.Vector2(Math.random() * 1000, Math.random() * 1000);
+    this.cloudMat = cloudMaterial();
+    this.clouds = new THREE.Mesh(new THREE.PlaneGeometry(2, 2).rotateX(Math.PI / 2), this.cloudMat);   // faces down
+    this.clouds.frustumCulled = false; this.clouds.renderOrder = -1; scene.add(this.clouds);
   }
 
   /** Advance the clock and set every light and colour. cam: the camera (its far plane is the draw distance). */
@@ -83,7 +95,9 @@ export class Sky {
       const d = aux.sky[0] - this.days;
       if (!this.synced || Math.abs(d) > 0.005) this.days = aux.sky[0]; else this.days += d * Math.min(1, dt * 2);
       this.synced = true;
-    }
+      if (aux.sky[2] !== undefined) this.cloud += (aux.sky[2] - this.cloud) * Math.min(1, dt * 2);
+    } else if (CFG.CLOUDS >= 0) this.cloud = CFG.CLOUDS;
+    const c = Math.min(1, Math.max(0, this.cloud)), clear = 1 - CFG.CLOUD_DIM * c;
     const days = this.days;
     sunDir(days, this.sun); this.moon.copy(this.sun).negate();
     this.phase = moonPhase(days);
@@ -91,26 +105,27 @@ export class Sky {
 
     // how much of each is above the horizon, softly
     const day = smooth(-0.12, 0.2, s), sunUp = smooth(-0.03, 0.1, s), moonUp = smooth(-0.03, 0.1, m);
-    const dusk = Math.exp(-(((s + 0.02) / 0.11) ** 2));    // the warm band around sunrise and sunset
+    const dusk = Math.exp(-(((s + 0.02) / 0.11) ** 2)) * (1 - 0.6 * c);    // the warm band around sunrise and sunset
     this.sunUp = sunUp;
 
     // sky (and fog) colour
-    _c.copy(NIGHT).lerp(MOONLIT, lit * moonUp);
-    this.color = (this.color || new THREE.Color()).copy(_c).lerp(DAY, day).lerp(DUSK, 0.55 * dusk);
+    _c.copy(NIGHT).lerp(MOONLIT, lit * moonUp * clear);
+    _g.copy(GREY_NIGHT).lerp(GREY_DAY, day);
+    this.color = (this.color || new THREE.Color()).copy(_c).lerp(DAY, day).lerp(_g, 0.8 * c).lerp(DUSK, 0.55 * dusk);
 
     // ambient: the sky's own glow
-    const night = CFG.NIGHT_AMBIENT + CFG.MOON_AMBIENT * lit * moonUp;
-    this.hemi.intensity = night + (1.2 - night) * day;
+    const night = CFG.NIGHT_AMBIENT + CFG.MOON_AMBIENT * lit * moonUp * clear;
+    this.hemi.intensity = night + (1.2 * (1 - 0.3 * c) - night) * day;   // an overcast sky still glows, less
     this.hemi.color.copy(HEMI_NIGHT).lerp(HEMI_DAY, day);
     this.hemi.groundColor.copy(GROUND_NIGHT).lerp(GROUND_DAY, day);
 
     // the one shadow-casting light is the sun by day and the moon by night
-    const sunI = CFG.SUN_LIGHT * sunUp, moonI = CFG.MOON_LIGHT * lit * moonUp;
+    const sunI = CFG.SUN_LIGHT * sunUp * clear, moonI = CFG.MOON_LIGHT * lit * moonUp * clear;
     const k = this.key, useSun = sunI >= moonI;
     k.intensity = useSun ? sunI : moonI;
     if (useSun) k.color.copy(SUN_LOW).lerp(SUN_HIGH, smooth(0, 0.35, s)); else k.color.copy(MOON_COL);
     k.position.copy(useSun ? this.sun : this.moon).multiplyScalar(35);
-    k.visible = true;
+    k.shadow.intensity = 1 - 0.75 * c;                    // light through cloud casts faint shadows
 
     // headlamps: on as the sun goes down
     this.lamps = CFG.HEADLAMPS ? 1 - smooth(0.0, 0.12, s) : 0;
@@ -120,19 +135,59 @@ export class Sky {
     this.sunMesh.position.copy(cam.position).addScaledVector(this.sun, R);
     this.sunMesh.lookAt(cam.position); this.sunMesh.scale.setScalar(R * 0.12);
     this.sunMesh.material.color.copy(SUN_LOW).lerp(_c.setRGB(1, 1, 1), smooth(0, 0.3, s));
+    this.sunMesh.material.opacity = 1 - 0.95 * c;
     this.sunMesh.visible = s > -0.1;
 
     if (this.phase.k !== this.drawnPhase || this.drawnN !== CFG.MOON_DAYS) { drawMoon(this.moonCanvas, this.phase.age); this.moonTex.needsUpdate = true; this.drawnPhase = this.phase.k; this.drawnN = CFG.MOON_DAYS; }
     this.moonMesh.position.copy(cam.position).addScaledVector(this.moon, R * 0.98);
     this.moonMesh.lookAt(cam.position); this.moonMesh.scale.setScalar(R * 0.07);
-    this.moonMesh.material.opacity = 0.35 + 0.65 * (1 - day);   // pale in daylight, as it is
+    this.moonMesh.material.opacity = (0.35 + 0.65 * (1 - day)) * (1 - 0.95 * c);   // pale in daylight, as it is; gone behind cloud
     this.moonMesh.visible = m > -0.1;
 
     this.stars.position.copy(cam.position); this.stars.scale.setScalar(R);
     this.stars.quaternion.setFromAxisAngle(AXIS, -2 * Math.PI * days);
-    this.starMat.opacity = CFG.STARS * (1 - day) ** 2 * (1 - 0.6 * lit * moonUp);   // a bright moon washes out the faint ones
+    this.starMat.opacity = CFG.STARS * (1 - day) ** 2 * (1 - 0.6 * lit * moonUp) * (1 - c) ** 2;   // a bright moon washes out the faint ones
     this.stars.visible = this.starMat.opacity > 0.01;
+
+    // the cloud layer: above the eye, as wide as the view, drifting with the wind
+    const H = Math.min(80, cam.far * 0.4), u = this.cloudMat.uniforms;
+    this.drift.x += CFG.CLOUD_WIND * dt; this.drift.y += CFG.CLOUD_WIND * 0.35 * dt;
+    this.clouds.position.set(cam.position.x, cam.position.y + H, cam.position.z); this.clouds.scale.set(R, 1, R);
+    u.uCover.value = c; u.uDrift.value.copy(this.drift); u.uR.value = R;
+    // lit side: the sky's light on them (warm at dusk, faint at night), the shade a darker grey of the sky
+    const glow = Math.max(day, 0.06 * lit * moonUp * clear + 0.03);
+    u.uLit.value.copy(k.color).multiplyScalar(0.35 + 0.65 * smooth(0, 0.3, s)).lerp(_c.setRGB(1, 1, 1), 0.5).multiplyScalar(glow * (1 - 0.3 * c)).lerp(DUSK, 0.8 * dusk);
+    u.uShade.value.copy(this.color).multiplyScalar(0.6 + 0.2 * (1 - c)).lerp(_g, 0.3);
+    this.clouds.visible = c > 0.01;
   }
+}
+
+// Clouds: fractal value noise on the layer's world x-z (drifting), cut at a level that falls as cover rises.
+// Thick parts are shaded, thin edges lit; the layer fades out towards its rim so it meets the fogged horizon.
+function cloudMaterial() {
+  return new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false,
+    uniforms: { uCover: { value: 0 }, uDrift: { value: new THREE.Vector2() }, uR: { value: 100 }, uLit: { value: new THREE.Color(1, 1, 1) }, uShade: { value: new THREE.Color(0.6, 0.6, 0.6) } },
+    vertexShader: `varying vec2 vW; varying vec2 vL;
+      void main() { vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xz; vL = position.xz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: `uniform float uCover; uniform vec2 uDrift; uniform float uR; uniform vec3 uLit; uniform vec3 uShade;
+      varying vec2 vW; varying vec2 vL;
+      float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float n(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+      float fbm(vec2 p) { float a = 0.5, s = 0.0; for (int k = 0; k < 5; k++) { s += a * n(p); p = p * 2.03 + 17.0; a *= 0.5; } return s; }
+      void main() {
+        vec2 p = (vW - uDrift) / 38.0;
+        float v = fbm(p), cut = 0.62 - 0.34 * uCover;
+        float d = smoothstep(cut, cut + 0.08, v);
+        float rim = 1.0 - smoothstep(0.45, 1.0, length(vL));
+        float a = d * rim * (0.8 + 0.18 * uCover);
+        if (a < 0.003) discard;
+        vec3 col = mix(uLit, uShade, smoothstep(cut + 0.04, cut + 0.25, v) * (0.35 + 0.5 * uCover));
+        gl_FragColor = vec4(col, a);
+        #include <colorspace_fragment>
+      }`,
+  });
 }
 
 // the sun: a white core in a soft glow

@@ -1029,3 +1029,30 @@ opaque" and a toggle for weeds growing next to fences, structures and trees.
   about 30 ms on a grow. In software GL the render-time difference with
   them on or off was inside the run-to-run noise. Tab menu, View: `WEEDS`
   (on by default), density, height, distance.
+
+**D78 — Variable cloud cover.** Owner approved the plan given with D76,
+without rain ("No rain please... Yet...").
+
+- *Weather.* The host keeps one number, cover (0 clear, 1 overcast;
+  `sim.cloud`), and sends it as the third item of `sky` in aux. With
+  `CLOUDS` at -1 a new target is drawn about every `CLOUD_HOURS` (3) game
+  hours: a quarter of the time clear (under 0.1), a fifth overcast (over
+  0.8), otherwise broken. Cover moves towards it at full range per
+  `CLOUD_CHANGE` (120 s). `CLOUDS` 0..1 in the Tab menu holds it there. A
+  game starts at 0.25. Host-side randomness only touches this number, never
+  physics.
+- *Light.* Cover blocks up to `CLOUD_DIM` (0.85) of sunlight and moonlight,
+  and the night glow from the moon by the same share, so a cloudy full moon
+  is about as dark as a new moon. The sky's own glow by day drops by at
+  most 30%. Shadows fade to a quarter (`shadow.intensity`). The sky and fog
+  colour fades towards grey, the dusk band weakens, and the sun, moon and
+  stars fade out.
+- *Cloud layer.* One flat layer, a shader of fractal value noise on world
+  x-z, at the lower of 80 m and 0.4 of the draw distance above the eye,
+  following the eye, as wide as the view and faded out towards its rim so it
+  meets the fogged horizon. Cover lowers the noise level that counts as
+  cloud. Thin edges take the sun's or moon's colour (warm at dusk), thick
+  parts a darker grey of the sky. It drifts at `CLOUD_WIND` (6 m/s) on each
+  machine's own time, so two players see the same amount of cloud but not
+  the same shapes. Cheap: one quad.
+- *Not done.* Rain, real 3-D clouds, clouds casting moving shadows.
