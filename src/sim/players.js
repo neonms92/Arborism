@@ -314,6 +314,7 @@ export class Players {
       else if (pressed.interact && reach) this.grabStart(p, aim);
       if (wood && atChip) first = loose ? '{interact}: feed it into the chipper' : 'Only loose wood can go in the chipper';
       else if (p.grab) first = p.grab.chip ? '{interact}: let go of the chipper   {move}: tow it' : '{interact}: let go of the wood';
+      else if (atChip && sim.chipper.seized()) first = 'The chipper\'s rollers have seized on wood too heavy for it: saw it smaller';
       else if (atChip) first = ca.grip ? '{interact}: take hold of the chipper' : 'Chipper: grab a limb, then {interact} here to feed it in. Its grip is at the front';
       else if (pile >= 0) first = '{interact}: pick up chips';
       else first = reach ? '{interact}: grab the wood' : '';

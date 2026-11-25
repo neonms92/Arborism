@@ -668,6 +668,14 @@ log can still drag, tip or hoist it.
   a segment that has reached the drum with both ends inside the hopper and
   the chipper's body (and in no live joint) is removed by a `chip` event, and its wood (plus leaves) × `CHIP_SWELL` lands as chips at the
   discharge point. Standing wood cannot be fed.
+- **Seizing.** When wood would be chipped, the rollers weigh the
+  contiguous piece: the fed piece plus anything still joined to it by live
+  fibres (wood still part of the standing tree counts as too heavy). Above
+  `CHIP_CAPACITY` they seize: no chipping, the motor stops and the rollers
+  clamp the wood where it is, and a seized chipper stops reeling a fed rope
+  too. Sawing the piece smaller is the fix: once it weighs no more than
+  `CHIP_CAPACITY` (or has left the chipper) they run again. A piece sawn off
+  outside the chipper (no wood left inside it) is let go.
 - **Chip piles** are cones at a fixed angle of repose whose volume is the
   chips' volume, one pile per landing spot (a new pile when the chipper has
   moved a metre); each is a fixed cone collider. The view adds loose chips

@@ -54,6 +54,7 @@ export const ROWS = [
   ['ROLL_RESIST', 'How hard the ground stops a log rolling (cm; 0 = rolls for ever)', 0, 10, 0.5, 0.01],
   ['Wood chipper'],
   ['CHIP_PULL', 'Feed rollers: most they pull with (N)', 500, 40000, 100, 1, true],
+  ['CHIP_CAPACITY', 'Feed rollers: heaviest piece they take before seizing (kg)', 5, 2000, 5, 1, true],
   ['CHIP_FEED_V', 'Feed rollers: speed (m/s)', 0.05, 3, 0.05, 1, true],
   ['CHIP_ROLL', 'Wheels: rolling resistance while towed (fraction of weight)', 0, 0.3, 0.005, 1, true],
   ['CHIP_BRAKE', 'Wheels: brakes when nobody holds the grip (fraction of weight)', 0, 1.5, 0.05, 1, true],

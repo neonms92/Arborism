@@ -662,3 +662,20 @@ Carrying is a volume, `CHIP_CARRY` (40 L), shown on the status line. The
 chips are not drawn in the hands. Respawning keeps the chip piles. A new tree
 still clears them.
 
+**D64 — The chipper's rollers seize on heavy pieces.** The owner asked that
+when wood would be chipped, the rollers check the weight of the contiguous
+piece and seize above a tunable capacity, so the player has to saw it smaller
+before chipping resumes on its own. The check runs when a segment reaches
+the drum; "contiguous" is the fed piece plus every piece joined to it by live
+fibres, so a half-sawn cut does not count as free until the fibres part, and
+wood still part of the standing tree counts as too heavy. Seized, the rollers
+hold the wood still (the same servo with zero speed) and stay seized until
+the piece is light enough or out of the chipper; without that latch the wood
+rocked across the drum line and the toast repeated every few ticks. Seized
+rollers stop reeling a fed rope as well. When a fed piece is split, a side
+with no wood inside the chipper is dropped from the rollers, so a sawn-off
+outer end falls instead of being dragged in. `CHIP_CAPACITY` defaults to
+150 kg. On the default tree, the branches that hang from a single segment
+weigh 25 kg or less except for about a dozen, and those dozen range from
+136 kg up to the whole 1.2 t tree, so small limbs go straight in and big
+leaders and logs need sawing first.
