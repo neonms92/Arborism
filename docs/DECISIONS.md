@@ -1318,7 +1318,8 @@ shows it.
 tube torso with a round head, keep the helmet and headlamp, 2-D eyes that
 blink / wince when shaken / worry when hurt / are crosses when down, saw in
 the shirt colour, and a name and shirt colour chosen in the lobby that
-replace "Player N" in toasts, sit on a chest name tag and across the back of
+replace "Player N" in toasts, sit on a name tag over the left breast
+pocket (upper chest, off to one side; owner follow-up) and across the back of
 the helmet. Choices: the name and colour travel as the existing `player`
 event (sent again to change them); a joiner sends them in a `me` message
 right after `welcome`, so the host's "joined" toast waits for it. The host
