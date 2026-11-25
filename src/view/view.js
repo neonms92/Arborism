@@ -35,6 +35,39 @@ const _q2 = new THREE.Quaternion(), _e0 = [0, 0, 0], _e1 = [0, 0, 0];
 const _bx = new THREE.Vector3(), _by = new THREE.Vector3(), _bz = new THREE.Vector3(), _s = new THREE.Vector3(), _q = new THREE.Quaternion();
 const NEUTRAL = [0.86, 0.69, 0.33], RED = [0.92, 0.08, 0.06], BLUE = [0.08, 0.25, 0.98], GREEN = [0.1, 0.85, 0.2], DEAD = [0.3, 0.22, 0.14];
 
+// Bark this solid hides what is behind it (it also writes depth from 0.95, applySettings).
+const hidesWhole = () => CFG.BARK_OPACITY >= 0.99;
+
+// A bundle with every fibre there end to end: nothing cut, nothing trimmed by a split.
+function whole(s) {
+  const f = s.f; if (f.ncut > 0) return false;
+  if (f.lo) { const L = segLen(s) - 1e-4; for (let i = 0; i < f.n; i++) if (f.lo[i] > 1e-4 || f.hi[i] < L) return false; }
+  return true;
+}
+
+/**
+ * Ids of the segments whose fibres solid bark hides completely: the bundle is whole, so the bark round it is
+ * whole too; its base is shut by the wood it grows from (a parent in the piece), or by the ground under a standing trunk; its top is shut by the stem
+ * carrying on from it (a child starting where it ends); and those neighbours are whole as well, so no kerf or
+ * break next door looks into it. Twig tips and the ends of pieces stay drawn: the bark is open there.
+ */
+function sealed(segs, world) {
+  const ok = new Map(), out = new Set();
+  for (const s of segs) ok.set(s.id, whole(s));
+  for (const s of segs) {
+    if (!ok.get(s.id)) continue;
+    const rooted = s.parent < 0 && world.pieces.get(s.piece)?.fixed;     // the standing trunk's foot is in the ground
+    if (!rooted && !ok.get(s.parent)) continue;                      // a parent elsewhere (or none) is not in the map
+    let top = false, near = true;
+    for (const k of world.kids(s.id)) {
+      const c = world.segs.get(k); if (!c || c.piece !== s.piece) continue;
+      if (Math.abs(c.a[0] - s.b[0]) + Math.abs(c.a[1] - s.b[1]) + Math.abs(c.a[2] - s.b[2]) < 1e-4) { top = true; if (!ok.get(k)) near = false; }
+    }
+    if (top && near) out.add(s.id);
+  }
+  return out;
+}
+
 export class View {
   constructor(canvas, world) {
     this.world = world;
@@ -100,6 +133,8 @@ export class View {
     this.leafMat.opacity = CFG.LEAF_OPACITY; this.leafMat.depthWrite = CFG.LEAF_OPACITY > 0.95;
     if (this.paverView.gravel !== CFG.PAVER_GRAVEL) { this.paverView.gravel = CFG.PAVER_GRAVEL; this.paverView.refresh(); }
     for (const p of this.pieces.values()) { p.bark.visible = bo > 0.01; p.leaves.visible = CFG.LEAF_OPACITY > 0.01; p.fibres.visible = CFG.SHOW_FIBRES; }
+    // solid bark hides whole bundles, see-through bark shows them: crossing over redraws the fibres
+    if (this.hideWhole !== hidesWhole()) { this.hideWhole = hidesWhole(); for (const [id, p] of this.pieces) { this.buildFibres(p, this.world.segsOf(id)); p.ver = -1; } }
     this.lastAuxTick = -1; this.painted = false;
   }
 
@@ -181,8 +216,10 @@ export class View {
   }
 
   // One box per fibre (two where the saw has parted it). Instances are grouped by segment.
+  // Under solid bark, a bundle that is whole and shut in on both ends cannot be seen, so it is not drawn (sealed).
   buildFibres(p, segs) {
     if (p.fibres) { p.group.remove(p.fibres); p.fibres.dispose(); }
+    if (hidesWhole()) { const shut = sealed(segs, this.world); segs = segs.filter((s) => !shut.has(s.id)); }
     let cap = 0; for (const s of segs) cap += s.f.n + s.f.ncut;
     const mesh = new THREE.InstancedMesh(this.fibreGeo, this.fibreMat, Math.max(1, cap));
     mesh.frustumCulled = false;

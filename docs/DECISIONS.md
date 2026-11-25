@@ -1029,3 +1029,27 @@ opaque" and a toggle for weeds growing next to fences, structures and trees.
   about 30 ms on a grow. In software GL the render-time difference with
   them on or off was inside the run-to-run noise. Tab menu, View: `WEEDS`
   (on by default), density, height, distance.
+
+**D78 — Whole bundles under solid bark are not drawn.** Owner asked to stop
+drawing fibre bundles that are fully intact and to measure it.
+- *Rule* (`view.js` `sealed`). With `BARK_OPACITY` at 0.99 or more, a
+  segment's fibres are skipped when it is whole (no fibre cut, none trimmed
+  by a split), its base is shut (a parent in the same piece, or the ground
+  under the standing trunk), its top is shut (a child in the same piece
+  starting where it ends), and that parent and continuing child are whole
+  too. So any kerf, notch, split end, twig tip or piece end, and the
+  segments either side of it, keep their fibres. The bark is built only from
+  the model, so nothing else can open it. Crossing the 0.99 line in the menu
+  redraws every piece's fibres; the test viewer (bark 0) draws them all.
+- *Not counted as damage:* fibres a live bundle has snapped (aux.live).
+  The bark over them is still whole, so they could not be seen anyway; they
+  show once the segment divides or rips.
+- *Measured* (22 m × 1.2 m play tree, seed 1, headless Chromium,
+  SwiftShader software GL, 1280×720, 300 frames, medians, render timed
+  to a 1-pixel readback): fibre boxes 13 558 → 748; looking at the trunk
+  from the ground, frame 150 → 117 ms, render 137 → 108 ms; looking up into
+  the crown, frame 133 → 83 ms, render 115 → 76 ms; colouring fibres
+  0.8 → 0.1 ms. A real GPU will gain far less in milliseconds (the boxes are
+  one instanced draw), but the CPU work per aux tick and per bend scales with
+  the boxes drawn. The fibre lines that used to poke through the bark at
+  segment joints are gone too.
