@@ -214,6 +214,8 @@ export class Players {
     const pressed = {};
     for (const k of COUNTERS) { pressed[k] = p.primed && inp.c[k] !== p.last[k]; p.last[k] = inp.c[k]; }
     p.primed = true;
+    // two movement keys at once: the same speed as one (no faster on the diagonal)
+    const mv = Math.hypot(inp.mx, inp.my); if (mv > 1) { inp.mx /= mv; inp.my /= mv; }
     if (p.toastT > 0) p.toastT -= dt;
     if (p.shakenT > 0) { p.shakenT -= dt; if (p.shakenT <= 0 && p.inj === INJ.SHAKEN) p.inj = INJ.OK; }
     if (p.hit) { const dv = p.hit; p.hit = 0; this.impact(p, dv); }
@@ -292,10 +294,10 @@ export class Players {
     // yaw 0 looks toward -Z; forward = (-sin, 0, -cos), right = (cos, 0, -sin)
     let wx = (-sy * inp.my + cy * inp.mx) * speed, wz = (-cy * inp.my - sy * inp.mx) * speed;
     // dragging something that moves (loose wood, the chipper): lean into it rather than walk out of the hold.
-    // Away from it, the feet go no faster than it follows, plus a little while the pull is under half of GRAB_MAX.
+    // Away from it, the feet go no faster than it follows, plus a little while the pull is under PULL_FORCE.
     const ln = p.grab && p.lean;
     if (ln) {
-      const away = wx * ln.x + wz * ln.z, allow = Math.max(0, ln.v) + ((p.pull || 0) < 0.5 * CFG.GRAB_MAX ? 0.15 : 0);
+      const away = wx * ln.x + wz * ln.z, allow = Math.max(0, ln.v) + ((p.pull || 0) < CFG.PULL_FORCE ? 0.15 : 0);
       if (away > allow) { wx -= (away - allow) * ln.x; wz -= (away - allow) * ln.z; }
     }
     if (p.grounded) body.setLinvel({ x: wx, y: pressed.jump ? CFG.JUMP : v.y, z: wz }, true);

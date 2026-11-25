@@ -10,7 +10,7 @@ export const CFG = {
   INTERP_DELAY: 0.1,       // s, client render delay
   INPUT_HZ: 30,
   INVERT_Y: true,          // push forward / mouse forward looks down
-  LOOK_SENS: 0.0025,       // rad of look per pixel of mouse travel
+  LOOK_SENS: 0.008,         // rad of look per pixel of mouse travel
   TOUCH_LOOK_SENS: 0.006,  // rad of look per pixel a finger drags on the right of the screen
   TOUCH_SAW_SENS: 1.5,     // touch: the bar pivots this many times as far per pixel as with the mouse (SAW_SENS)
   TOUCH_STICK_R: 60,       // px a thumb moves from where it landed for full speed (CSS px)
@@ -35,8 +35,8 @@ export const CFG = {
 
   // --- tree generation (applied by "Grow a new tree" in the Tab menu) ---
   TREE_SEED: 7,
-  TREE_HEIGHT: 11,         // m
-  TREE_DIAMETER: 0.54,     // m at the base
+  TREE_HEIGHT: 22,         // m
+  TREE_DIAMETER: 1.2,      // m at the base
   BRANCH_DENSITY: 1,       // 1 = a limb roughly every metre of trunk
   BRANCH_LENGTH: 1,        // multiplier
   SEG_CAP: 900,            // stop adding branches once the tree has this many segments
@@ -91,7 +91,7 @@ export const CFG = {
 
   // --- chainsaw ---
   BAR_LEN: 0.5,            // m
-  CUT_RATE: 0.012,         // m^2 of wood cross-section the chain clears per second at full throttle
+  CUT_RATE: 0.02,          // m^2 of wood cross-section the chain clears per second at full throttle
   SAW_FEED: 0.3,           // m/s the bar moves forward under full throttle when nothing is in the way
   SAW_REACH: 2.0,          // m from the eyes to where the bar can be planted
   SAW_SENS: Math.PI,       // rad the bar pivots per screen-width of mouse travel
@@ -121,10 +121,10 @@ export const CFG = {
   CLIMB_BOUNCE: 1.6,       // weight multiplier while moving on spurs
   STANDOFF: 0.38,          // m from bark to body centre
   SPUR_MIN_R: 0.03,
-  STUB_LEN: 0.3,           // a branch shorter than this does not block the lanyard
+  STUB_LEN: 0.8,           // m: a branch jutting out less than this past the bark does not block the lanyard
   REACH: 2.6,              // m, interact reach
-  DV_SHAKEN: 4, DV_HURT: 7, DV_DOWN: 11,   // m/s impact thresholds
-  SHAKEN_TIME: 2,
+  DV_SHAKEN: 4, DV_HURT: 7, DV_DOWN: 11,   // m/s impact thresholds (sudden change of velocity)
+  SHAKEN_TIME: 2,          // s a shaken player has no control (a hurt player is shaken first too)
   // --- controls that take time (hold the button; let go to cancel) ---
   LANYARD_TIME: 2,         // s of holding {interact} to spur in or move the lanyard
   LETGO_TIME: 4,           // s of holding {drop} to let go of the tree
@@ -134,7 +134,8 @@ export const CFG = {
   PUNCH_MAX: 4000,         // N, most that stacked punches add up to
   // --- grabbing wood on the ground ({interact} toggles): a short rope from the hands to the point grabbed ---
   GRAB_K: 20000,           // N/m, stiffness of that rope (capped for stability on light pieces)
-  GRAB_MAX: 600,           // N, pull at which the wood is pulled out of the player's hands
+  GRAB_MAX: 1200,          // N, pull at which the wood is pulled out of the player's hands
+  PULL_FORCE: 600,         // N, most a player pulls with by walking away from what they hold (keep under GRAB_MAX)
   GRAB_HEIGHT: 0.3,        // m, hands above the body centre
   // --- wood chipper (sim/chipper.js): a towable chipper on two wheels and a jockey wheel ---
   CHIP_MASS: 600,          // kg (applies when it is put back by a new tree)
