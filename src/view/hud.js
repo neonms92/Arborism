@@ -32,6 +32,21 @@ export function qty(kind, v, dec) {
   return `${x.toFixed(dec ?? u[3])} ${imp ? u[2] : u[0]}`;
 }
 export const money = (v) => `$${Math.round(v).toLocaleString('en-US')}`;
+/** How the job's budget was worked out, as one line of text (world.job from sim/damage.js). */
+export function budgetMath(job) {
+  if (!job) return '';
+  const L = (v) => qty('len', v, 1), x = (job.h * job.d) / (job.rh * job.rd), y = job.rlot / job.lot;
+  return `Budget ${money(job.budget)} = ${money(job.base)} (for a tree ${L(job.rh)} x ${L(job.rd)})`
+    + ` × ${x.toFixed(2)} (this tree is ${L(job.h)} x ${L(job.d)})`
+    + ` × ${y.toFixed(2)} (lots ${L(job.lot)} wide against ${L(job.rlot)}), to the nearest ${money(CFG.BUDGET_ROUND)}`;
+}
+/** The wage drain, worked out: players x WAGE per game hour, a game hour being DAY_LENGTH / 24 s. */
+export function wageMath(n) {
+  if (!(CFG.DAY_LENGTH > 0)) return 'no wages while time stands still';
+  const hr = CFG.DAY_LENGTH / 24, per = n * CFG.WAGE;
+  return `wages ${n} × ${money2(CFG.WAGE)} per game hour ÷ ${+hr.toFixed(1)} s = ${money2(per / hr)}/s`;
+}
+const money2 = (v) => `$${v.toFixed(2)}`;
 export function describe(text, device, over) {
   const k = device === 'pad' ? 1 : device === 'touch' ? 2 : 0;
   text = text.replace(/\{(\w+):(-?[\d.e+-]+)\}/g, (m, kind, v) => (kind === 'money' ? money(+v) : UNITS[kind] ? qty(kind, +v) : m));
@@ -66,7 +81,8 @@ export class Hud {
     const a = aux && aux.pl.find((p) => p.id === me);
     let s = `${info}  |  ${Math.round(this.fps)} fps`;
     if (this.view && this.view.drawDist < CFG.DRAW_DIST - 0.5) s += `  |  view ${qty('len', this.view.drawDist, 0)}`;   // ridden down for the frame rate
-    if (this.world.damage > 0) s += `  |  damage ${money(this.world.damage)}`;
+    const cash = this.world.cash();
+    if (cash !== null) s += `  |  cash ${cash < 0 ? '-' : ''}${money(Math.abs(cash))}, ${wageMath(aux ? aux.pl.length : 1)}`;
     if (a && a.ck > 0) s += `  |  carrying ${qty('vol', a.ck * 1000, 0)} of chips`;
     if (a) s += `  |  ${a.m === MODE.CLIMB ? 'on spurs, lanyard on' : a.m === MODE.ROPE ? 'on the rope' : 'on the ground'}  |  ${INJ_NAME[a.inj]}`;
     this.status.textContent = s;
