@@ -54,7 +54,7 @@ export const CFG = {
   CLOUD_HOURS: 3,          // game hours, about how long between changes in the weather
   CLOUD_CHANGE: 120,       // s of play for the cover to go all the way from clear to overcast
   CLOUD_DIM: 0.85,         // fraction of sunlight and moonlight that full cover blocks
-  CLOUD_WIND: 6,           // m/s the cloud layer drifts overhead
+  CLOUD_WIND: 0.6,         // m/s the cloud layer drifts overhead
 
   // --- wood (green hardwood) ---
   DENSITY: 900,            // kg/m^3
@@ -66,6 +66,9 @@ export const CFG = {
   ROLL_RESIST: 0.02,       // m, rolling resistance of loose wood on the ground: lever arm of the normal force
   DEBRIS_MASS: 2,          // kg, pieces lighter than this are removed...
   DEBRIS_LIFE: 10,         // ...this many seconds after creation
+
+  // --- world seed: one word for the tree, the ground and the yards (model/seed.js; applied when a tree grows) ---
+  WORLD_SEED: '',          // '' = use TREE_SEED, TERRAIN_SEED and YARD_SEED as they are (the engine tests); the game picks a random word
 
   // --- tree generation (applied by "Grow a new tree" in the Tab menu) ---
   TREE_SEED: 7,

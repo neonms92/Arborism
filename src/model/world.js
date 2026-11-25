@@ -80,6 +80,7 @@ export class World {
     this.stands = null;           // the other trees in the yards (model/stands.js)
     this.mark = null;             // the orange X on the job tree
     this.damage = 0;              // $, running cost of what the job broke (sim/damage.js)
+    this.seed = '';               // the world's seed word, '' when none (model/seed.js; set by the 'terrain' event)
     this.nextId = 1;              // host allocates all ids
     this.listeners = [];
     this._kids = null; this._order = null;
@@ -221,7 +222,7 @@ export class World {
       case 'smash': smashBuild(this.builds, ev); break;           // a module came apart (sim/builds.js)
       case 'rope': this.rope = ev.rope; break;
       case 'damage': this.damage += ev.cost; break;   // the price of something broken (sim/damage.js)
-      case 'terrain': this.terrain = makeTerrain(ev.spec); break;   // the ground, made from its spec on every machine
+      case 'terrain': this.terrain = makeTerrain(ev.spec); this.seed = ev.seed || ''; break;   // the ground, made from its spec on every machine; seed: the world's word (model/seed.js)
       case 'pavers': this.paving = newPaving(ev.c, ev.areas, this.terrain, ev.slope); break;   // laid fresh (no damage): the tree's circle and the yards' paving
       case 'crack':                 // impacts on pavers this tick: h = [[paver, x, z, damage added], ...]
         if (this.paving) for (const [i, x, z, add] of ev.h) crackPaver(this.paving, i, x, z, add);
@@ -361,7 +362,7 @@ export class World {
     return {
       segs: [...this.segs.values()].map((s) => ({ ...s, f: packBundle(s.f) })), pieces: [...this.pieces.values()],
       rope: this.rope, players: [...this.players.values()], paving: packPaving(this.paving), chipper: this.chipper, builds: packBuilds(this.builds),
-      terrain: this.terrain ? this.terrain.spec : null, damage: this.damage, stands: this.stands, mark: this.mark,
+      terrain: this.terrain ? this.terrain.spec : null, damage: this.damage, stands: this.stands, mark: this.mark, seed: this.seed || '',
     };
   }
   load(o) {
@@ -375,7 +376,7 @@ export class World {
     this.chipper = o.chipper || null;
     this.builds = unpackBuilds(o.builds);
     this.damage = o.damage || 0;
-    this.stands = o.stands || null; this.mark = o.mark || null;
+    this.stands = o.stands || null; this.mark = o.mark || null; this.seed = o.seed || '';
     this._dirty();
     for (const fn of this.listeners) fn({ t: 'load' }, {});
   }

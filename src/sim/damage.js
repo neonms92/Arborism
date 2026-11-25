@@ -31,6 +31,6 @@ export class Damage {
     if (!(cost > 0)) return;
     const sim = this.sim;
     sim.emit({ t: 'damage', cost });
-    sim.toast(`${what}: {money:${Math.round(cost)}} (damage so far {money:${Math.round(sim.world.damage)}})`);
+    sim.toast(`${what}: {money:${Math.round(cost)}}`);   // the running total is on the status line (hud.js)
   }
 }
