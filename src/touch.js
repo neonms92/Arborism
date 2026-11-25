@@ -22,7 +22,7 @@ const CSS = `
 #touch .tb.on { background: rgba(232,162,58,.9); color: #201400; text-shadow: none; border-color: #fff; }
 #touch .tb.dim { opacity: .4; }
 #touch .tb.small { border-radius: 12px; font-size: 18px; }
-#touch .act { font-size: 12px; }
+#touch .act, #touch .rig { font-size: 12px; }
 /* the bottom of the screen belongs to the thumbs: prompt, rope line and toasts go up top */
 body.touchui #prompt { bottom: auto; top: calc(34px + env(safe-area-inset-top)); left: 90px; right: 130px; font-size: 15px; }
 body.touchui #rope { bottom: auto; top: calc(80px + env(safe-area-inset-top)); left: 90px; right: 130px; font-size: 13px; }
@@ -41,7 +41,7 @@ const BUTTONS = [
   ['act', '', 'interact', 'hi', ['r', 20, 22, 108]],
   ['jump', 'Jump', 'jump', null, ['r', 140, 18, 64]],
   ['punch', 'Punch', 'punch', null, ['r', 146, 92, 64]],
-  ['rig', 'Rig', 'rig', null, ['r', 104, 156, 64]],
+  ['rig', 'Rig', 'rig', null, ['r', 108, 160, 84]],
   ['letgo', 'Hold:\nlet go', 'drop', 'hd', ['r', 28, 150, 72]],
   ['saw', 'Saw', null, null, ['r', 214, 22, 64]],
   ['cut', 'Cut', null, null, ['l', 24, 150, 84]],
@@ -78,7 +78,7 @@ export class Touch {
 
     this.b = {};
     for (const [id, label, counter, hold, lay] of BUTTONS) {
-      const b = el('div', 'tb' + (id === 'act' ? ' act' : ''));
+      const b = el('div', 'tb' + (id === 'act' || id === 'rig' ? ' ' + id : ''));
       b.textContent = label; b.style.whiteSpace = 'pre-line';
       place(b, lay);
       this.b[id] = b; root.appendChild(b);
@@ -203,11 +203,16 @@ export class Touch {
     this.ropeMode = rope;
     if (rope) this.saw = false;
     const act = actionLabel(pr);
+    // Rig says what it will do: hang, tie, untie and take down are all this one button, and which one it is
+    // depends on where you look (near the block it takes the block down). With a block hung and no wood in
+    // reach it stays up, dimmed, so it is clear the tie is waiting on getting closer.
+    const rig = actionLabel(pr, 'rig'), waiting = !rig && /rope to/.test(pr);
     const b = this.b;
     b.act.textContent = act || 'Action'; b.act.classList.toggle('dim', !act);
     show1(b.jump, !a || a.m === MODE.GROUND);
     show1(b.punch, has('punch'));
-    show1(b.rig, has('rig'));
+    show1(b.rig, !!rig || waiting); b.rig.classList.toggle('dim', waiting);
+    b.rig.textContent = rig ? rig.replace(/^\w/, (c) => c.toUpperCase()) : 'Tie: get closer';
     show1(b.letgo, has('drop'));
     show1(b.saw, !rope && (has('raise') || this.saw || sawOut)); b.saw.classList.toggle('on', this.saw);
     b.saw.textContent = this.saw ? 'Saw\n(lift)' : 'Saw';
@@ -219,12 +224,13 @@ export class Touch {
   }
 }
 
-/** The words after {interact} in a host prompt: what the context button will do. */
-export function actionLabel(pr) {
+/** The words after {token} (default interact) in a host prompt: what that button will do. */
+export function actionLabel(pr, token = 'interact') {
+  const tok = '{' + token + '}';
   for (const part of pr.split(/\s{3,}/)) {
-    const i = part.indexOf('{interact}');
+    const i = part.indexOf(tok);
     if (i < 0) continue;
-    let s = part.slice(i + '{interact}'.length).replace(/^[:\s]+/, '');
+    let s = part.slice(i + tok.length).replace(/^[:\s]+/, '');
     const hold = /hold/i.test(part.slice(0, i));
     s = s.replace(/\{\w+\}/g, '').trim();
     if (s.length > 34) s = s.slice(0, 32).replace(/\s+\S*$/, '') + '…';
