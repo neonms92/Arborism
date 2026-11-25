@@ -1,7 +1,7 @@
 // Run one test case and produce its record (TESTS.md 6). The same code runs
 // headless in a worker and on the main thread for the graphical view.
 
-import { CFG, CFG_DEFAULTS } from '../config.js';
+import { CFG, TEST_DEFAULTS } from '../config.js';
 import { Ctx, Breach } from './harness.js';
 import { TEST_BY_ID } from './tests.js';
 
@@ -17,7 +17,7 @@ export async function runCase(job, opts = {}) {
   const T = TEST_BY_ID.get(job.test);
   if (!T) throw new Error('no such test ' + job.test);
   const saved = { ...CFG };
-  Object.assign(CFG, CFG_DEFAULTS);
+  Object.assign(CFG, TEST_DEFAULTS);
   if (job.cfg) Object.assign(CFG, job.cfg);            // the owner's tunings from the viewer's Tune panel; the test's own parameters still win
   const p = { ...(T.fixed || {}), ...job.params };
   for (const [k, d] of Object.entries(T.params)) if (d.cfg && p[k] !== undefined) CFG[d.cfg] = p[k] * d.scale;

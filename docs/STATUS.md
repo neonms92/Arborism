@@ -20,7 +20,7 @@ yet swung the saw with a real mouse.
 
 | Area | State |
 |---|---|
-| Page | Loads with a clean console; starts in first person with fibres drawn and bark hidden. |
+| Page | Loads with a clean console; starts in first person with bark on and foliage at 0.7 (the test viewer starts with bark hidden, D64). |
 | Fibres everywhere | Every segment has a bundle (≈ 2000 fibres on the demo tree), solved every tick, drawn and coloured per fibre: yellow → red (compression), → blue (tension), → green (bending in a live bundle), dark (snapped). |
 | Bending | Every fibre stretches or shortens with the force on it (separate tension and compression deformation); each segment's end disc is placed and tilted from its fibres' lengths; severed fibres do not count; loads are taken on the bent shape, so tilt can cascade. Demo limb tip: ≈ 3 cm low at rest, ≈ 11 cm with an 85 kg climber far out, ≈ 60 cm with both deformations at 3 %. Back-cutting 80 % of the trunk with no notch: the lean fed itself and the worst fibre went from 8 to 30 MPa with no further cutting. Fibres are drawn individually between their own ends. Clients compute the same shape. |
 | New tree | Height, trunk diameter, branch density, branch length, fibre density, fibre segment length and seed are in the Tab menu; "Clear all wood and grow a new tree" rebuilds the world from them. Host, client and late joiner agree afterwards. Tried: an 18 m, 0.9 m, dense tree (capped at ≈ 900 segments, 13 000 fibres, ≈ 3 ms per step) and a 6 m sapling with 21 fibres across. |
@@ -30,7 +30,7 @@ yet swung the saw with a real mouse.
 | Felling (direct fibre severing) | Notch toward the lean + back cut: tips over on an 11-fibre hinge over ~2.5 s, fibres snap progressively, comes free, lands along the notch line. Back cut against the lean: kerf closes (pinch), tree stands. Straight through: free, slides off toward the lean. |
 | Saw (through input) | Plant on the wood looked at (bar across the stem, feed toward its heart); press feeds it in and severs fibres at `CUT_RATE`; pivoting swings the bar in the cut and tilts the cut plane. A square cut pressed and pivoted through the trunk took ≈ 15 s and the tree came down. Plants on a rope when looking at one and cuts it; cuts lanyards. |
 | Fibre drawing | Fixed: fibres were drawn mis-rotated on every stem that was not near-vertical (crown looked disconnected). They now sit exactly where the physics has them. |
-| Bark | Built from the fibres: a kerf is a slot, a notch is a missing wedge with pale wood inside. `Bark visibility` in the menu blends bark over fibres. |
+| Bark | Built from the fibres: a kerf is a slot, a notch is a missing wedge with pale wood inside. `Bark visibility` in the menu blends bark over fibres. Fitted around the fibre boxes as drawn (D64): no fibre shows through on thin twigs (checked on every segment of the demo tree). |
 | Tab menu | Sliders + number boxes for sensitivity, inverted look, bark/foliage/fibre display, fibre strengths, cutting rate, climber and rope values. Changes apply live and persist across reloads. |
 | Lanyard (through input) | Spur in = lanyard on. Stops at unions. Hands + interact on another stem moves it there. Let go = fall. |
 | Rigging | Block, tie-off, friction device as before. 55 kg limb with 1 m slack peaks ≈ 5.3 kN, is caught, and lowers when the tail is eased. Rope is a 3-D tube. |

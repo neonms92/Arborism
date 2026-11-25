@@ -662,6 +662,32 @@ Carrying is a volume, `CHIP_CARRY` (40 L), shown on the status line. The
 chips are not drawn in the hands. Respawning keeps the chip piles. A new tree
 still clears them.
 
+## Bark
+
+**D64 — Bark is circumscribed about the fibre boxes as drawn; it is on by default except in the test viewer.**
+Fibres showed through the bark on thin upper segments. Two causes, both in
+how the bark ring was fitted, both worst where a bundle has few fibres:
+the ring's corners were placed at how far the fibre outline reaches in
+their own direction, so each flat panel between two corners cut across the
+outline (a 3 × 3 bundle got only 7 panels, and its square corners poked
+out by up to 38 % of the radius); and the reach was scaled with the radius
+along the segment while the fibre boxes keep one width all along, so on a
+strongly tapering twig the boxes stood out at the thin end. The bark was
+not "too tight" by a constant: a bigger margin would only have hidden it
+on some segments. Now each panel lies on the line that just touches the
+boxes in its own direction, at their real width, and its corners are where
+neighbouring panels' lines meet, so no box can stick out whatever the
+number of sides; both terms are linear along the segment, so straight
+panels contain them end to end. Every fibre box in a segment now has one
+width (from the middle radius), so the bark and the fibres agree.
+Checked on the demo tree: no box corner outside the bark on any of 83
+segments (54 / 54 thin ones poked before). The cost is that 3-fibre twigs
+read a little blockier: their bark corners reach up to 1.7 × the radius.
+
+Defaults (owner, 2026-11-25): `BARK_OPACITY` 1, `LEAF_OPACITY` 0.7. The
+test runner and viewer start from `TEST_DEFAULTS`, which is the same with
+`BARK_OPACITY` 0, so tests are still watched by their fibres; the viewer's
+Tune panel can change it.
 
 ## Yards
 
