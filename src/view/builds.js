@@ -7,7 +7,7 @@ import { compose } from '../model/builds.js';
 
 const COLORS = {
   wall: 0x7a5534, door: 0x5e7f4a, floor: 0x8f6a42, post: 0x6b4a2c, roof: 0x3b3f44, rail: 0xb08a5a, picket: 0xc19a66, rough: 0xa39a8a,
-  found: 0x8d8a84, glass: 0x9ec3d6,
+  found: 0x8d8a84, glass: 0xd4dee2,   // frosted: pale and opaque, no seeing in
 };
 // house siding and roofing, picked per house
 const SIDING = [0xd8d2c4, 0xa9b8c4, 0xc9b48a, 0x8e9f86, 0xb8826a, 0xe6e1d3, 0x9a8f86];
@@ -31,7 +31,7 @@ export class BuildsView {
     let m = this.mats[key];
     if (!m) {
       m = this.mats[key] = key === 'glass'
-        ? new THREE.MeshLambertMaterial({ color, transparent: true, opacity: 0.45, depthWrite: false })
+        ? new THREE.MeshLambertMaterial({ color, emissive: 0x1c2226 })     // frosted glass: opaque, a faint glow so it reads as glass
         : new THREE.MeshLambertMaterial({ color, flatShading: true });
     }
     return m;
@@ -100,7 +100,7 @@ export class BuildsView {
       for (const [key, e] of M) {
         const mesh = new THREE.Mesh(mergedBoxes(e.list), this.mat(key, e.col));
         mesh.userData.own = true;
-        mesh.castShadow = key !== 'glass'; mesh.receiveShadow = true;
+        mesh.castShadow = true; mesh.receiveShadow = true;
         g.add(mesh);
       }
       this.root.add(g); d.objs.push(g);
