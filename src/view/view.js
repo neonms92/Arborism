@@ -23,11 +23,9 @@ import { groundY } from '../model/terrain.js';
 import { ChipperView } from './chipper.js';
 import { BuildsView } from './builds.js';
 import { SHAPE } from '../model/chipper.js';
+import { woodInto, fibreWidth } from './wood.js';
+import { StandsView } from './stands.js';
 
-const SIDES = 7;
-// Width of every fibre box in a segment: one width all along, from the radius at its middle (a box cannot taper).
-// The bark is fitted around this (buildPiece), so the two must agree.
-const fibreWidth = (s) => (s.r0 + s.r1) / s.f.N * 0.82;
 const PLAYER_COLORS = [0xe8a23a, 0x3a9be8, 0xd94f6a, 0x62c462, 0xb07be0, 0xe0d24a];
 const Y = new THREE.Vector3(0, 1, 0);
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _m = new THREE.Matrix4(), _c = new THREE.Color();
@@ -43,8 +41,10 @@ export class View {
     this.renderer.shadowMap.enabled = true;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x9fc4e0);
-    this.scene.fog = new THREE.Fog(0x9fc4e0, 40, 140);
+    this.fog = new THREE.Fog(0x9fc4e0, 40, 140);   // the sky's colour, so fully fogged ground meets the sky with no seam
     this.camera = new THREE.PerspectiveCamera(72, 1, 0.05, 300);
+    this.drawDist = CFG.DRAW_DIST;   // m, now: CFG.DRAW_DIST, ridden down towards CFG.DRAW_DIST_MIN while frames are slow (adaptDraw)
+    this.frameMs = 0; this.lastFrame = 0;
     this.camera.position.set(6, 3, 9); this.camera.lookAt(0, 4, 0);
 
     this.scene.add(new THREE.HemisphereLight(0xdfeeff, 0x4a5a3a, 1.2));
@@ -61,6 +61,7 @@ export class View {
 
     this.barkMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, side: THREE.DoubleSide });
     this.leafMat = new THREE.MeshLambertMaterial({ color: 0x3f7d3a, flatShading: true, transparent: true });
+    this.standsView = new StandsView(this.scene, world, this.leafMat);   // the other trees in the yards, until they come to life
     this.fibreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });   // unlit: the colour IS the information
     this.fibreGeo = new THREE.BoxGeometry(1, 1, 1);
     this.ropeMat = new THREE.MeshLambertMaterial({ color: 0xf2e9d0, flatShading: true });
@@ -104,6 +105,7 @@ export class View {
     this.paverView.onEvent(ev);
     this.chipperView.onEvent(ev);
     this.buildsView.onEvent(ev);
+    this.standsView.onEvent(ev);
     switch (ev.t) {
       case 'reset':
         for (const id of [...this.pieces.keys()]) this.dropPiece(id);
@@ -156,56 +158,7 @@ export class View {
       this.pieces.set(id, p);
     }
     const segs = this.world.segsOf(id);
-    const pos = [], col = [], lpos = [];
-    const barkSpan = [], leafSeg = [];          // bark: [seg id, first vertex, t0, t1] per panel; leaves: [seg id, first vertex, count]
-    const ico = new THREE.IcosahedronGeometry(1, 0).attributes.position;
-    for (const s of segs) {
-      const start = pos.length / 3;
-      const ax = segAxis(s), { u, v } = bundleBasis(ax), L = segLen(s), f = s.f, Ly = layout(f.N);
-      // Bark panels. Each is owned by the outermost fibre behind it and covers only what is left of that fibre.
-      const sides = Math.max(SIDES, Math.min(20, f.N + 3));
-      // The bark is a polygon circumscribed about the fibre boxes as drawn: panel k lies on the line that just
-      // touches them in its own direction (its middle angle), and its corners are where neighbouring panels'
-      // lines meet. So no box corner can stick out between two corners of the bark, whatever the number of sides.
-      // A face's line is mFace * R + (box half width) * kFace out: the fibre centres scale with the radius R,
-      // but each box keeps one width all along (fibreWidth), so on a strongly tapering (thin) segment the boxes
-      // stand out further at the thin end. Both are linear in z, so straight panels from end to end contain them.
-      const w2 = fibreWidth(s) / 2, mFace = [], kFace = [];
-      for (let k = 0; k < sides; k++) {
-        const am = (k + 0.5) / sides * Math.PI * 2, c = Math.cos(am), sn = Math.sin(am);
-        let m = 0; for (let i = 0; i < f.n; i++) { const d = Ly.X[i] * c + Ly.Y[i] * sn; if (d > m) m = d; }
-        mFace.push(m); kFace.push(Math.abs(c) + Math.abs(sn));
-      }
-      const dl = Math.PI / sides, cd = Math.cos(dl), sd = Math.sin(dl);
-      const at = (k, z) => {
-        const R = s.r0 + (s.r1 - s.r0) * Math.min(1, Math.max(0, z / L)), k1 = (k + sides - 1) % sides, k2 = k % sides;
-        const h1 = (mFace[k1] * R + w2 * kFace[k1]) * 1.03, h2 = (mFace[k2] * R + w2 * kFace[k2]) * 1.03;
-        // corner k: where the lines of faces k-1 and k (normals at ang -/+ dl) meet
-        const ang = k / sides * Math.PI * 2, a = (h1 + h2) / (2 * cd), b = (h2 - h1) / (2 * sd), ca = Math.cos(ang), sa = Math.sin(ang);
-        const cx = a * ca - b * sa, sy = a * sa + b * ca;
-        return [s.a[0] + ax[0] * z + u[0] * cx + v[0] * sy, s.a[1] + ax[1] * z + u[1] * cx + v[1] * sy, s.a[2] + ax[2] * z + u[2] * cx + v[2] * sy];
-      };
-      for (let k = 0; k < sides; k++) {
-        const a0 = k / sides * Math.PI * 2, a1 = (k + 1) / sides * Math.PI * 2, am = (a0 + a1) / 2, cm = Math.cos(am), sm = Math.sin(am);
-        let own = 0, best = -Infinity;
-        for (let i = 0; i < f.n; i++) { const d = Ly.X[i] * cm + Ly.Y[i] * sm; if (d > best) { best = d; own = i; } }
-        const lo = f.lo ? f.lo[own] : 0, hi = f.hi ? f.hi[own] : L;
-        const spans = f.state[own] === CUT ? [[lo, f.zmin[own] - 0.008], [f.zmax[own] + 0.008, hi]] : [[lo, hi]];
-        for (const [z0, z1] of spans) {
-          if (z1 - z0 < 0.004) continue;
-          const p00 = at(k, z0), p10 = at(k + 1, z0), p01 = at(k, z1), p11 = at(k + 1, z1);
-          barkSpan.push(s.id, pos.length / 3, z0 / L, z1 / L);
-          pos.push(...p00, ...p10, ...p11, ...p00, ...p11, ...p01);
-        }
-      }
-      const shade = 0.85 + ((s.id * 37) % 10) / 60;
-      for (let i = start; i < pos.length / 3; i++) col.push(0.42 * shade, 0.31 * shade, 0.22 * shade);
-      if (s.leaf > 0) {
-        const r = 0.3 + s.leaf * 0.18;
-        leafSeg.push(s.id, lpos.length / 3, ico.count);
-        for (let i = 0; i < ico.count; i++) lpos.push(s.b[0] + ico.getX(i) * r, s.b[1] + ico.getY(i) * r * 0.8, s.b[2] + ico.getZ(i) * r);
-      }
-    }
+    const { pos, col, lpos, barkSpan, leafSeg } = woodInto(segs, this.world.mark);
     const set = (mesh, arr, colors) => {
       mesh.geometry.dispose();
       const g = new THREE.BufferGeometry();
@@ -436,7 +389,31 @@ export class View {
       }
       this.camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, roll, 'YXZ'));
     }
+    this.adaptDraw();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * Draw distance: the far plane sits at this.drawDist, which is CFG.DRAW_DIST while the frame rate keeps
+   * up. While the smoothed frame rate is under CFG.DRAW_FPS it shrinks (CFG.DRAW_ADAPT of itself per second)
+   * towards CFG.DRAW_DIST_MIN; once it is 10% over, it grows back five times slower. The gap between the two
+   * keeps it from hunting. Fog in the sky's colour runs from CFG.FOG_START of the distance to just short of
+   * it, so what the far plane clips has already faded out (CFG.AUTO_FOG; off = no fog at all).
+   */
+  adaptDraw() {
+    const now = performance.now(), ft = now - this.lastFrame; this.lastFrame = now;
+    const max = CFG.DRAW_DIST, min = Math.min(CFG.DRAW_DIST_MIN, max);
+    if (ft > 0 && ft < 250) {                     // not the first frame, nor the return to a hidden tab
+      this.frameMs = this.frameMs ? this.frameMs + (ft - this.frameMs) * 0.05 : ft;   // about the last 20 frames
+      const fps = 1000 / this.frameMs, s = ft / 1000;
+      if (fps < CFG.DRAW_FPS) this.drawDist *= Math.exp(-CFG.DRAW_ADAPT * s);
+      else if (fps > CFG.DRAW_FPS * 1.1) this.drawDist *= Math.exp(CFG.DRAW_ADAPT * 0.2 * s);
+    }
+    this.drawDist = Math.min(max, Math.max(min, this.drawDist));
+    const d = this.drawDist, cam = this.camera;
+    if (Math.abs(cam.far - d) > 0.01) { cam.far = d; cam.updateProjectionMatrix(); }
+    this.scene.fog = CFG.AUTO_FOG ? this.fog : null;
+    this.fog.far = d * 0.98; this.fog.near = Math.min(this.fog.far, d * CFG.FOG_START);
   }
 
   poseSaw(pm, a) {

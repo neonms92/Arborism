@@ -24,6 +24,12 @@ export const CFG = {
   WOBBLE: 0.08,            // rad, how far the view swims while shaken (0 = steady)
   WOBBLE_HZ: 0.6,          // how fast it swims (cycles per second)
   IMPERIAL: true,          // HUD numbers in feet, pounds, mph... (the settings menu stays in SI)
+  DRAW_DIST: 150,          // m, how far the view draws while the frame rate keeps up (the camera's far plane)
+  DRAW_DIST_MIN: 50,       // m, the shortest it rides down to while the frame rate is low
+  DRAW_FPS: 40,            // frames per second: below this the draw distance shrinks; above it by 10% it grows back
+  DRAW_ADAPT: 0.25,        // fraction of the draw distance it shrinks by per second while too slow (it grows back at a fifth of this)
+  AUTO_FOG: true,          // fog thickens towards the draw distance so the far edge fades into the sky instead of being clipped
+  FOG_START: 0.3,          // fog begins at this fraction of the draw distance
   PEER_PREFIX: 'arborism-',
 
   // --- wood (green hardwood) ---
@@ -169,6 +175,13 @@ export const CFG = {
   YARD_STREET: 9,          // m, street between blocks of lots
   YARD_FENCE: 0.5,         // chance a lot is fenced round its sides and back
   YARD_TREE_CLEAR: 4,      // m beyond the trunk kept clear of houses, sheds and the chipper (players spawn 4 m from the tree)
+  // --- other trees in the yards (model/stands.js): drawn, with only a trunk to bump into, until someone saws or climbs one ---
+  YARD_TREES: 1.5,         // trees per lot, on average (as many as fit)
+  YARD_TREES_HMIN: 8,      // m, shortest
+  YARD_TREES_HMAX: 16,     // m, tallest
+  YARD_TREES_THICK: 0.045, // m of trunk diameter per metre of height
+  YARD_TREES_PITCH: 0.06,  // m, fibre width once one comes to life (FIBRE_PITCH is the job tree's): wider = fewer fibres, cheaper
+  MARK_HEIGHT: 1.4,        // m above the ground of the orange X sprayed on the job tree
   // --- what breaking things costs (sim/damage.js), in dollars, added to a running total on the HUD ---
   PAVER_COST: 25,          // one paver, the first time it cracks
   FENCE_COST: 300,         // one fence section broken apart
@@ -182,7 +195,7 @@ export const CFG = {
 export const CFG_DEFAULTS = Object.freeze({ ...CFG });
 // What the test runner and its viewer start from instead: the same, except that tests are watched for their
 // fibres, so the bark starts hidden there (the viewer's Tune panel can still change it), and tests keep the
-// smaller tree they were written for (play grows the bigger one, D73).
+// smaller tree they were written for (play grows the bigger one, D75).
 export const TEST_DEFAULTS = Object.freeze({ ...CFG_DEFAULTS, BARK_OPACITY: 0, TREE_HEIGHT: 11, TREE_DIAMETER: 0.54 });
 
 export const INJ = { OK: 0, SHAKEN: 1, HURT: 2, DOWN: 3 };

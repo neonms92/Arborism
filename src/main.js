@@ -21,6 +21,7 @@ const menu = new Menu(() => view && view.applySettings(), () => {
 menu.onChipper = () => { if (sim) sim.chipper.respawn(); else hud.toast('Only the host can respawn the chipper'); };
 view = new View($('game'), world);
 const hud = new Hud(world);
+hud.view = view;                                 // the HUD shows the draw distance when the frame rate has cut it
 const input = new Input($('game'));
 const net = new Net();
 

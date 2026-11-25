@@ -905,7 +905,61 @@ costs, settings search.**
   open ones are remembered), with a search box that shows only the
   settings whose label or config name contains every word typed.
 
-**D73 — Tests keep the old tree size.** Owner: keep the 22 m × 1.2 m tree
+**D73 — Adaptive draw distance, with fog over the edge.**
+- The camera's far plane is the draw distance, `DRAW_DIST` (150 m). Each
+  machine adapts its own (view only, nothing on the network): the frame
+  time is smoothed over about 20 frames, and while that is under
+  `DRAW_FPS` (40 fps) the distance shrinks by `DRAW_ADAPT` (25%) of itself
+  per second, down to `DRAW_DIST_MIN` (50 m). Once the frame rate is 10%
+  over the target it grows back five times slower. The gap and the slow
+  rise stop it hunting. Frames over 250 ms (a hidden tab, a load) are not
+  counted.
+- Cutting the far plane saves what three.js frustum-culls (whole houses,
+  sheds, fences and pieces past it) and the pixels of ground past it. It
+  cannot help a slow simulation on the host, so there it rides to the
+  minimum and stays: the person asked for frame rate as the signal.
+- Fog is linear, in the sky's colour, from `FOG_START` (0.3) of the
+  distance to 98% of it, so anything the far plane cuts has already faded
+  into the sky. `AUTO_FOG` off removes the fog entirely (the distance still
+  adapts, and its edge shows).
+- Defaults keep the old look: the fixed fog was 40 to 140 m.
+
+**D74 — Other trees in the yards: drawn until touched, wood once sawn or climbed; an orange X on the job tree.**
+- *Dormant.* The yard plan puts `YARD_TREES` trees per lot on average
+  (1.5), `YARD_TREES_HMIN` to `YARD_TREES_HMAX` tall (8 to 16 m), trunk
+  `YARD_TREES_THICK` × height across, wherever they fit: clear of the lot's
+  edges by 1 m and of everything else by a fifth of their height. They use
+  their own random numbers seeded by the lot, so adding them moved nothing
+  else in the plan. A dormant tree has no wood in the model: `world.stands`
+  holds only its place and its shape numbers (one small `stands` event).
+  Every machine grows the same skeleton from those numbers
+  (`generateTree` now takes an explicit shape, so a client's own menu cannot
+  change it) and draws bark and foliage from bundles made just for drawing.
+  All dormant trees are one bark mesh and one foliage mesh. The host gives
+  each only fixed colliders along its trunk, so players bump into it and can
+  look at it. The crown catches nothing: a felled tree passes through
+  another's branches and stops only on its trunk.
+- *Waking.* A player who starts sawing one (holding the saw trigger within
+  saw reach), presses {interact} on it (grab, or hold to spur in) or {rig}
+  wakes it: the host grows its wood with the same numbers and
+  `YARD_TREES_PITCH`-wide fibres (60 mm, against 30 mm on the job tree:
+  about a quarter of the fibres), as an ordinary rooted tree (a `tree` event
+  with `stand` set). It is then wood like the job tree in every way. Rapier
+  finds new colliders only after a step, so the press that woke it is
+  replayed on the next tick. Looking at one is not enough, so walking about
+  wakes nothing.
+- *Cost (headless, default yards, 15 trees).* Dormant: no step cost that
+  could be measured, about 70 ms more to grow the world, 191 trunk
+  colliders. All 15 awake: 816 more segments and 11 600 more fibres, step
+  median 1.5 → 3.9 ms. Waking one is about 11 ms on the host.
+- *The X.* The host sprays it on the job tree `MARK_HEIGHT` (1.4 m) up,
+  on the trunk segment nearest that height, on the side facing the tree
+  lot's street (`world.mark`, piece-local). It is paint on the bark: drawn
+  in the bark mesh of the segment it is on, it bends with the bark, a kerf
+  through it is a gap in it, and the part on a piece that falls goes with
+  that piece. Engine tests (flat ground) get no X and no other trees.
+
+**D75 — Tests keep the old tree size.** Owner: keep the 22 m × 1.2 m tree
 for play only. `TEST_DEFAULTS` (the test runner, its viewer, and the
 defaults of every test parameter in `tests.js`, which used to read
 `CFG_DEFAULTS`) sets `TREE_HEIGHT` 11 and `TREE_DIAMETER` 0.54 again. Play
