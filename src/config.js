@@ -125,7 +125,7 @@ export const CFG = {
   DV_SHAKEN: 4, DV_HURT: 7, DV_DOWN: 11,   // m/s impact thresholds
   SHAKEN_TIME: 2,
   // --- controls that take time (hold the button; let go to cancel) ---
-  LANYARD_TIME: 4,         // s of holding {interact} to spur in or move the lanyard
+  LANYARD_TIME: 2,         // s of holding {interact} to spur in or move the lanyard
   LETGO_TIME: 4,           // s of holding {drop} to let go of the tree
   // --- punch ({punch}): every press adds a short shove; presses faster than it fades stack up ---
   PUNCH_FORCE: 400,        // N added by one punch, along the look direction at the point hit
