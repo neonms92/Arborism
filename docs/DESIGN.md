@@ -677,7 +677,7 @@ log can still drag, tip or hoist it.
 - **Grip.** The ring at the end of the drawbar is grabbed like wood
   ({interact}); the hold is the same short rope from the hands. Dragging
   anything that can move, the feet go no faster away from it than it follows
-  (the legs push with at most `LEG_FORCE`, D76), so the player
+  (the legs push with at most `LEG_FORCE`, D81), so the player
   leans into the load instead of walking out of the hold.
 - **Feeding.** Holding loose wood, {interact} while looking at the chipper
   hands the piece to the feed rollers. They take the end of the wood nearest

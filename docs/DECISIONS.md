@@ -1105,7 +1105,7 @@ drawing fibre bundles that are fully intact and to measure it.
   the boxes drawn. The fibre lines that used to poke through the bark at
   segment joints are gone too.
 
-**D76 — Legs push and pull with one force; the arms hold both ways.** Owner:
+**D81 — Legs push and pull with one force; the arms hold both ways.** Owner:
 pulling was far weaker than pushing even with 50 kN of pull force set, and
 both must move the chipper truck over rough ground (its weight may come
 down).
