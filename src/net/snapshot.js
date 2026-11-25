@@ -1,5 +1,6 @@
 // Binary transform snapshots (host -> clients) and client-side interpolation.
-// Layout: u8 type(1) | u8 full | u32 tick | u16 count | count * (u16 id, f32 x,y,z, i16 qx,qy,qz,qw)
+// Layout: u8 type(1) | u8 full | u32 tick | u16 count | count * (u16 id, f32 x,y,z, i16 qx,qy,qz,qw) | f64 host ms
+// (the trailing host clock, performance.now() when sent, lets a client see data queuing on the way: net/stats.js)
 // See docs/DESIGN.md 2.2, 2.3.
 
 import { CFG } from '../config.js';
@@ -9,7 +10,8 @@ const REC = 22;
 export function encodeSnapshot(sim, full) {
   const recs = [];
   sim.eachBody((id, p, q, awake) => { if (full || awake) recs.push(id, p.x, p.y, p.z, q.x, q.y, q.z, q.w); });
-  const n = recs.length / 8, buf = new ArrayBuffer(8 + n * REC), dv = new DataView(buf);
+  const n = recs.length / 8, buf = new ArrayBuffer(8 + n * REC + 8), dv = new DataView(buf);
+  dv.setFloat64(8 + n * REC, performance.now(), true);
   dv.setUint8(0, 1); dv.setUint8(1, full ? 1 : 0); dv.setUint32(2, sim.tick, true); dv.setUint16(6, n, true);
   for (let i = 0, o = 8; i < n; i++, o += REC) {
     const r = i * 8;
@@ -22,7 +24,7 @@ export function encodeSnapshot(sim, full) {
 
 /** Client transform source: buffers samples per body and interpolates at hostTime - delay. */
 export class Interp {
-  constructor() { this.bodies = new Map(); this.lastTick = -1; this.off = -Infinity; this.rt = 0; }
+  constructor() { this.bodies = new Map(); this.lastTick = -1; this.off = -Infinity; this.rt = 0; this.offs = []; this.sentAt = NaN; }
 
   push(buf) {
     const dv = new DataView(buf);
@@ -30,8 +32,15 @@ export class Interp {
     const tick = dv.getUint32(2, true), n = dv.getUint16(6, true);
     if (tick <= this.lastTick) return;                 // stale / out of order
     this.lastTick = tick;
-    const t = tick * CFG.TICK, off = t - performance.now() / 1000;
-    this.off = Math.max(off, this.off - 0.0005);       // track the least-delayed packet
+    const now = performance.now() / 1000, t = tick * CFG.TICK, off = t - now;
+    this.sentAt = buf.byteLength >= 8 + n * REC + 8 ? dv.getFloat64(8 + n * REC, true) : NaN;
+    // Host time minus local time, from the least-delayed packet of the last 2 s. It used to creep down by
+    // 0.5 ms a packet, so after the host ran in slow motion (host time falls behind for good) it took
+    // minutes to catch up, and all that time bodies were drawn at their last sample, not interpolated.
+    this.offs.push({ at: now, off });
+    while (this.offs.length > 1 && now - this.offs[0].at > 2) this.offs.shift();
+    let best = -Infinity; for (const o of this.offs) best = Math.max(best, o.off);
+    this.off = best;
     for (let i = 0, o = 8; i < n; i++, o += REC) {
       const id = dv.getUint16(o, true);
       let b = this.bodies.get(id); if (!b) this.bodies.set(id, b = []);

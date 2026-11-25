@@ -1289,3 +1289,27 @@ seeds land as before. The check costs about 0.05 ms a step with a whole
 felled tree awake (segments too high to reach the ground are skipped). Flat
 ground (the engine tests) has a solid slab and skips it. Only wood is
 covered: players, chips and loose shed or chipper parts are not.
+
+**D89 — Stale updates are skipped instead of queued.** Owner (2026-11-25):
+the lag seen on a LAN was 1–2 s, not the ~130 ms that ping and the render
+delay explain. Nothing in the game delays data by seconds, but the
+transport could: PeerJS's `send` hands messages to the data channel until
+8 MB is buffered and keeps the rest in its own array, and an unreliable
+channel still sends everything it was given, in turn. On any link slower
+than the ~30–100 kB/s the host sends (aux alone is ~7 kB at 10 Hz), the
+queue and the lag grow without limit. A likely way to get such a link on a
+LAN: the direct connection fails (Wi-Fi client isolation, mDNS addresses
+not resolved) and WebRTC falls back to PeerJS's free public TURN relay.
+Emulated 6–10 kB/s link, headless: snapshots arrived 12 s late after 15 s
+and 24 s late after 30 s with no limit; with the limit, 0.4 s, steady.
+`Net.backed` skips a snapshot / aux / input while more than `NET_QUEUE_MAX`
+(64 kB) waits or the wait at the link's measured drain rate passes
+`NET_LAG_MAX` (0.25 s); both in the Tab menu. The network box now shows
+the route, the network's own round trip (so a slow machine and a slow link
+can be told apart), how late snapshots arrive and the host's queue.
+Also: the client's estimate of the host clock is now the quickest packet of
+the last 2 s; it used to creep down 0.5 ms a packet, so after the host ran
+in slow motion bodies were drawn unblended at their last sample for minutes.
+Not verified on a real LAN: the cause there is a hypothesis until the box
+shows it.
+

@@ -11,6 +11,8 @@ export const CFG = {
   INPUT_HZ: 30,
   PING_EVERY: 0.5,         // s between pings from a joined client (net/stats.js)
   NET_STATS: true,         // show the network box on a joined client
+  NET_QUEUE_MAX: 64,       // kB: snapshots / aux / inputs are skipped while more than this waits to be sent (D89)
+  NET_LAG_MAX: 0.25,       // s: ...or while what waits would take longer than this to go out at the link's pace
   INVERT_Y: true,          // push forward / mouse forward looks down
   LOOK_SENS: 0.008,         // rad of look per pixel of mouse travel
   TOUCH_LOOK_SENS: 0.006,  // rad of look per pixel a finger drags on the right of the screen
