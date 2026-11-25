@@ -8,7 +8,7 @@ import { segAxis, segLen, segParam, segRadius } from '../model/world.js';
 import { bundleBasis, layout, CUT } from '../model/fibres.js';
 
 const SIDES = 7, TAU = Math.PI * 2;
-const PAINT = { H: 0.5, W: 0.42, LINE: 0.07, RGB: [1.0, 0.42, 0.04] };   // the X: m tall, m wide (round the bark), stroke width
+const PAINT = { H: 0.5, W: 0.42, LINE: 0.07, RGB: [1.0, 0.38, 0.0] };   // the X: m tall, m wide (round the bark), stroke width
 const ico = new THREE.IcosahedronGeometry(1, 0).attributes.position;
 // Width of every fibre box in a segment: one width all along, from the radius at its middle (a box cannot taper).
 // The bark is fitted around this (woodInto), so the two must agree.

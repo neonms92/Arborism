@@ -873,6 +873,14 @@ puts it up through the ordinary `builds` and `pavers` events. Flat ground
   shed in a back corner, door toward the house; and, with chance
   `YARD_FENCE`, a fence of one style round its sides and back, sometimes
   along the front too with a gap at the path. A lot line is fenced once.
+- **Other trees** (`model/stands.js`, D74): about `YARD_TREES` per lot,
+  wherever there is room after everything else. Until a player saws,
+  climbs, grabs or rigs one it has no wood: every machine draws it from its
+  shape numbers and the host gives it only trunk colliders. Then the host
+  grows its wood for real with wider fibres (`YARD_TREES_PITCH`) and it is
+  an ordinary rooted tree.
+- **The job tree** carries an orange spray-painted X, `MARK_HEIGHT` up on
+  the side facing its street (`world.mark`), drawn as paint on its bark.
 
 ---
 
