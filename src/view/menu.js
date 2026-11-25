@@ -14,6 +14,9 @@ export const ROWS = [
   ['Controls'],
   ['SAW_SENS', 'Chainsaw sensitivity (turns of the bar per screen of mouse)', 0.05, 2, 0.05, Math.PI * 2],
   ['LOOK_SENS', 'Look sensitivity (mouse)', 0.5, 10, 0.1, 0.001],
+  ['TOUCH_LOOK_SENS', 'Look sensitivity (touch)', 1, 20, 0.5, 0.001],
+  ['TOUCH_SAW_SENS', 'Chainsaw sensitivity, touch (times the mouse)', 0.2, 5, 0.1, 1],
+  ['TOUCH_STICK_R', 'Touch stick size (px of thumb travel for full speed)', 20, 150, 5, 1],
   ['INVERT_Y', 'Inverted vertical look'],
   ['LANYARD_TIME', 'Hold time to spur in or move the lanyard (s)', 0, 10, 0.1, 1, true],
   ['LETGO_TIME', 'Hold time to let go of the tree (s)', 0, 10, 0.1, 1, true],
@@ -107,6 +110,9 @@ export class Menu {
     const note = document.createElement('p');
     note.textContent = 'Changes apply at once and are remembered. Wood, chainsaw, climber and rope values only act on the host.';
     el.appendChild(note);
+    const close = document.createElement('button'); close.textContent = 'Close'; close.className = 'go';
+    close.onclick = () => this.toggle(false);
+    el.appendChild(close);
     this.inputs = [];
     for (const r of ROWS) {
       if (r.length === 1) { const t = document.createElement('h3'); t.textContent = r[0]; el.appendChild(t); continue; }

@@ -6,18 +6,20 @@ import { CFG, INJ_NAME, MODE } from '../config.js';
 
 const $ = (id) => document.getElementById(id);
 
-// token -> [keyboard and mouse, gamepad]
+// token -> [keyboard and mouse, gamepad, touch (the on-screen buttons of src/touch.js)]
 const NAMES = {
-  move: ['ESDF', 'Left stick'], look: ['Mouse', 'Right stick'],
-  interact: ['R', 'X'], drop: ['C', 'B'], jump: ['Space', 'A'],
-  rig: ['W', 'Y'], punch: ['G', 'RB'],
-  raise: ['Right mouse', 'LT'], throttle: ['Left mouse', 'RT'],
-  wraps: ['Up / Down arrows', 'D-pad up / down'],
-  menu: ['Tab', 'Back'], respawn: ['Enter', 'Start'],
+  move: ['ESDF', 'Left stick', 'Left thumb'], look: ['Mouse', 'Right stick', 'Drag right'],
+  interact: ['R', 'X', 'Action'], drop: ['C', 'B', 'Let go'], jump: ['Space', 'A', 'Jump'],
+  rig: ['W', 'Y', 'Rig'], punch: ['G', 'RB', 'Punch'],
+  raise: ['Right mouse', 'LT', 'Saw'], throttle: ['Left mouse', 'RT', 'Cut'],
+  wraps: ['Up / Down arrows', 'D-pad up / down', 'Wrap + / −'],
+  menu: ['Tab', 'Back', '⚙'], respawn: ['Enter', 'Start', '↺'],
 };
-export function describe(text, device) {
-  const k = device === 'pad' ? 1 : 0;
-  return text.replace(/\{(\w+)\}/g, (m, t) => (NAMES[t] ? NAMES[t][k] : m));
+// on the rope tail the saw's buttons are not shown: the slider does their work
+const TOUCH_ROPE = { raise: 'Slider up', throttle: 'Slider down' };
+export function describe(text, device, over) {
+  const k = device === 'pad' ? 1 : device === 'touch' ? 2 : 0;
+  return text.replace(/\{(\w+)\}/g, (m, t) => (over && over[t]) || (NAMES[t] ? NAMES[t][k] : m));
 }
 
 export class Hud {
@@ -42,7 +44,8 @@ export class Hud {
     let s = `${info}  |  ${Math.round(this.fps)} fps`;
     if (a) s += `  |  ${a.m === MODE.CLIMB ? 'on spurs, lanyard on' : a.m === MODE.ROPE ? 'on the rope' : 'on the ground'}  |  ${INJ_NAME[a.inj]}`;
     this.status.textContent = s;
-    this.prompt.textContent = a ? describe(a.pr, device) : '';
+    this.prompt.textContent = a ? describe(a.pr, device, device === 'touch' && a.m === MODE.ROPE ? TOUCH_ROPE : null) : '';
+    this.keys.style.display = device === 'touch' ? 'none' : '';
     this.keys.textContent = describe('{move} move   {look} look   {interact} lanyard (hold)   {rig} block / tie   {punch} punch   {raise} saw   {drop} let go (hold)   {menu} settings   {respawn} respawn', device);
     const ch = a ? a.ch || 0 : 0;
     this.ring.style.display = ch > 0 ? '' : 'none';

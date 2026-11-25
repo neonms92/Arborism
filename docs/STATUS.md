@@ -42,6 +42,8 @@ yet swung the saw with a real mouse.
 | Controls text | Lobby help, HUD hint line, prompts and toasts name keys or buttons for the device last touched. |
 | Controls (D47) | ESDF; R hold 4 s spurs in (ring round the reticle fills), C hold 4 s lets go, a tap of either does nothing; W hangs the block, ties, unties, takes the block down when looking at it; R on the ground grabs / lets go of wood (a short rope; pulled out of the hands past `GRAB_MAX`); G punches and stacks; saw always on the mouse. Checked in headless Chromium through real key presses; a second tab joins and sees the new HUD. Gamepad mapping (Y rigging, RB punch) not tried on a pad. |
 | Look | First person. Vertical look inverted (`INVERT_Y`). |
+| Touch controls (D61) | Floating stick, drag to look, context button labelled from the prompt, Rig / Punch / Let go / Saw shown only when they apply, Saw toggle + Cut, rope slider and wraps, ⚙ / ↺. Checked in headless Chromium at Pixel 7 size through real touch events: walked, looked, planted the saw and cut 55 fibres, held the action button 4 s and spurred in (ring filled); a phone tab joined a desktop host and moved. Not tried on a real phone. |
+| Saw by finger (prototype, test viewer) | `?view=FM-03` → Saw: a finger on the wood plants the bar, drag pivots, a second finger held cuts (mouse: drag, Space). Drives the real `sawStep`; cut 66 fibres headless. Not tried on a real phone; not in the game yet. |
 
 Sim cost on the dev machine: ≈ 0.1 ms per step idle, ≈ 0.2 ms with the saw
 against the trunk; colouring all fibres ≈ 0.2 ms. Rendering has only run in

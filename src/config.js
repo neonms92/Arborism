@@ -11,6 +11,9 @@ export const CFG = {
   INPUT_HZ: 30,
   INVERT_Y: true,          // push forward / mouse forward looks down
   LOOK_SENS: 0.0025,       // rad of look per pixel of mouse travel
+  TOUCH_LOOK_SENS: 0.006,  // rad of look per pixel a finger drags on the right of the screen
+  TOUCH_SAW_SENS: 1.5,     // touch: the bar pivots this many times as far per pixel as with the mouse (SAW_SENS)
+  TOUCH_STICK_R: 60,       // px a thumb moves from where it landed for full speed (CSS px)
   // --- view (all in the Tab menu) ---
   BARK_OPACITY: 0,         // 0 = bark hidden, 1 = solid bark
   SHOW_FIBRES: true,       // draw every fibre
