@@ -172,7 +172,7 @@ export class Menu {
     let open = {};
     try { open = JSON.parse(localStorage.getItem(OPEN_KEY) || '{}'); } catch { /* ignore */ }
     this.inputs = [];
-    const sections = [];
+    const sections = [], actions = [];
     let sec = null;
     for (const r of ROWS) {
       if (r.length === 1) {         // a section: a collapsible block, closed until opened (remembered)
@@ -185,10 +185,10 @@ export class Menu {
         el.appendChild(d); sec = { d, title: r[0], rows: [] }; sections.push(sec); continue;
       }
       const into = sec ? sec.d : el;
-      if (r[0] === '@grow' || r[0] === '@chipper') {
+      if (r[0] === '@grow' || r[0] === '@chipper') {   // actions: kept out of the sections, beside the reset button
         const b = document.createElement('button'); b.textContent = r[1]; b.className = 'go';
         b.onclick = () => (r[0] === '@grow' ? this.onGrow() : this.onChipper && this.onChipper());
-        into.appendChild(b); if (sec) sec.rows.push({ el: b, text: r[1].toLowerCase() }); continue;
+        actions.push(b); continue;
       }
       const [key, label, min, max, step, scale] = r;
       const row = document.createElement('label'); row.className = 'row';
@@ -224,7 +224,9 @@ export class Menu {
     };
     const reset = document.createElement('button'); reset.textContent = 'Reset everything to defaults';
     reset.onclick = () => { Object.assign(CFG, this.defaults); localStorage.removeItem(KEY); for (const f of this.inputs) f(); this.onChange(); };
-    el.appendChild(reset);
+    const foot = document.createElement('div'); foot.className = 'actions';
+    for (const b of actions) foot.appendChild(b);
+    foot.appendChild(reset); el.appendChild(foot);
   }
 
   set(key, value) {

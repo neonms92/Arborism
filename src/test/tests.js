@@ -5,7 +5,7 @@
 // Values are in the manifest's units; `scale` converts a cfg param to CFG units.
 // A criterion: { text, ok, value?, limit?, margin? } (margin > 0 = inside the limit, as a fraction of it).
 
-import { CFG, CFG_DEFAULTS } from '../config.js';
+import { CFG, TEST_DEFAULTS } from '../config.js';
 import { segLen, segAxis, segMass, lerp3 } from '../model/world.js';
 import { layout, gridFor, kerfStrain } from '../model/fibres.js';
 import { generateTree } from '../model/treegen.js';
@@ -22,7 +22,7 @@ const num = (v) => (Number.isFinite(v) ? +v.toFixed(5) : v ?? null);
 
 // ---------- parameter helpers ----------
 const P = (must, explore, def, unit = '') => ({ must, explore, def, unit });
-const C = (key, must, explore, scale = 1, unit = '') => ({ cfg: key, must, explore, scale, unit, def: CFG_DEFAULTS[key] / scale });
+const C = (key, must, explore, scale = 1, unit = '') => ({ cfg: key, must, explore, scale, unit, def: TEST_DEFAULTS[key] / scale });
 const list = (...v) => ({ list: v });
 
 const WOOD = {      // FM-10 must-pass and explore ranges for the wood
@@ -625,7 +625,7 @@ export const TESTS = [
         const f = await fell(env, FELL); fells.push({ SEG_LEN, FIBRE_PITCH, heading: f.heading, releaseAngle: f.releaseAngle });
         const o = await overload(env, LIMB0); await o.ctx.run(20, () => o.Plive !== null); lives.push(o.Plive);
       }
-      Object.assign(CFG, { SEG_LEN: CFG_DEFAULTS.SEG_LEN, FIBRE_PITCH: CFG_DEFAULTS.FIBRE_PITCH });
+      Object.assign(CFG, { SEG_LEN: TEST_DEFAULTS.SEG_LEN, FIBRE_PITCH: TEST_DEFAULTS.FIBRE_PITCH });
       const spread = (a) => Math.max(...a) - Math.min(...a), med = (a) => { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
       const hs = fells.map((f) => f.heading), ra = fells.map((f) => f.releaseAngle);
       const angSpread = Math.max(...hs.map((h) => Math.max(...hs.map((k) => Math.abs(wrap(h - k))))));
