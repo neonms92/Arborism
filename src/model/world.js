@@ -4,7 +4,7 @@
 // seg:   {id, parent, piece, a:[3], b:[3], r0, r1, leaf, f}   (a, b piece-local; f = fibre bundle)
 // piece: {id, fixed}
 // rope:  {state: 0 none | 1 block set | 2 tied, block, anchor, device}  nodes = {seg, p:[3] piece-local}
-//        or, for an anchor the chipper has taken in, {chip: 1} (the rope runs into its infeed; only a reset ends it)
+//        or, for an anchor the chipper has taken in, {chip: 1} (the rope runs into its infeed until it comes free)
 // chipper: model/chipper.js
 
 import { makeBundle, cutFibres, packBundle, unpackBundle, gridFor, layout, bundleBasis, CUT, isGone, setGone, presence } from './fibres.js';

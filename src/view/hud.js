@@ -52,7 +52,7 @@ export class Hud {
     if (r && this.world.rope.state === 2) {
       this.ropeEl.style.display = 'block';
       const cap = r.holder >= 0 ? Math.max(5, CFG.GRIP_MAX * r.grip) * Math.exp(CFG.ROPE_MU * 2 * Math.PI * r.wraps) : Infinity;
-      this.ropeEl.textContent = (r.fed ? 'ROPE IN THE CHIPPER (only a new tree frees it)  |  ' : '') + `ROPE  tension ${(r.T / 9.81).toFixed(0)} kgf` +
+      this.ropeEl.textContent = (r.fed ? 'ROPE IN THE CHIPPER (cut it or take the block down to free it)  |  ' : '') + `ROPE  tension ${(r.T / 9.81).toFixed(0)} kgf` +
         `  |  wraps ${r.wraps}  |  ${r.holder >= 0 ? `held by P${r.holder}, holds ${(cap / 9.81).toFixed(0)} kgf` : 'tied off'}` +
         (r.run > 0.05 ? `  |  running ${r.run.toFixed(1)} m/s` : r.slack > 0.05 ? `  |  slack ${r.slack.toFixed(1)} m` : '');
     } else this.ropeEl.style.display = 'none';

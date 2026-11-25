@@ -671,11 +671,13 @@ log can still drag, tip or hoist it.
   and a stream from the chute while chipping.
 - **Rope feed.** When the knot of the rigging line on a fed piece reaches the
   drum, the rope goes into the rollers (`world.rope.anchor = {chip: 1}`). From
-  then on they reel it in at `CHIP_FEED_V` for ever and slip past
-  `CHIP_PULL`; the tension acts on the block and device as usual and on the
-  chipper's infeed, so the tree is pulled down or the chipper is dragged to
-  the tree and hoisted toward the block. A fed rope cannot be untied, taken
-  down, cut by the saw or snapped. Only a reset (a new tree) clears it.
+  then on they reel it in at `CHIP_FEED_V` and slip past `CHIP_PULL`; the
+  tension acts on the block and device as usual and on the chipper's
+  infeed, so the tree is pulled down or the chipper is dragged to the tree
+  and hoisted toward the block. It goes on until the rope comes free: cut by
+  the saw, snapped, the block taken down ({rig} on it), the block's wood torn
+  free, or a reset. Then whatever rope is left is pulled in and chipped (the
+  rope is gone; the rollers are not harmed).
 - **Reset.** A new tree re-lays the pavers fresh and re-parks the chipper
   (`chipper` event): default pose, brakes on, nothing feeding, no chips.
 

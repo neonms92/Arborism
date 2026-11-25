@@ -14,7 +14,7 @@ export class Rope {
   reset() { this.L0 = 0; this.T = 0; this.wraps = 2; this.holder = -1; this.prev = 0; this.lastForce = null; this.slack = 0; }
 
   node(n) { return n.chip ? this.sim.chipper.infeed() : this.sim.segToWorld(this.sim.world.segs.get(n.seg), n.p); }
-  /** The chipper's feed rollers have the rope: they reel it in for ever, and only a reset ends it. */
+  /** The chipper's feed rollers have the rope: they reel it in until it is cut, the block comes down or a reset. */
   fed() { const r = this.sim.world.rope; return r.state === 2 && !!r.anchor.chip; }
 
   // ---- placing ({rig}: block, then tie, then untie at the knot) ----
@@ -29,13 +29,14 @@ export class Rope {
     if (st === 0) return t && t.fixed ? '{rig}: hang the rigging block here' : '';
     if (st === 1) return !t ? 'Look at the wood to tie the rope to, or at the block to take it down'
       : this.node(this.sim.world.rope.block).distanceTo(t.point) < 0.7 ? '{rig}: take the block down' : '{rig}: tie the rope here';
-    if (this.fed()) return '';
+    if (this.fed()) return t && this.node(this.sim.world.rope.block).distanceTo(t.point) < 0.7 ? '{rig}: take the block down (the chipper takes the rope)' : '';
     if (t && this.node(this.sim.world.rope.anchor).distanceTo(t.point) < 0.7) return '{rig}: untie';
     return '';
   }
   place(p, aim) {
     const sim = this.sim, w = sim.world, r = w.rope, t = this.target(p, aim);
-    if (!t || this.fed()) return;
+    if (!t) return;
+    if (this.fed()) { if (this.node(r.block).distanceTo(t.point) < 0.7) this.swallow('The block came down: the chipper took the rope'); return; }
     if (r.state === 0) {
       if (!t.fixed) return;
       // friction device: on the root segment of the same piece, about 1 m up
@@ -60,16 +61,23 @@ export class Rope {
   /** Straight runs of rope in the world, for anything that can cut it. */
   spans() {
     const r = this.sim.world.rope, out = [];
-    if (this.fed()) return out;               // the rollers have it: nothing but a reset frees it
     if (r.state >= 2) out.push([this.node(r.anchor), this.node(r.block)]);
     if (r.state >= 1) out.push([this.node(r.block), this.node(r.device)]);
     return out;
   }
   cut() {
-    if (this.fed()) return;
+    if (this.fed()) { this.swallow('The rope was cut: the chipper took the rest'); return; }
     this.sim.emit({ t: 'rope', rope: { state: 0 } });
     this.sim.toast('The rope was cut!');
     this.reset();
+  }
+
+  /** The rope comes free while the chipper has it: whatever is left is pulled in and chipped. */
+  swallow(msg) {
+    this.sim.emit({ t: 'rope', rope: { state: 0 } });
+    this.sim.toast(msg);
+    this.reset();
+    this.sim.chipper.busy = 40;
   }
 
   nearDevice(p) {
@@ -101,6 +109,7 @@ export class Rope {
     const pa = this.node(r.anchor).clone(), pb = this.node(r.block).clone(), pd = this.node(r.device).clone();
     const s = pa.distanceTo(pb) + pb.distanceTo(pd);
     const fed = !!r.anchor.chip;
+    if (fed && !sim.structure.isHeld(w.segs.get(r.block.seg).piece)) { this.swallow('The block\'s wood tore free: the chipper took the rope'); return; }
     if (fed) this.L0 = Math.max(0.3, this.L0 - CFG.CHIP_FEED_V * dt);     // the feed rollers reel it in
     let stretch = s - this.L0;
     const aSeg = fed ? null : w.segs.get(r.anchor.seg), aPiece = fed ? null : w.pieces.get(aSeg.piece);
@@ -127,7 +136,8 @@ export class Rope {
     } else { this.cap = Infinity; this.run = 0; }
     this.T = T;
     if (T <= 0) return;
-    if (T > CFG.ROPE_BREAK && !fed) {
+    if (T > CFG.ROPE_BREAK) {
+      if (fed) { this.swallow('The rope snapped: the chipper took the rest'); return; }
       sim.emit({ t: 'rope', rope: { state: 0 } }); sim.toast('The rope snapped!'); this.reset(); return;
     }
     // anchor: pulled toward the block

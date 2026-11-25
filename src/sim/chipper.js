@@ -17,8 +17,9 @@
 // A rope tied to wood that is chipped follows it into the rollers (world.rope
 // anchor {chip: 1}). From then on the rollers reel it in for ever with up to
 // CHIP_PULL: the rope pulls the tree toward the chipper and the chipper
-// toward the block, and whichever gives first moves. Only a reset ends it
-// (sim/rope.js).
+// toward the block, and whichever gives first moves. It ends when the rope
+// comes free (cut, snapped, block taken down or torn free) or on a reset,
+// and the rest of the rope is chipped (sim/rope.js swallow).
 
 import * as THREE from '../../vendor/three/three.module.js';
 import { CFG } from '../config.js';
