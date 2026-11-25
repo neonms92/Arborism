@@ -393,7 +393,7 @@ export class View {
     // over the left breast pocket: upper chest, off to the wearer's left (-x; they face -z)
     const tagW = 0.15, tagAt = Math.PI + 0.5, tag = new THREE.Mesh(new THREE.CylinderGeometry(0.263, 0.263, 0.047, 4, 1, true, tagAt - tagW / 0.263 / 2, tagW / 0.263),
       new THREE.MeshLambertMaterial({ map: tagTex, polygonOffset: true, polygonOffsetFactor: -2 }));
-    tag.position.y = 0.02;
+    tag.position.y = 0.02 + 1.25 * 0.047;            // raised 1.25 tag heights (owner)
     const backCv = document.createElement('canvas'); backCv.width = 256; backCv.height = 64;
     const backTex = new THREE.CanvasTexture(backCv); backTex.colorSpace = THREE.SRGBColorSpace; backTex.anisotropy = 4;
     const back = new THREE.Mesh(new THREE.SphereGeometry(0.207, 10, 3, Math.PI / 2 - 0.75, 1.5, 0.72, 0.5),
