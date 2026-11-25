@@ -49,6 +49,7 @@ yet swung the saw with a real mouse.
 | Frosted windows, weeds (D77) | House windows are opaque frosted glass. Tufts of long grass along the foot of fences, sheds, houses and round every trunk (job tree and the other trees), on by default, Tab menu → View: Weeds, density, height, distance. About 10 400 tufts at the default yards, built in ≈ 30 ms, not drawn past 60 m. Host and a joined client draw the same 10 418 tufts (local PeerJS server). Smoke run: FM-05, 12, 13, 20, 22 fail as on main; FM-10 failed (timing, as before). Headless only. |
 | Leaving (D78) | In a game, Back / swipe-back pops an entry of the game's own and asks "Leave the game?" (Stay / Leave); a second Back is asked too; closing the tab asks through the browser (not on iOS). Pull-to-refresh and Chrome's overscroll swipe-back are blocked in CSS. Checked in headless Chromium: Back asked, Stay kept the game, Leave went to the previous page, `?solo` armed at the first tap, the test viewer still closes on Back. Not tried on a real phone. |
 | Hidden whole bundles (D80) | Under solid bark, fibre bundles that are whole and shut in on both ends are not drawn; a cut, a split end, a twig tip and their neighbours still are, and see-through bark (test viewer) draws everything. Play tree: 13 558 → 748 fibre boxes; software GL frame 150 → 117 ms at the trunk, 133 → 83 ms looking into the crown. A third of one trunk segment cut: 748 → 1 498 boxes on host and joined client alike (local PeerJS server). Smoke run 18 / 22 (FM-05, 12, 13, 20 as before). Headless only. |
+| Network box, end-of-wood stop (D84, D85) | A joined client shows ping (last, average, jitter), loss down (snapshots) / up (inputs) / ping, the estimated delay before your own moves show, kB/s in, and warnings when the host runs below real time or below 40 fps; the host's status line lists each player's ping and loss. Inputs carry a sequence number and stale ones are dropped. Climbing off the free end of wood takes a second push. Checked headless with a local PeerJS server: host, client and a late joiner (software GL: host 11 fps, 18% sim speed, ping ≈ 350 ms, all of it the host's frame time; loss 0%). A scripted climber held "up" for 4 s stopped at the top, released, pushed again and fell off. Smoke 17 / 22: FM-05, 12, 13, 20 as on main, FM-10 timing (passed 3 of 3 alone). Not tried on a real LAN. |
 | Weight and captions (D83) | Grab / let go / feed captions carry the loose wood's weight; "It came free: 1898 lb". Button captions two words at most. Checked headless (touch layout): a freed limb toasted its weight and the held piece showed "Let go 1898 lb" on the action button; smoke 18 / 22 as on main; a second tab joined (local PeerJS). |
 | Controls text | Lobby help, HUD hint line, prompts and toasts name keys or buttons for the device last touched. |
 | Controls (D47) | ESDF; R hold 2 s spurs in (was 4 s until 2026-11-25, owner) (ring round the reticle fills), C hold 4 s lets go, a tap of either does nothing; W hangs the block, ties, unties, takes the block down when looking at it; R on the ground grabs / lets go of wood (a short rope; pulled out of the hands past `GRAB_MAX`); G punches and stacks; saw always on the mouse. Checked in headless Chromium through real key presses; a second tab joins and sees the new HUD. Gamepad mapping (Y rigging, RB punch) not tried on a pad. |
@@ -160,7 +161,7 @@ mass, TESTS.md section 8).
   wood under them accelerates (so it cannot be driven faster than free
   fall), which is a patch, not physics.
 - Rope spans are straight lines and pass through branches (D5).
-- Clients feel their ping in their own movement and in the saw (D3).
+- Clients feel their ping in their own movement and in the saw (D3). The network box (D85) shows how much; prediction plan under Next.
 - Host tab hidden = game paused for everyone (task P2-8).
 - **Unverified against the public PeerJS server** (blocked in the dev
   sandbox). See DECISIONS D11.
@@ -220,3 +221,32 @@ to try with a real mouse and a real gamepad:
    slider.
 
 Then Phase 3 in order: P2-2, P2-3, P2-4, …
+
+### Client prediction (P2-9): what it would take
+
+Owner asked (2026-11-25). Where a joined client's own delay comes from:
+ping + ~17 ms waiting for the next input packet + up to one host frame +
+`INTERP_DELAY` (100 ms). On a good LAN that is about 130 ms, and the render
+delay is most of it; a host drawing at 20 fps adds up to 50 ms more and
+shows up in the network box. Options, cheapest first:
+
+1. **Tune, no code** (minutes). Lower "Render delay when joined" in the Tab
+   menu to 50–60 ms; on a LAN with 0% loss the view stays smooth. Snapshots
+   at 30 Hz (`SNAP_EVERY` 2) and inputs at 60 Hz would let it go to ~40 ms
+   for 1.5x the bandwidth (≈ 20 kB/s per client).
+2. **Predict climbing only** (about 1–2 days). Climbing is kinematic: the
+   pose is (segment, t, side) on wood the client already has. Move the
+   along/around-the-stem rule (`players.climb`, ends, unions, too thin) into
+   a pure function in `model/`, run it on the client from its own inputs,
+   draw its own climber from that, and correct to the host's (seg, t, side)
+   for the last input number the host used (aux would carry both), replaying
+   the newer inputs. Flex and moving pieces still come from snapshots, so a
+   climber on swaying wood would see small corrections. Lanyard moves,
+   riding a falling piece and injuries stay host-only.
+3. **Predict walking** (several days, more risk). Needs a Rapier world on
+   the client with the ground, builds and copies of every piece, and the
+   walker pushes logs (`LEG_FORCE`) which the client cannot predict, so
+   corrections would be visible whenever you touch wood. This is the
+   reversal of D3 that DESIGN.md risk 6 warns about.
+
+Recommendation: 1 now, 2 if climbing still feels late afterwards.

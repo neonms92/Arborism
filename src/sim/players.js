@@ -451,24 +451,36 @@ export class Players {
       if (ang) cl.side = rotateAbout(cl.side, ax, ang);
       // along the stem
       let t = cl.t + inp.my * sign * CFG.CLIMB * dt / L;
+      // The end of the wood stops you once (D84): to climb off it, let go of {move} and push on again. A late
+      // view (a joined client sees itself ~0.1-0.2 s behind) can then never carry anyone off the top unawares.
+      const push = Math.sign(inp.my * sign);
+      if (cl.end && push !== cl.end) cl.armed = true;
+      if (cl.end && (cl.end > 0 ? t < 1 - 0.3 / L : t > 0.3 / L)) cl.end = cl.armed = 0;
+      const endStop = (dir) => {
+        if (cl.end === dir && cl.armed) return false;
+        cl.end = dir; cl.armed = false;
+        this.say(p, 'The end of the wood. Let go of {move} and push on again to climb off it');
+        return true;
+      };
       if (t > cl.t && segRadius(s, Math.min(1, t)) < CFG.SPUR_MIN_R) { t = cl.t; this.say(p, 'Too thin for spurs'); }
       if (t > 1) {
         // the lanyard only slides on along the same stem; onto a branch it has to be thrown ({interact})
         const next = w.stemNext(s.id), block = w.kids(s.id).some((k) => k !== next && w.isRealBranch(k));
-        if (!w.kids(s.id).length) { this.offTheEnd(p, s, fixed); return; }
-        if (!next) { t = 1; this.say(p, 'The stem ends here. Look at a branch and hold {interact} to move the lanyard onto it'); }
+        if (!w.kids(s.id).length) { if (endStop(1)) t = 1; else { this.offTheEnd(p, s, fixed); return; } }
+        else if (!next) { t = 1; this.say(p, 'The stem ends here. Look at a branch and hold {interact} to move the lanyard onto it'); }
         else if (w.segs.get(next).r0 < CFG.SPUR_MIN_R) { t = 1; this.say(p, 'Too thin for spurs'); }
         else if (block) { t = 1; this.say(p, 'The lanyard stops at the union. Look at the stem you want and hold {interact} to move it'); }
         else { s = w.segs.get(next); cl.seg = next; t = 0.01; cl.side = perp(cl.side, segAxis(s)); }
       } else if (t < 0) {
         if (s.parent < 0) {
           // the bottom of the wood: stepping off onto the ground, or off the end of a hanging piece
-          if (sim.segToWorld(s, s.a, _b).y < sim.groundY(_b.x, _b.z) + 0.6) this.toGround(p); else this.offTheEnd(p, s, fixed);
-          return;
+          if (sim.segToWorld(s, s.a, _b).y < sim.groundY(_b.x, _b.z) + 0.6) { this.toGround(p); return; }
+          if (endStop(-1)) t = 0; else { this.offTheEnd(p, s, fixed); return; }
+        } else {
+          const up = w.stemNext(s.parent), block = w.kids(s.parent).some((k) => k !== s.id && w.isRealBranch(k));
+          if (up !== s.id || block) { t = 0; this.say(p, 'The lanyard stops at the union. Look at the stem you want and hold {interact} to move it'); }
+          else { s = w.segs.get(s.parent); cl.seg = s.id; t = 0.99; cl.side = perp(cl.side, segAxis(s)); }
         }
-        const up = w.stemNext(s.parent), block = w.kids(s.parent).some((k) => k !== s.id && w.isRealBranch(k));
-        if (up !== s.id || block) { t = 0; this.say(p, 'The lanyard stops at the union. Look at the stem you want and hold {interact} to move it'); }
-        else { s = w.segs.get(s.parent); cl.seg = s.id; t = 0.99; cl.side = perp(cl.side, segAxis(s)); }
       }
       cl.t = t;
     }
