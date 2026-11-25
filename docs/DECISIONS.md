@@ -534,6 +534,12 @@ chipper about while feeding). The tyres are modelled in `sim/chipper.js`
 because Rapier's balls would slide, not roll, and friction is isotropic. Chips
 are a volume per landing spot drawn as a cone; they are not particles.
 
+2026-11-25, owner: a fed rope can be cut by the saw, and taking the block
+down or the block's wood tearing free ends the feed too; whatever rope is
+left is pulled in and chipped (`Rope.swallow`). It also snaps past
+`ROPE_BREAK` like any rope. Damage to the chipper from this is ignored for
+now.
+
 **D58 — Feet lean into a moving load.** Towing a 600 kg chipper with the
 existing grab tore the hold in one tick (walking speed against a 20 kN/m hold
 with damping). Rather than a special rule for the chipper, holding anything
