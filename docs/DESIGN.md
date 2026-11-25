@@ -431,7 +431,7 @@ loads into view.
 
 **Bark** — a skin of panels just outside the bundle's outline: a polygon
 circumscribed about the fibre boxes at their drawn width, so no fibre shows
-through, however few the panels or steep the taper (DECISIONS D63). Each panel is
+through, however few the panels or steep the taper (DECISIONS D64). Each panel is
 owned by the outermost fibre behind it and is drawn only where that fibre
 still exists. A kerf is therefore a slot in the bark, a notch is a missing
 wedge with pale wood inside, and a stump's bark ends where its fibres end.
@@ -661,12 +661,14 @@ log can still drag, tip or hoist it.
   (plus a creep while the pull is under half of `GRAB_MAX`), so the player
   leans into the load instead of walking out of the hold.
 - **Feeding.** Holding loose wood, {interact} while looking at the chipper
-  hands the piece to the feed rollers. They drive the point held toward the
-  drum at `CHIP_FEED_V`: a stiff velocity servo plus a motor term that rises
+  hands the piece to the feed rollers. They drive the point held at
+  `CHIP_FEED_V`: first to the hopper mouth (round behind it when the wood is
+  beside or ahead of it, and colliding with the chipper until then), then
+  centred down the throat to the drum: a stiff velocity servo plus a motor term that rises
   to `CHIP_PULL` within about a second of being held back. The reaction goes
-  into the chipper. A fed piece passes through the chipper's colliders; every
-  segment with both ends past the drum (and in no live joint) is removed by a
-  `chip` event, and its wood (plus leaves) × `CHIP_SWELL` lands as chips at the
+  into the chipper. Once in the mouth a fed piece passes through the chipper's colliders;
+  a segment that has reached the drum with both ends inside the hopper and
+  the chipper's body (and in no live joint) is removed by a `chip` event, and its wood (plus leaves) × `CHIP_SWELL` lands as chips at the
   discharge point. Standing wood cannot be fed.
 - **Chip piles** are cones at a fixed angle of repose whose volume is the
   chips' volume, one pile per landing spot (a new pile when the chipper has
@@ -681,6 +683,23 @@ log can still drag, tip or hoist it.
   the saw, snapped, the block taken down ({rig} on it), the block's wood torn
   free, or a reset. Then whatever rope is left is pulled in and chipped (the
   rope is gone; the rollers are not harmed).
+- **Carrying chips.** {interact} at a pile picks up chips, up to `CHIP_CARRY`
+  (an armful, 40 L by default). With chips in hand, {interact} takes more
+  while there is room, or else puts them all down where the player looks
+  (within reach) or at their feet. They land on a pile there, or start a new
+  one (`chips` event). An emptied pile stays in the list at zero volume, so
+  pile indices never shift.
+- **Crumpling (D63).** Like a shed module (6.6): when the summed contact force
+  on it in one step, from wood or from a structure's parts or modules, reaches
+  `CHIP_BREAK_F` (120 kN), it gives way. The body goes and each `WRECK` part
+  (chassis panels, engine, hopper plates, wheels, drawbar, grip, chute) is a
+  loose body where it was, moving as the chipper was. Whatever hit it keeps
+  its velocity from before the step (`chipwreck` event). A rope in the rollers
+  comes free. Players, the ground and chips do not count toward the hit. A
+  chipper that has just been put down cannot crumple for its first second,
+  while it is pushed out of anything it was placed in.
+- **Respawn.** The Tab menu's "Respawn chipper" (host only) frees a fed rope,
+  takes away the chipper or its wreck, and parks a new one. Chip piles stay.
 - **Reset.** A new tree re-lays the pavers fresh and re-parks the chipper
   (`chipper` event): default pose, brakes on, nothing feeding, no chips.
 

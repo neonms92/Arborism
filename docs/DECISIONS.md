@@ -540,6 +540,13 @@ left is pulled in and chipped (`Rope.swallow`). It also snaps past
 `ROPE_BREAK` like any rope. Damage to the chipper from this is ignored for
 now.
 
+2026-11-25, owner: feeding looked wrong (wood chipped 2 m beside the truck,
+pulled straight at a point inside it). The rollers now pull the wood to the
+hopper mouth first, round behind it if needed, then down the throat; only
+then does it pass through the chipper's colliders, and a segment is chipped
+only with all of it inside the hopper and body. Checked with a limb started
+2.2 m beside the truck: every chipped segment ended within the chassis width.
+
 **D58 — Feet lean into a moving load.** Towing a 600 kg chipper with the
 existing grab tore the hold in one tick (walking speed against a 20 kN/m hold
 with damping). Rather than a special rule for the chipper, holding anything
@@ -639,9 +646,25 @@ hard CCD did not stop it. The engine tests keep the flat slab so their
 results stay comparable; the smoke run is unchanged (18 / 22, the same four
 failing as before).
 
+**D63 — The chipper crumples like a shed; chips can be carried.** The owner
+asked for the chipper to "crumple like sheds do if it takes a strong hit",
+for a "Respawn chipper" button that removes the old one, broken or not, and
+for players to pick up and drop a limited amount of chips with {interact}.
+The crumple uses the shed's model (D59 and D60: a summed contact force in one
+step, from wood or structures; the parts slump with no scatter kick; the
+impactor keeps its pre-step velocity). The threshold is 120 kN rather than
+the shed's 25 kN. At 40 kN, the chipper was wrecked just by being dragged into
+the trunk at about 1 m/s by the rope feed (66 kN, because force is impulse
+per step on a 600 kg body). A 1 t log dropped from 4 m measured 256 kN and
+crumpled it. For its first second after being put down, it cannot crumple,
+because a new chipper placed under a log measured a large spurious push.
+Carrying is a volume, `CHIP_CARRY` (40 L), shown on the status line. The
+chips are not drawn in the hands. Respawning keeps the chip piles. A new tree
+still clears them.
+
 ## Bark
 
-**D63 — Bark is circumscribed about the fibre boxes as drawn; it is on by default except in the test viewer.**
+**D64 — Bark is circumscribed about the fibre boxes as drawn; it is on by default except in the test viewer.**
 Fibres showed through the bark on thin upper segments. Two causes, both in
 how the bark ring was fitted, both worst where a bundle has few fibres:
 the ring's corners were placed at how far the fibre outline reaches in

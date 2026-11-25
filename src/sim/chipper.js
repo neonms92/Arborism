@@ -24,8 +24,10 @@
 import * as THREE from '../../vendor/three/three.module.js';
 import { CFG } from '../config.js';
 import { segMass } from '../model/world.js';
-import { SHAPE, parkedPose, pileShape, CHIPPER_BODY_ID } from '../model/chipper.js';
+import { SHAPE, parkedPose, pileShape, CHIPPER_BODY_ID, WRECK } from '../model/chipper.js';
+import { compose } from '../model/builds.js';
 
+const THROAT = 0.3;                  // m: the feed point counts as in the mouth within this of the hopper's axis
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _a = new THREE.Vector3(), _b = new THREE.Vector3();
 
 export class Chipper {
@@ -35,6 +37,9 @@ export class Chipper {
     this.cols = new Set();           // collider handles of the chipper
     this.feeding = new Map();        // piece id -> {seg, p: piece-local feed point} (seg -1: pick one)
     this.pileCols = new Map();       // pile index -> {col, r}
+    this.colPile = new Map();        // pile collider handle -> pile index
+    this.parts = new Map();          // wreck part body id -> RigidBody, once it has crumpled
+    this.hit = null;                 // strongest push on it this step from wood or a structure: {F, o (other collider)}
     this.busy = 0;                   // ticks left of chips flying out of the chute (aux)
   }
 
@@ -45,20 +50,29 @@ export class Chipper {
     return [{ x: pose.p[0] + mid, z: pose.p[2], r: Math.hypot((x1 - x0) / 2, S.WHEELS[0][2] + S.WHEEL_R), blend }];
   }
 
+  /** The Tab menu's "Respawn chipper": take away the old one, broken or not, and park a new one (chip piles stay). */
+  respawn() {
+    if (this.sim.rope.fed()) this.sim.rope.swallow('The chipper was taken away: the rope came free');
+    for (const p of this.sim.players.list.values()) if (p.grab && p.grab.chip) p.grab = null;
+    this.place(true);
+    this.sim.toast('A new chipper');
+  }
+
   /** Park it fresh for the current tree (with every new tree), its wheels on the ground. */
-  place() {
+  place(keep = false) {
     const sim = this.sim, pose = parkedPose(CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, CFG.CHIP_GAP), S = SHAPE;
     // the highest ground under a wheel or the jockey wheel, so none starts in the ground; it settles from there
     let y = -Infinity;
     for (const w of [...S.WHEELS, S.JOCKEY]) y = Math.max(y, sim.groundY(pose.p[0] + w[0], pose.p[2] + w[2]));
     pose.p[1] += y;
-    sim.emit({ t: 'chipper', p: pose.p, q: pose.q });
+    sim.emit(keep ? { t: 'chipper', p: pose.p, q: pose.q, keep: 1 } : { t: 'chipper', p: pose.p, q: pose.q });
   }
 
   // ---- model -> physics ----
   onEvent(ev, info) {
     const sim = this.sim;
     if (ev.t === 'chipper') this.build(ev);
+    else if (ev.t === 'chipwreck') this.wreck(ev);
     else if (ev.t === 'reset') this.feeding.clear();
     else if (ev.t === 'rmpiece') this.feeding.delete(ev.piece);
     else if (ev.t === 'split' && info.moved) {
@@ -66,8 +80,8 @@ export class Chipper {
       const moved = info.moved.includes(f.seg);
       this.feeding.set(ev.newPiece, { seg: moved ? f.seg : -1, p: f.p });
       if (moved) f.seg = -1;
-    } else if (ev.t === 'chip') {
-      for (const pc of info.gone) this.feeding.delete(pc);
+    } else if (ev.t === 'chip' || ev.t === 'chips') {
+      if (info.gone) for (const pc of info.gone) this.feeding.delete(pc);
       const ch = sim.world.chipper; if (!ch) return;
       ch.piles.forEach((pl, i) => this.pileCollider(i, pl));
     }
@@ -75,14 +89,16 @@ export class Chipper {
 
   build(ev) {
     const sim = this.sim, R = sim.R;
-    if (this.body) sim.rapier.removeRigidBody(this.body);
-    for (const { col } of this.pileCols.values()) sim.rapier.removeCollider(col, false);
-    this.pileCols.clear(); this.cols.clear(); this.feeding.clear(); this.busy = 0;
+    this.removeBody();
+    for (const b of this.parts.values()) sim.rapier.removeRigidBody(b);
+    this.parts.clear();
+    if (!ev.keep) { for (const { col } of this.pileCols.values()) sim.rapier.removeCollider(col, false); this.pileCols.clear(); this.colPile.clear(); }
     const body = sim.rapier.createRigidBody(sim.dynamic().setTranslation(ev.p[0], ev.p[1], ev.p[2])
       .setRotation({ x: ev.q[0], y: ev.q[1], z: ev.q[2], w: ev.q[3] }).setLinearDamping(0.05).setAngularDamping(0.3));
     const M = CFG.CHIP_MASS, S = SHAPE;
     const add = (desc, c, mass, friction = 0.8) => {
-      desc.setTranslation(c[0], c[1], c[2]).setMass(mass).setFriction(friction).setActiveHooks(R.ActiveHooks.FILTER_CONTACT_PAIRS);
+      desc.setTranslation(c[0], c[1], c[2]).setMass(mass).setFriction(friction).setActiveHooks(R.ActiveHooks.FILTER_CONTACT_PAIRS)
+        .setActiveEvents(R.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(300);
       if (friction === 0) desc.setFrictionCombineRule(R.CoefficientCombineRule.Min);
       this.cols.add(sim.rapier.createCollider(desc, body).handle);
     };
@@ -94,6 +110,87 @@ export class Chipper {
     for (const w of S.WHEELS) add(R.ColliderDesc.ball(S.WHEEL_R), w, M * 0.04, 0);       // the tyres' grip is modelled in tyres()
     add(R.ColliderDesc.ball(S.JOCKEY_R), S.JOCKEY, M * 0.015, 0);
     this.body = body;
+    this.born = sim.tick;            // it settles for a second (pushed out of anything it was put down in) before it can crumple
+  }
+
+  removeBody() {
+    if (this.body) this.sim.rapier.removeRigidBody(this.body);
+    this.body = null; this.cols.clear(); this.feeding.clear(); this.busy = 0; this.hit = null;
+  }
+
+  // ---- crumpling: like a shed module (sim/builds.js), it gives way to a hard enough hit and slumps into parts ----
+  /** From sim.onContact. Wood and the parts or modules of structures push on it; players, the ground and chips do not count. */
+  onContact(h1, h2, F) {
+    if (!this.body) return;
+    for (const [h, o] of [[h1, h2], [h2, h1]]) {
+      if (!this.cols.has(h)) continue;
+      const sim = this.sim, bl = sim.builds;
+      if (!(sim.colSeg.has(o) || bl.partCol.has(o) || bl.colMod.has(o))) continue;
+      if (!this.hit) this.hit = { F: 0, o, f: 0 };
+      this.hit.F += F; if (F > this.hit.f) { this.hit.f = F; this.hit.o = o; }
+    }
+  }
+
+  crumpleCheck() {
+    const hit = this.hit; this.hit = null;
+    if (!this.body || !hit || hit.F < CFG.CHIP_BREAK_F || this.sim.tick - this.born < 60) return;
+    const sim = this.sim, b = this.body, t = b.translation(), r = b.rotation();
+    const at = { p: [t.x, t.y, t.z], q: [r.x, r.y, r.z, r.w] };
+    // it gave way: what hit it goes on with the velocity it had before this step; the parts start as the chipper was moving
+    const oc = sim.rapier.getCollider(hit.o), other = oc ? oc.parent() : null;
+    this.burst = { self: sim.builds.preVel(b), other: other && other.isDynamic() ? other : null, otherPre: other ? sim.builds.preVel(other) : null };
+    if (sim.rope.fed()) sim.rope.swallow('The chipper is wrecked: the rope came free');
+    sim.emit({ t: 'chipwreck', at, ids: WRECK.map(() => sim.world.newId()) });
+    sim.toast('The chipper is wrecked!');
+  }
+
+  /** A chipwreck event: the chipper's body goes, and each WRECK part is a loose body where it was. */
+  wreck(ev) {
+    const sim = this.sim, R = sim.R, B = this.burst || { self: [0, 0, 0, 0, 0, 0] }; this.burst = null;
+    this.removeBody();
+    WRECK.forEach((pt, k) => {
+      const f = compose(ev.at.p, ev.at.q, pt.c, pt.q), v = B.self;
+      const body = sim.rapier.createRigidBody(sim.dynamic().setTranslation(f.p[0], f.p[1] + 0.002, f.p[2]).setRotation({ x: f.q[0], y: f.q[1], z: f.q[2], w: f.q[3] })
+        .setLinvel(v[0], v[1], v[2]).setAngvel({ x: v[3], y: v[4], z: v[5] }).setLinearDamping(0.05).setAngularDamping(0.3).setCcdEnabled(true));
+      const desc = pt.mat === 'wheel'
+        ? R.ColliderDesc.cylinder(Math.max(0.02, pt.h[2]), pt.h[0]).setRotation({ x: Math.SQRT1_2, y: 0, z: 0, w: Math.SQRT1_2 })
+        : R.ColliderDesc.cuboid(pt.h[0], pt.h[1], pt.h[2]);
+      sim.rapier.createCollider(desc.setMass(Math.max(1, pt.m * CFG.CHIP_MASS)).setFriction(0.7).setRestitution(0.1), body);
+      this.parts.set(ev.ids[k], body);
+    });
+    if (B.other && B.otherPre) { const o = B.otherPre; B.other.setLinvel({ x: o[0], y: o[1], z: o[2] }, true); B.other.setAngvel({ x: o[3], y: o[4], z: o[5] }, true); }
+  }
+  partBody(id) { return this.parts.get(id) || null; }
+  /** Calls fn(id, translation, rotation, awake) for the chipper or its wreck. */
+  eachBody(fn) {
+    if (this.body) fn(CHIPPER_BODY_ID, this.body.translation(), this.body.rotation(), !this.body.isSleeping());
+    for (const [id, b] of this.parts) fn(id, b.translation(), b.rotation(), !b.isSleeping());
+  }
+
+  // ---- chips: players pick them up off a pile and put them down ----
+  /** The chip pile a player is looking at within reach: its index, or -1. */
+  aimPile(p) {
+    const sim = this.sim, { o, d } = sim.eye(p);
+    const hit = sim.rapier.castRay(new sim.R.Ray(o, d), CFG.REACH, true, undefined, undefined, undefined, p.body);
+    const i = hit ? this.colPile.get(hit.collider.handle) : undefined;
+    return i === undefined ? -1 : i;
+  }
+  take(p, i) {
+    const pl = this.sim.world.chipper?.piles[i]; if (!pl) return;
+    const V = Math.min(pl[2], CFG.CHIP_CARRY - (p.chips || 0));
+    if (V <= 1e-5) return;
+    this.sim.emit({ t: 'chips', take: [i, +V.toFixed(5)] });
+    p.chips = (p.chips || 0) + V;
+  }
+  /** Put all the chips a player carries down where they are looking (on the ground within reach), or at their feet. */
+  drop(p) {
+    const sim = this.sim; if (!(p.chips > 0) || !sim.world.chipper) return;
+    const { o, d } = sim.eye(p);
+    const hit = sim.rapier.castRay(new sim.R.Ray(o, d), CFG.REACH, true, undefined, undefined, undefined, p.body);
+    const t = p.body.translation();
+    const x = hit ? o.x + d.x * hit.timeOfImpact : t.x + d.x * 0.8, z = hit ? o.z + d.z * hit.timeOfImpact : t.z + d.z * 0.8;
+    sim.emit({ t: 'chips', drop: [+x.toFixed(2), +z.toFixed(2), +p.chips.toFixed(5)] });
+    p.chips = 0;
   }
 
   /** Is collider handle h part of the chipper? */
@@ -102,7 +199,13 @@ export class Chipper {
   noHit(h, seg) {
     if (!this.cols.has(h) || seg === undefined) return false;
     const s = this.sim.world.segs.get(seg);
-    return !!s && this.feeding.has(s.piece);
+    return !!s && !!this.feeding.get(s.piece)?.entered;           // until it is in the mouth, it bumps into the chipper
+  }
+
+  /** How far a chipper-local point is from the line through the hopper mouth and the drum, and whether it is inside. */
+  throat(l) {
+    const S = SHAPE, lat = Math.hypot(l[1] - S.INFEED[1], l[2]);
+    return { lat, inMouth: l[0] > S.INFEED[0] - 0.1 && lat < THROAT };
   }
 
   toWorld(l, target = new THREE.Vector3()) {
@@ -138,16 +241,23 @@ export class Chipper {
   pre(dt) {
     if (!this.body) return;
     this.tyres(dt);
-    const sim = this.sim, w = sim.world, deep = [SHAPE.DRUM_X + 4, SHAPE.INFEED[1], 0];
+    const sim = this.sim, w = sim.world, S = SHAPE;
     for (const [piece, f] of [...this.feeding]) {
       const b = sim.bodies.get(piece);
       if (!b || !w.pieces.has(piece)) { this.feeding.delete(piece); continue; }
       let s = w.segs.get(f.seg);
       if (!s || s.piece !== piece) { if (!this.pickFeed(piece, f)) { this.feeding.delete(piece); continue; } s = w.segs.get(f.seg); }
-      // the rollers: drive the feed point toward the drum at CHIP_FEED_V, with no more than CHIP_PULL
-      const P = sim.segToWorld(s, f.p, _a), dir = this.toWorld(deep, _b).sub(P);
+      // The rollers: drive the feed point at CHIP_FEED_V, with no more than CHIP_PULL. First to the hopper mouth
+      // (round behind it if the wood is beside the chipper), then straight down the throat to the drum.
+      const P = sim.segToWorld(s, f.p, _a), l = this.toLocal(P), th = this.throat(l);
+      if (!f.entered && th.inMouth) f.entered = true;
+      let aim;
+      if (f.entered) aim = [S.DRUM_X + 0.3, S.INFEED[1], 0];                                // down the axis, centred, to the drum
+      else if (l[0] > S.INFEED[0] - 0.3) aim = [S.INFEED[0] - 0.9, S.INFEED[1], 0];        // beside or ahead of the mouth: go round
+      else aim = [S.INFEED[0] + 0.3, S.INFEED[1], 0];                                       // behind it: into the mouth
+      const dir = this.toWorld(aim, _b).sub(P);
       const dist = dir.length(); dir.multiplyScalar(1 / (dist || 1));
-      const vp = b.velocityAtPoint(P), want = CFG.CHIP_FEED_V;           // the target is well past the drum: they never stop
+      const vp = b.velocityAtPoint(P), want = Math.min(CFG.CHIP_FEED_V, dist * 4);   // at the drum they press the wood onto it
       const along = vp.x * dir.x + vp.y * dir.y + vp.z * dir.z;
       const err = new THREE.Vector3(dir.x * want - vp.x, dir.y * want - vp.y, dir.z * want - vp.z), el = err.length();
       // stiff rollers: close the speed error in a few ticks, through the mass the wood presents at the feed point...
@@ -163,14 +273,15 @@ export class Chipper {
     }
   }
 
-  /** The feed point becomes the end of the remaining wood nearest the drum. */
+  /** The feed point becomes the end of the remaining wood nearest the throat (where the last of it was chipped). */
   pickFeed(piece, f) {
-    const sim = this.sim; let best = -Infinity;
+    const sim = this.sim; let best = -Infinity, bl = null;
     f.seg = -1;
     for (const s of sim.world.segsOf(piece)) for (const e of [s.a, s.b]) {
-      const x = this.toLocal(sim.segToWorld(s, e, _a))[0];
-      if (x > best) { best = x; f.seg = s.id; f.p = e.slice(); }
+      const l = this.toLocal(sim.segToWorld(s, e, _a)), sc = Math.min(l[0], SHAPE.DRUM_X) - 2 * this.throat(l).lat;
+      if (sc > best) { best = sc; bl = l; f.seg = s.id; f.p = e.slice(); }
     }
+    f.entered = !!bl && bl[0] > SHAPE.INFEED[0] - 0.1 && this.throat(bl).lat < SHAPE.CHASSIS.h[2];   // already inside the chipper
     return f.seg >= 0;
   }
 
@@ -221,8 +332,9 @@ export class Chipper {
       for (const s of segs) {
         const inJoint = st.noHit.has(s.id) || st.rootOf.has(s.id);      // still part of a live joint: the fibres decide
         const a = this.toLocal(sim.segToWorld(s, s.a, _a)), b = this.toLocal(sim.segToWorld(s, s.b, _b));
-        const inside = (l) => l[0] > SHAPE.DRUM_X && Math.abs(l[2]) < 2 && l[1] > -1.5 && l[1] < 2.5;
-        if (!inJoint && inside(a) && inside(b)) eat.push(s); else left += segMass(s) + s.leaf;
+        // chipped when it reaches the drum with all of it inside the hopper and the chipper's body
+        const inside = (l) => l[0] > SHAPE.INFEED[0] - 0.1 && Math.abs(l[2]) < SHAPE.CHASSIS.h[2] && Math.abs(l[1] - SHAPE.CHASSIS.c[1]) < SHAPE.CHASSIS.h[1] + 0.05;
+        if (!inJoint && f.entered && inside(a) && inside(b) && Math.max(a[0], b[0]) > SHAPE.DRUM_X - 0.1) eat.push(s); else left += segMass(s) + s.leaf;
       }
       if (!eat.length) continue;
       if (left < CFG.DEBRIS_MASS && !st.live.has(piece)) { eat.length = 0; eat.push(...segs); }      // the last twigs go too
@@ -236,7 +348,7 @@ export class Chipper {
     if (r.state !== 2 || r.anchor.seg === undefined) return;
     const s = sim.world.segs.get(r.anchor.seg);
     if (!s || s.piece !== piece) return;
-    if (!force && this.toLocal(sim.segToWorld(s, r.anchor.p, _a))[0] < SHAPE.DRUM_X) return;
+    if (!force) { const l = this.toLocal(sim.segToWorld(s, r.anchor.p, _a)); if (l[0] < SHAPE.DRUM_X || this.throat(l).lat > SHAPE.CHASSIS.h[2]) return; }
     sim.emit({ t: 'rope', rope: { ...r, anchor: { chip: 1 } } });
     sim.rope.L0 = Math.min(sim.rope.L0, sim.rope.pathLength()); sim.rope.prev = 0;
     sim.toast('The rope went into the chipper!');
@@ -254,13 +366,14 @@ export class Chipper {
     if (ids.includes(f.seg)) f.seg = -1;
   }
 
-  /** A pile is a fixed cone collider, rebuilt as it grows. */
+  /** A pile is a fixed cone collider, rebuilt as it grows or shrinks; an emptied pile has none. */
   pileCollider(i, pl) {
     const sim = this.sim, R = sim.R, { r, h } = pileShape(pl[2]), old = this.pileCols.get(i);
-    if (r < 0.05 || (old && Math.abs(old.r - r) < 0.02)) return;
-    if (old) sim.rapier.removeCollider(old.col, false);
+    if (old && Math.abs(old.r - r) < 0.02 && r >= 0.05) return;
+    if (old) { sim.rapier.removeCollider(old.col, false); this.colPile.delete(old.col.handle); this.pileCols.delete(i); }
+    if (r < 0.05) return;
     const col = sim.rapier.createCollider(R.ColliderDesc.cone(h / 2, r).setTranslation(pl[0], sim.groundY(pl[0], pl[1]) + h / 2, pl[1]).setFriction(1));
-    this.pileCols.set(i, { col, r });
+    this.pileCols.set(i, { col, r }); this.colPile.set(col.handle, i);
   }
 
   aux() { return this.body ? { on: this.busy > 0 ? 1 : 0 } : null; }

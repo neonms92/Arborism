@@ -6,8 +6,10 @@
 // blows chips out to. The body origin sits BODY_Y above the ground at rest.
 // Wood and rope go in at INFEED along +x and are chipped once past DRUM_X.
 //
-// world.chipper = {p:[3], q:[4] where it was parked, piles: [[x, z, V], ...]}
-// (V = m3 of loose chips). A pile is a cone at the chips' angle of repose.
+// world.chipper = {p:[3], q:[4] where it was parked, piles: [[x, z, V], ...],
+//                  wreck: null, or {at: {p, q} its pose when it crumpled, ids: [body id of each WRECK part]}}
+// (V = m3 of loose chips). A pile is a cone at the chips' angle of repose; a
+// pile emptied by players stays in the list at V = 0 so the indices hold.
 
 export const CHIPPER_BODY_ID = 59000;     // its id in transform snapshots (pieces are below, players at 60000+)
 
@@ -56,3 +58,29 @@ export function chipToWorld(p, q, l) {
 export function parkedPose(paveR, gap) {
   return { p: [paveR + gap - SHAPE.INFEED[0], SHAPE.BODY_Y, 0], q: [0, 0, 0, 1] };
 }
+
+// ---- the wreck: what it comes apart into when it takes a strong hit (sim/chipper.js crumple) ----
+// Boxes in the chipper's frame, a few mm apart so none starts overlapping. m = share of CHIP_MASS.
+// kind 'wheel' is a cylinder about z (h[0] = radius, h[2] = half width).
+const T = 0.03, G = 0.004;
+function wreckParts() {
+  const { h } = SHAPE.CHASSIS, out = [], I = [0, 0, 0, 1];
+  const box = (c, hh, m, mat = 'body', q = I) => out.push({ c, h: hh, q, m, mat });
+  // the chassis as six panels
+  box([0, -h[1] + T / 2, 0], [h[0] - G, T / 2, h[2] - G], 0.2);
+  box([0, h[1] - T / 2, 0], [h[0] - T - G, T / 2, h[2] - T - G], 0.1);
+  for (const s of [-1, 1]) box([0, 0, s * (h[2] - T / 2)], [h[0] - G, h[1] - T - G, T / 2], 0.1);
+  for (const s of [-1, 1]) box([s * (h[0] - T / 2), 0, 0], [T / 2, h[1] - T - G, h[2] - T - 2 * G], 0.05);
+  box([0.75, h[1] + 0.15 + G, 0], [0.45, 0.15, 0.55], 0.15, 'dark');                        // engine
+  // the hopper as four plates
+  const hp = SHAPE.HOPPER;
+  for (const s of [-1, 1]) box([hp.c[0] - G, hp.c[1] + s * (hp.h[1] - T / 2), 0], [hp.h[0] - G, T / 2, hp.h[2]], 0.02);
+  for (const s of [-1, 1]) box([hp.c[0] - G, hp.c[1], s * (hp.h[2] - T / 2)], [hp.h[0] - G, hp.h[1] - T - G, T / 2], 0.02);
+  for (const w of SHAPE.WHEELS) box(w, [SHAPE.WHEEL_R, 0, 0.11], 0.04, 'wheel');
+  box(SHAPE.DRAWBAR.c, SHAPE.DRAWBAR.h, 0.02, 'steel');
+  box(SHAPE.GRIP, SHAPE.GRIP_H, 0.005, 'grip');
+  box(SHAPE.JOCKEY, [SHAPE.JOCKEY_R, 0, 0.04], 0.01, 'wheel');
+  box([0.2, h[1] + 0.65, 0.35], [0.13, 0.62, 0.13], 0.03);                                     // the discharge chute, straightened
+  return out;
+}
+export const WRECK = wreckParts();
