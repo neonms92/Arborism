@@ -4,7 +4,7 @@
 
 import * as THREE from '../../vendor/three/three.module.js';
 import { CFG, INJ, MODE } from '../config.js';
-import { segLen, segAxis, segRadius, segParam, lerp3, perp } from '../model/world.js';
+import { segLen, segAxis, segRadius, segParam, lerp3, perp, cleanName, cleanColor, playerName } from '../model/world.js';
 import { sawStep, sawOff } from './saw.js';
 
 const COUNTERS = ['jump', 'interact', 'drop', 'rig', 'punch', 'wrapUp', 'wrapDn', 'respawn'];
@@ -20,7 +20,8 @@ const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3
 export class Players {
   constructor(sim) { this.sim = sim; this.list = new Map(); }
 
-  add(id, name) {
+  /** name and color as the player chose them (cleaned here; '' / -1 when none). */
+  add(id, name, color = -1) {
     const sim = this.sim, R = sim.R;
     const ang = id * 1.3, sp = [4 * Math.cos(ang), 1.2, 4 * Math.sin(ang)];       // spawn y is above the ground there
     sp[1] += sim.groundY(sp[0], sp[2]);
@@ -39,9 +40,15 @@ export class Players {
       grab: null,                    // holding wood on the ground: {seg, p: piece-local point, L0: rope length, prev}
     };
     this.list.set(id, p);
-    sim.emit({ t: 'player', id, name });
+    sim.emit({ t: 'player', id, name: cleanName(name), color: cleanColor(color) });
     return p;
   }
+  /** A player picked a name and shirt colour in the lobby (a joining client sends them once it is in). */
+  setLook(id, name, color) {
+    if (!this.list.has(id)) return;
+    this.sim.emit({ t: 'player', id, name: cleanName(name), color: cleanColor(color) });
+  }
+  name(id) { return playerName(this.sim.world, id); }
   remove(id) {
     const p = this.list.get(id); if (!p) return;
     if (this.sim.rope.holder === id) this.sim.rope.holder = -1;
@@ -64,7 +71,7 @@ export class Players {
     if (lvl === INJ.SHAKEN) { if (p.inj < INJ.SHAKEN) p.inj = INJ.SHAKEN; }
     else if (lvl > p.inj) {
       p.inj = lvl;
-      this.sim.toast(lvl === INJ.DOWN ? `Player ${p.id} is DOWN ({speed:${dv.toFixed(1)}} impact) - job failed` : `Player ${p.id} is hurt ({speed:${dv.toFixed(1)}} impact)`);
+      this.sim.toast(lvl === INJ.DOWN ? `${this.name(p.id)} is DOWN ({speed:${dv.toFixed(1)}} impact) - job failed` : `${this.name(p.id)} is hurt ({speed:${dv.toFixed(1)}} impact)`);
     }
     sawOff(this.sim, p);
     if (p.mode === MODE.CLIMB && lvl >= INJ.HURT) this.toGround(p);
@@ -110,7 +117,7 @@ export class Players {
     p.col.setSensor(false);
   }
   cutLanyard(p, by) {
-    this.sim.toast(by === p ? 'You cut your own lanyard' : `Player ${by.id} cut player ${p.id}'s lanyard`);
+    this.sim.toast(by === p ? 'You cut your own lanyard' : `${this.name(by.id)} cut ${this.name(p.id)}'s lanyard`);
     this.toGround(p);
   }
   /** All wood is gone: everyone is on the ground with empty hands on the tree. */

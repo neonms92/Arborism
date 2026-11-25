@@ -1313,3 +1313,20 @@ in slow motion bodies were drawn unblended at their last sample for minutes.
 Not verified on a real LAN: the cause there is a hypothesis until the box
 shows it.
 
+
+**D90 — Players have heads, faces and names.** Owner (2026-11-25): shorter
+tube torso with a round head, keep the helmet and headlamp, 2-D eyes that
+blink / wince when shaken / worry when hurt / are crosses when down, saw in
+the shirt colour, and a name and shirt colour chosen in the lobby that
+replace "Player N" in toasts, sit on a chest name tag and across the back of
+the helmet. Choices: the name and colour travel as the existing `player`
+event (sent again to change them); a joiner sends them in a `me` message
+right after `welcome`, so the host's "joined" toast waits for it. The host
+cleans names (`cleanName`: no control characters, no `< > { }` because
+`hud.js` expands `{tokens}`, at most `PLAYER_NAME_MAX` = 16) and colours.
+Name and colour are remembered in the browser; a first visit gets a random
+shirt from the old palette, and anyone who sends none still gets the
+palette colour by id and "Player N". Wince follows the shaken pause (`aux.sk`),
+worry follows the HURT level; the lingering SHAKEN level shows normal eyes.
+Faces and tags are canvas textures, drawn again only when they change.
+The physics capsule is unchanged; only the drawing changed.

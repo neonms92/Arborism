@@ -23,6 +23,16 @@ export const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]
 export const len3 = (a) => Math.hypot(a[0], a[1], a[2]);
 
 export function segLen(s) { return len3(sub(s.b, s.a)); }
+/** A player's chosen name, made safe for toasts and name tags: no control characters, no markup or
+ *  {tokens} (hud.js expands those), at most PLAYER_NAME_MAX characters. '' if nothing is left. */
+export function cleanName(n) {
+  return typeof n === 'string' ? n.replace(/[\u0000-\u001f\u007f<>{}]/g, '').replace(/\s+/g, ' ').trim().slice(0, CFG.PLAYER_NAME_MAX) : '';
+}
+/** A shirt colour as 0xRRGGBB, or -1 when it is not one. */
+export function cleanColor(c) { return Number.isInteger(c) && c >= 0 && c <= 0xffffff ? c : -1; }
+/** What toasts call a player: their name, or "Player 2" when they gave none. */
+export function playerName(world, id) { const p = world.players.get(id); return (p && p.name) || `Player ${id}`; }
+
 export function segAxis(s) { const d = sub(s.b, s.a), l = len3(d) || 1; return [d[0] / l, d[1] / l, d[2] / l]; }
 export function segRadius(s, t) { return s.r0 + (s.r1 - s.r0) * t; }
 /** Wood mass of the part of a segment between fractions t0..t1 (no leaves). */
@@ -232,7 +242,8 @@ export class World {
         if (this.paving) for (const [i, x, z, add] of ev.h) crackPaver(this.paving, i, x, z, add);
         break;
       case 'player':
-        if (ev.leave) this.players.delete(ev.id); else this.players.set(ev.id, { id: ev.id, name: ev.name });
+        // joining, or changing name / shirt colour (the same event again): name and color are already cleaned by the host
+        if (ev.leave) this.players.delete(ev.id); else this.players.set(ev.id, { id: ev.id, name: ev.name, color: ev.color });
         break;
       case 'toast': break;
     }
