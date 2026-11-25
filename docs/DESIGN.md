@@ -219,6 +219,25 @@ means "interact has been pressed 17 times since join"); the host acts on the
 difference from the last value it saw. A lost packet therefore never loses a
 press and never duplicates one.
 
+### 2.6 Network statistics (D86)
+
+A joined client shows a box top right (Tab menu → View: "Network box when
+joined") and a short `ping / loss` on the status line; the host's status
+line lists each player's ping and loss. All of it is in `net/stats.js`:
+
+- **Ping**: `{t:'pi', s}` on `fast` every `PING_EVERY` (0.5 s), answered at
+  once with `{t:'po', s, up, fps}`. The host answers between its frames, so
+  a slow host frame shows up in ping (the box says so below 40 fps).
+- **Loss down**: snapshot ticks are multiples of `SNAP_EVERY`, so gaps in
+  the last 5 s are lost snapshots. **Loss up**: inputs carry a sequence
+  number `n`; the host counts the gaps and returns the figure in `po`. An
+  input older than one already used is dropped (the channel is unordered).
+- **Host speed**: host ticks per wall second; below 95% the host machine
+  cannot keep up and everything runs in slow motion.
+- **"Your moves show after"**: an estimate, ping + half the input period +
+  half a host frame + `INTERP_DELAY`. On a LAN the render delay (100 ms)
+  is most of it; it is in the Tab menu.
+
 ---
 
 ## 3. Physics: the tree

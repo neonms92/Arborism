@@ -32,6 +32,8 @@ export const ROWS = [
   ['GRAB_MAX', 'Pulling: force that tears what you hold out of your hands (N)', 50, 10000, 10, 1, true],
   ['GRAB_K', 'Grabbed wood: stiffness of the hold (N/m)', 500, 100000, 500, 1, true],
   ['View'],
+  ['NET_STATS', 'Network box when joined (ping, loss, delay)'],
+  ['INTERP_DELAY', 'Render delay when joined (ms; lower answers sooner, too low stutters)', 0, 300, 5, 0.001],
   ['BARK_OPACITY', 'Bark visibility', 0, 1, 0.05, 1],
   ['SHOW_FIBRES', 'Draw fibres'],
   ['STRESS_COLORS', 'Colour fibres by load'],
