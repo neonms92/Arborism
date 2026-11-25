@@ -7,6 +7,7 @@ import { View } from './view/view.js';
 import { Hud, describe } from './view/hud.js';
 import { Menu } from './view/menu.js';
 import { Input } from './input.js';
+import { LeaveGuard } from './leave.js';
 import { Net } from './net/net.js';
 import { encodeSnapshot, Interp } from './net/snapshot.js';
 
@@ -24,6 +25,8 @@ view = new View($('game'), world);
 const hud = new Hud(world);
 hud.view = view;                                 // the HUD shows the draw distance when the frame rate has cut it
 const input = new Input($('game'));
+// Back / swipe-back asks before leaving a game; the game takes no input while it asks
+const leaveGuard = new LeaveGuard((open) => { input.active = !open; });
 const net = new Net();
 
 let sim = null, interp = null, me = -1, aux = null, room = '', role = '', running = false;
@@ -111,6 +114,7 @@ async function startJoin(code) {
 function begin() {
   $('lobby').style.display = 'none';
   input.active = true;
+  leaveGuard.arm();
   document.activeElement?.blur();
 }
 
