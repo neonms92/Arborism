@@ -25,6 +25,9 @@ import { BuildsView } from './builds.js';
 import { SHAPE } from '../model/chipper.js';
 
 const SIDES = 7;
+// Width of every fibre box in a segment: one width all along, from the radius at its middle (a box cannot taper).
+// The bark is fitted around this (buildPiece), so the two must agree.
+const fibreWidth = (s) => (s.r0 + s.r1) / s.f.N * 0.82;
 const PLAYER_COLORS = [0xe8a23a, 0x3a9be8, 0xd94f6a, 0x62c462, 0xb07be0, 0xe0d24a];
 const Y = new THREE.Vector3(0, 1, 0);
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _m = new THREE.Matrix4(), _c = new THREE.Color();
@@ -161,16 +164,25 @@ export class View {
       const ax = segAxis(s), { u, v } = bundleBasis(ax), L = segLen(s), f = s.f, Ly = layout(f.N);
       // Bark panels. Each is owned by the outermost fibre behind it and covers only what is left of that fibre.
       const sides = Math.max(SIDES, Math.min(20, f.N + 3));
-      // how far the bundle's (blocky) outline reaches in direction ang, in radii: the bark sits just outside it
-      const reach = (ang) => {
-        const c = Math.cos(ang), sn = Math.sin(ang), pad = Ly.cs / 2 * (Math.abs(c) + Math.abs(sn));
+      // The bark is a polygon circumscribed about the fibre boxes as drawn: panel k lies on the line that just
+      // touches them in its own direction (its middle angle), and its corners are where neighbouring panels'
+      // lines meet. So no box corner can stick out between two corners of the bark, whatever the number of sides.
+      // A face's line is mFace * R + (box half width) * kFace out: the fibre centres scale with the radius R,
+      // but each box keeps one width all along (fibreWidth), so on a strongly tapering (thin) segment the boxes
+      // stand out further at the thin end. Both are linear in z, so straight panels from end to end contain them.
+      const w2 = fibreWidth(s) / 2, mFace = [], kFace = [];
+      for (let k = 0; k < sides; k++) {
+        const am = (k + 0.5) / sides * Math.PI * 2, c = Math.cos(am), sn = Math.sin(am);
         let m = 0; for (let i = 0; i < f.n; i++) { const d = Ly.X[i] * c + Ly.Y[i] * sn; if (d > m) m = d; }
-        return (m + pad) * 1.03;
-      };
-      const reachAt = []; for (let k = 0; k <= sides; k++) reachAt.push(reach(k / sides * Math.PI * 2));
+        mFace.push(m); kFace.push(Math.abs(c) + Math.abs(sn));
+      }
+      const dl = Math.PI / sides, cd = Math.cos(dl), sd = Math.sin(dl);
       const at = (k, z) => {
-        const ang = k / sides * Math.PI * 2;
-        const r = (s.r0 + (s.r1 - s.r0) * Math.min(1, Math.max(0, z / L))) * reachAt[k], cx = Math.cos(ang) * r, sy = Math.sin(ang) * r;
+        const R = s.r0 + (s.r1 - s.r0) * Math.min(1, Math.max(0, z / L)), k1 = (k + sides - 1) % sides, k2 = k % sides;
+        const h1 = (mFace[k1] * R + w2 * kFace[k1]) * 1.03, h2 = (mFace[k2] * R + w2 * kFace[k2]) * 1.03;
+        // corner k: where the lines of faces k-1 and k (normals at ang -/+ dl) meet
+        const ang = k / sides * Math.PI * 2, a = (h1 + h2) / (2 * cd), b = (h2 - h1) / (2 * sd), ca = Math.cos(ang), sa = Math.sin(ang);
+        const cx = a * ca - b * sa, sy = a * sa + b * ca;
         return [s.a[0] + ax[0] * z + u[0] * cx + v[0] * sy, s.a[1] + ax[1] * z + u[1] * cx + v[1] * sy, s.a[2] + ax[2] * z + u[2] * cx + v[2] * sy];
       };
       for (let k = 0; k < sides; k++) {
@@ -224,9 +236,10 @@ export class View {
       // box Y runs along the grain. (v, axis, u) is right-handed; (u, axis, v) is a mirror and is NOT a rotation.
       _bx.set(v[0], v[1], v[2]); _by.set(ax[0], ax[1], ax[2]); _bz.set(u[0], u[1], u[2]);
       _m.makeBasis(_bx, _by, _bz); _q.setFromRotationMatrix(_m);
+      const fw = fibreWidth(s);
       const part = (i, z0, z1) => {
         if (z1 - z0 < 0.004) return;
-        const zm = (z0 + z1) / 2, R = s.r0 + (s.r1 - s.r0) * Math.min(1, Math.max(0, zm / L)), h = 2 * R / f.N * 0.82;
+        const zm = (z0 + z1) / 2, R = s.r0 + (s.r1 - s.r0) * Math.min(1, Math.max(0, zm / L)), h = fw;
         const x = Ly.X[i] * R, y = Ly.Y[i] * R;
         _v.set(s.a[0] + ax[0] * zm + u[0] * x + v[0] * y, s.a[1] + ax[1] * zm + u[1] * x + v[1] * y, s.a[2] + ax[2] * zm + u[2] * x + v[2] * y);
         // fibres converge with the stem's taper, exactly as the physics has them (base at X*r0, tip at X*r1)
