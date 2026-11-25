@@ -15,7 +15,7 @@
 //                (so no hollow is walled in by ledges too high to climb)
 //   pads         [{x, z, r, blend, y}] level ground: flat at height y within r of (x, z), blending
 //                into the natural ground over the next `blend` m. y omitted: the natural height at
-//                (x, z). Applied in order, so a later pad wins where they overlap. This is how
+//                (x, z), or at yAt [x, z] if given (a patio level with its house's pad). Applied in order, so a later pad wins where they overlap. This is how
 //                anything that needs level ground (the tree's yard, a shed, a house) gets it.
 //
 // The natural ground is shifted so it is at 0 at the origin, where the tree
@@ -77,7 +77,7 @@ export class Terrain {
     const n = this.n = Math.max(2, Math.round(s.size / cell));     // cells along each side
     this.half = n * cell / 2;
     const nat = naturalFn(s);
-    const pads = (s.pads || []).map((p) => ({ ...p, y: p.y ?? nat(p.x, p.z), blend: p.blend ?? 0 }));
+    const pads = (s.pads || []).map((p) => ({ ...p, y: p.y ?? (p.yAt ? nat(p.yAt[0], p.yAt[1]) : nat(p.x, p.z)), blend: p.blend ?? 0 }));
     this.pads = pads;
     // Rapier's layout: column-major, heights[i + j * (n + 1)] for row i (along z) and column j (along x)
     const H = this.h = new Float32Array((n + 1) * (n + 1));

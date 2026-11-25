@@ -14,7 +14,7 @@ import { CFG } from '../config.js';
 import { newPaving, crackPaver, packPaving, unpackPaving } from './pavers.js';
 import { addChips } from './chipper.js';
 import { makeTerrain } from './terrain.js';
-import { newBuild, smashBuild } from './builds.js';
+import { newBuild, smashBuild, packBuilds, unpackBuilds } from './builds.js';
 
 export const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 export const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -171,7 +171,7 @@ export class World {
       case 'smash': smashBuild(this.builds, ev); break;           // a module came apart (sim/builds.js)
       case 'rope': this.rope = ev.rope; break;
       case 'terrain': this.terrain = makeTerrain(ev.spec); break;   // the ground, made from its spec on every machine
-      case 'pavers': this.paving = newPaving(ev.c, ev.r, ev.pit); break;   // laid fresh (no damage)
+      case 'pavers': this.paving = newPaving(ev.c, ev.areas); break;   // laid fresh (no damage): the tree's circle and the yards' paving
       case 'crack':                 // impacts on pavers this tick: h = [[paver, x, z, damage added], ...]
         if (this.paving) for (const [i, x, z, add] of ev.h) crackPaver(this.paving, i, x, z, add);
         break;
@@ -309,7 +309,7 @@ export class World {
   serialize() {
     return {
       segs: [...this.segs.values()].map((s) => ({ ...s, f: packBundle(s.f) })), pieces: [...this.pieces.values()],
-      rope: this.rope, players: [...this.players.values()], paving: packPaving(this.paving), chipper: this.chipper, builds: this.builds,
+      rope: this.rope, players: [...this.players.values()], paving: packPaving(this.paving), chipper: this.chipper, builds: packBuilds(this.builds),
       terrain: this.terrain ? this.terrain.spec : null,
     };
   }
@@ -321,7 +321,7 @@ export class World {
     this.rope = o.rope;
     this.paving = unpackPaving(o.paving);
     this.chipper = o.chipper || null;
-    this.builds = o.builds || [];
+    this.builds = unpackBuilds(o.builds);
     this.terrain = makeTerrain(o.terrain || null);
     this._dirty();
     for (const fn of this.listeners) fn({ t: 'load' }, {});

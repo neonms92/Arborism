@@ -1,4 +1,5 @@
-// Draws the concrete pavers (model/pavers.js): one instanced slab each, and
+// Draws the concrete pavers (model/pavers.js): one instanced slab each, laid
+// on the ground under its middle and tilted with it, and
 // for each damaged paver a mesh of cracks, chips and (past PAVER_GRAVEL) a
 // heap of gravel in its place. Everything is derived from the damage counter
 // and the hit points in the model with a seeded generator, so every machine
@@ -14,7 +15,7 @@ const THICK = 0.07;
 const GAP = 0.006;        // m, joint between slabs
 const RAYS = 14;          // most cracks from one hit
 const CONCRETE = [0.66, 0.65, 0.62], CRACK = [0.08, 0.08, 0.08], SAND = 0xa89b80;
-const _up = new THREE.Vector3(0, 1, 0), _n = new THREE.Vector3();
+const _up = new THREE.Vector3(0, 1, 0), _n = new THREE.Vector3(), _yaw = new THREE.Quaternion();
 const _m = new THREE.Matrix4(), _c = new THREE.Color(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _q = new THREE.Quaternion();
 
 function rng(seed) {      // mulberry32
@@ -74,10 +75,10 @@ export class PaverView {
     _m.compose(_p.set(p.x, y, p.z).addScaledVector(_n, TOP - THICK / 2), _q, _s);
     this.slabs.setMatrixAt(i, _m); this.slabs.instanceMatrix.needsUpdate = true;
   }
-  /** A paver lies on the ground under its middle: returns that height, sets q to its tilt (and _n to the normal). */
+  /** A paver lies on the ground under its middle: returns that height, sets q to its tilt and turn (and _n to the normal). */
   seat(p, q) {
     const t = this.world.terrain, g = groundN(t, p.x, p.z);
-    q.setFromUnitVectors(_up, _n.set(g[0], g[1], g[2]));
+    q.setFromUnitVectors(_up, _n.set(g[0], g[1], g[2])).multiply(_yaw.setFromAxisAngle(_up, p.a || 0));
     return groundY(t, p.x, p.z);
   }
   tint(i) {
@@ -94,10 +95,10 @@ export class PaverView {
     if (old) { this.group.remove(old.mesh); old.mesh.geometry.dispose(); }
     const G = Math.max(1, CFG.PAVER_GRAVEL), gravel = D >= G;
     this.place(i, gravel); this.tint(i);
-    const geo = gravel ? gravelGeo(pv.L.list[i], i, D, G) : crackGeo(pv.L.list[i], i, pv.hits[i], D, G);
+    const p = pv.L.list[i], lp = { x: 0, z: 0, hx: p.hx, hz: p.hz };   // drawn in the paver's own frame at y = 0, then laid on the ground there
+    const geo = gravel ? gravelGeo(lp, i, D, G) : crackGeo(lp, i, pv.hits[i], D, G);
     const mesh = new THREE.Mesh(geo, this.dmgMat); mesh.receiveShadow = true;
-    const p = pv.L.list[i];             // drawn round the paver's middle at y = 0, then laid on the ground there
-    geo.translate(-p.x, 0, -p.z); mesh.position.set(p.x, this.seat(p, mesh.quaternion), p.z);
+    mesh.position.set(p.x, this.seat(p, mesh.quaternion), p.z);
     this.group.add(mesh);
     this.broken.set(i, { mesh, dmg: D });
   }

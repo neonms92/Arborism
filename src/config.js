@@ -53,9 +53,8 @@ export const CFG = {
   TERRAIN_LEDGE_W: 40,     // m, scale over which ledges wind (bigger = fewer, longer ledges)
   TERRAIN_LEDGE_SHARP: 0.015, // fraction of the gap between two ledges taken by the riser (smaller = steeper)
   TERRAIN_LEDGE_GAPS: 0.3, // about what fraction of a ledge's length eases into a slope you can walk up
-  TERRAIN_YARD: 1,         // m of level ground beyond the paving round the tree
   TERRAIN_CCD: 0.5,        // m a moving body looks ahead for ground contacts (the ground is a surface with nothing under it)
-  TERRAIN_BLEND: 4,        // m over which level ground (the yard, under the shed and chipper) blends into the hills
+  TERRAIN_BLEND: 4,        // m over which level ground (under houses, sheds and patios) blends into the hills
 
   // --- concrete pavers round the tree (laid again, undamaged, with every new tree) ---
   PAVER_SIZE: 0.6,         // m, a paver is PAVER_SIZE x PAVER_SIZE / 2 (two to a basket-weave cell)
@@ -149,7 +148,16 @@ export const CFG = {
   SHED_GAP: 3,             // m between the edge of the paving and the shed, where it is put up
   SHED_BREAK_F: 25000,     // N of contact force from wood in one tick that breaks a module (the shed) apart
   FENCE_BREAK_F: 10000,    // N of contact force from wood in one tick that breaks one fence section apart
-  FENCE_GAP: 3,            // m between the edge of the paving and the fences
+  HOUSE_BREAK_F: 40000,    // N of contact force from wood in one tick that breaks one room of a house apart
+  HOUSE_RAISE: 0.15,       // m a house's floor stands above the highest ground under it (its foundation shows)
+  // --- yards (model/yards.js): lots of houses, sheds, fences and paving round the tree's own lot ---
+  YARD_SEED: 1,            // layout of the yards
+  YARD_DENSITY: 0.5,       // 0..1: chance of a house, shed, patio... on each lot; lots shrink as it rises
+  YARD_LOT_MAX: 30,        // m, lot width at density 0 (lots are about 1.4 times as deep)
+  YARD_LOT_MIN: 14,        // m, lot width at density 1
+  YARD_EXTENT: 45,         // m from the tree that lots reach (0 = only the tree's own lot)
+  YARD_STREET: 9,          // m, street between blocks of lots
+  YARD_FENCE: 0.5,         // chance a lot is fenced round its sides and back
   SHED_DENSITY: 450,       // kg/m3 of the shed's and fences' boards
 };
 

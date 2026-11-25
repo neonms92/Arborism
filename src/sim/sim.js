@@ -80,15 +80,10 @@ export class Sim {
   }
 
   grow() {
-    this.emit({ t: 'terrain', spec: this.flat ? null : terrainSpec(CFG, this.pads()) });
-    this.pavers.lay(); this.chipper.place(); this.builds.place();
+    const plan = this.builds.plan();      // the yards round the tree: the ground is made with the level pads they ask for
+    this.emit({ t: 'terrain', spec: this.flat ? null : terrainSpec(CFG, plan.pads) });
+    this.pavers.lay(plan.areas); this.chipper.place(); this.builds.place();
     this.emit({ t: 'tree', piece: this.world.newId(), segs: generateTree(CFG.TREE_SEED, () => this.world.newId()) });
-  }
-
-  /** Level ground for the tree's yard (the paving and a margin) and under whatever is put up round it. */
-  pads() {
-    const paveR = CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, blend = CFG.TERRAIN_BLEND;
-    return [{ x: 0, z: 0, r: paveR + CFG.TERRAIN_YARD, blend, y: 0 }, ...this.chipper.pads(blend), ...this.builds.pads(blend)];
   }
 
   // ---- the ground ----
