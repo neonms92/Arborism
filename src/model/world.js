@@ -75,6 +75,7 @@ export class World {
     this.chipper = null;          // the wood chipper and its chip piles (model/chipper.js)
     this.builds = [];             // breakable structures: the shed (model/builds.js)
     this.terrain = null;          // the ground (model/terrain.js); null = flat at y = 0
+    this.damage = 0;              // $, running cost of what the job broke (sim/damage.js)
     this.nextId = 1;              // host allocates all ids
     this.listeners = [];
     this._kids = null; this._order = null;
@@ -161,7 +162,7 @@ export class World {
         this._dirty();
         break;
       case 'reset':                 // all wood gone (a new tree follows)
-        this.segs.clear(); this.pieces.clear(); this.rope = { state: 0 };
+        this.segs.clear(); this.pieces.clear(); this.rope = { state: 0 }; this.damage = 0;
         this._dirty();
         break;
       case 'cut': {                 // the saw severed fibres i[] at z[] (m from the segment base)
@@ -210,6 +211,7 @@ export class World {
       case 'builds': this.builds = ev.list.map(newBuild); break;   // put up fresh (all intact)
       case 'smash': smashBuild(this.builds, ev); break;           // a module came apart (sim/builds.js)
       case 'rope': this.rope = ev.rope; break;
+      case 'damage': this.damage += ev.cost; break;   // the price of something broken (sim/damage.js)
       case 'terrain': this.terrain = makeTerrain(ev.spec); break;   // the ground, made from its spec on every machine
       case 'pavers': this.paving = newPaving(ev.c, ev.areas, this.terrain, ev.slope); break;   // laid fresh (no damage): the tree's circle and the yards' paving
       case 'crack':                 // impacts on pavers this tick: h = [[paver, x, z, damage added], ...]
@@ -350,7 +352,7 @@ export class World {
     return {
       segs: [...this.segs.values()].map((s) => ({ ...s, f: packBundle(s.f) })), pieces: [...this.pieces.values()],
       rope: this.rope, players: [...this.players.values()], paving: packPaving(this.paving), chipper: this.chipper, builds: packBuilds(this.builds),
-      terrain: this.terrain ? this.terrain.spec : null,
+      terrain: this.terrain ? this.terrain.spec : null, damage: this.damage,
     };
   }
   load(o) {
@@ -363,6 +365,7 @@ export class World {
     this.paving = unpackPaving(o.paving, this.terrain);
     this.chipper = o.chipper || null;
     this.builds = unpackBuilds(o.builds);
+    this.damage = o.damage || 0;
     this._dirty();
     for (const fn of this.listeners) fn({ t: 'load' }, {});
   }

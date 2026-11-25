@@ -878,3 +878,29 @@ main before). Left as a finding, not loosened. Other choices:
   482 pavers were steeper than 30° on main (up to 66°).
 - Injury thresholds `DV_SHAKEN`, `DV_HURT`, `DV_DOWN` and `SHAKEN_TIME` are
   in the Tab menu.
+
+**D72 — Polish round, part two: shaken view, down view, imperial HUD, damage
+costs, settings search.**
+- *Every injury shakes first.* A hurt or down impact now also sets
+  `SHAKEN_TIME` of no control, as a shaken one does. While it lasts the
+  view swims: roll, pitch and yaw sines of `WOBBLE` (0.08 rad) at about
+  `WOBBLE_HZ`, easing in and out over 0.4 s. The host sends `sk` (shaken
+  now) in each player's aux, and the view does the rest.
+- *Down.* The eyes are `DOWN_EYE` (6 in) above the ground under the player
+  and the view is rolled 90°. The look still turns it.
+- *Imperial.* `IMPERIAL` (on) changes only HUD text: the status line, the
+  rope panel and toasts. Host text writes quantities as `{speed:4.2}`,
+  `{len:…}`, `{mass:…}`, `{force:…}`, `{vol:…}`, `{money:…}` in SI, and
+  `hud.describe` formats them for each client, like the control tokens.
+  The settings menu stays in SI.
+- *Damage.* `sim/damage.js` charges `PAVER_COST` per paver the first time it
+  cracks, and `FENCE_COST`, `SHED_COST`, `HOUSE_COST` per module of that
+  kind broken apart (a fence section, the shed, one room). It charges
+  `CHIPPER_COST` for a wrecked chipper. Each charge is a `damage` event (the
+  running total `world.damage` is in snapshots for late joiners, cleared
+  with a new tree) and one toast with the price and the total. The
+  chipper's own "wrecked" toast was folded into it. Dollar figures are
+  placeholders to tune.
+- *Settings menu.* Sections are collapsible (closed by default, and the
+  open ones are remembered), with a search box that shows only the
+  settings whose label or config name contains every word typed.

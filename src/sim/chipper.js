@@ -142,7 +142,6 @@ export class Chipper {
     this.burst = { self: sim.builds.preVel(b), other: other && other.isDynamic() ? other : null, otherPre: other ? sim.builds.preVel(other) : null };
     if (sim.rope.fed()) sim.rope.swallow('The chipper is wrecked: the rope came free');
     sim.emit({ t: 'chipwreck', at, ids: WRECK.map(() => sim.world.newId()) });
-    sim.toast('The chipper is wrecked!');
   }
 
   /** A chipwreck event: the chipper's body goes, and each WRECK part is a loose body where it was. */

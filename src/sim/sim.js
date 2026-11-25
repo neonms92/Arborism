@@ -12,6 +12,7 @@ import { Players } from './players.js';
 import { Rope } from './rope.js';
 import { Structure } from './structure.js';
 import { Pavers } from './pavers.js';
+import { Damage } from './damage.js';
 import { Chipper } from './chipper.js';
 import { Builds } from './builds.js';
 import { CHIPPER_BODY_ID } from '../model/chipper.js';
@@ -73,6 +74,7 @@ export class Sim {
     this.rope = new Rope(this);
     this.structure = new Structure(this);
     this.chipper = new Chipper(this);  // its body is made by the first 'chipper' event (grow)
+    this.damage = new Damage(this);
     this.builds = new Builds(this);    // the shed; its bodies are made by the 'builds' event (grow)
     this.onLoads = null;              // optional fn(dt), called each tick where point loads go in (test harness)
 
@@ -123,6 +125,7 @@ export class Sim {
     if (ev.t === 'terrain') { this.makeGround(); this.players.onTerrain(); return; }
     this.chipper.onEvent(ev, info);
     this.builds.onEvent(ev, info);
+    this.damage.onEvent(ev, info);
     if (ev.t === 'tree') {
       const body = this.rapier.createRigidBody(RAPIER.RigidBodyDesc.fixed());
       this.bodies.set(ev.piece, body);

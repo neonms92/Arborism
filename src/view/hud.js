@@ -31,9 +31,10 @@ export function qty(kind, v, dec) {
   const imp = CFG.IMPERIAL, x = imp ? v * u[1] : kind === 'force' ? v / 9.81 : v;
   return `${x.toFixed(dec ?? u[3])} ${imp ? u[2] : u[0]}`;
 }
+export const money = (v) => `$${Math.round(v).toLocaleString('en-US')}`;
 export function describe(text, device, over) {
   const k = device === 'pad' ? 1 : device === 'touch' ? 2 : 0;
-  text = text.replace(/\{(\w+):(-?[\d.e+-]+)\}/g, (m, kind, v) => (UNITS[kind] ? qty(kind, +v) : m));
+  text = text.replace(/\{(\w+):(-?[\d.e+-]+)\}/g, (m, kind, v) => (kind === 'money' ? money(+v) : UNITS[kind] ? qty(kind, +v) : m));
   return text.replace(/\{(\w+)\}/g, (m, t) => (over && over[t]) || (NAMES[t] ? NAMES[t][k] : m));
 }
 
@@ -57,6 +58,7 @@ export class Hud {
     this.fps += (1 / Math.max(dt, 1e-3) - this.fps) * 0.05;
     const a = aux && aux.pl.find((p) => p.id === me);
     let s = `${info}  |  ${Math.round(this.fps)} fps`;
+    if (this.world.damage > 0) s += `  |  damage ${money(this.world.damage)}`;
     if (a && a.ck > 0) s += `  |  carrying ${qty('vol', a.ck * 1000, 0)} of chips`;
     if (a) s += `  |  ${a.m === MODE.CLIMB ? 'on spurs, lanyard on' : a.m === MODE.ROPE ? 'on the rope' : 'on the ground'}  |  ${INJ_NAME[a.inj]}`;
     this.status.textContent = s;

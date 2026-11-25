@@ -169,6 +169,12 @@ export const CFG = {
   YARD_STREET: 9,          // m, street between blocks of lots
   YARD_FENCE: 0.5,         // chance a lot is fenced round its sides and back
   YARD_TREE_CLEAR: 4,      // m beyond the trunk kept clear of houses, sheds and the chipper (players spawn 4 m from the tree)
+  // --- what breaking things costs (sim/damage.js), in dollars, added to a running total on the HUD ---
+  PAVER_COST: 25,          // one paver, the first time it cracks
+  FENCE_COST: 300,         // one fence section broken apart
+  SHED_COST: 2500,         // the shed broken apart
+  HOUSE_COST: 20000,       // one room of a house broken apart
+  CHIPPER_COST: 45000,     // the chipper truck wrecked
   SHED_DENSITY: 450,       // kg/m3 of the shed's and fences' boards
 };
 

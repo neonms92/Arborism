@@ -9,6 +9,7 @@
 import { CFG } from '../config.js';
 
 const KEY = 'arb-settings-v1';
+const OPEN_KEY = 'arb-settings-open-v1';   // which sections are expanded
 // [config key, label, min, max, step, scale (shown value = CFG value / scale), host only]
 export const ROWS = [
   ['Controls'],
@@ -72,6 +73,11 @@ export const ROWS = [
   ['HOUSE_BREAK_F', 'House: force from wood that breaks one room apart (N)', 500, 400000, 500, 1, true],
   ['SHED_BREAK_F', 'Shed: force from wood that breaks it apart (N)', 500, 200000, 500, 1, true],
   ['FENCE_BREAK_F', 'Fence: force from wood that breaks one section apart (N)', 500, 200000, 500, 1, true],
+  ['PAVER_COST', 'Cost of a cracked paver ($)', 0, 500, 5, 1, true],
+  ['FENCE_COST', 'Cost of a broken fence section ($)', 0, 5000, 25, 1, true],
+  ['SHED_COST', 'Cost of a smashed shed ($)', 0, 20000, 100, 1, true],
+  ['HOUSE_COST', 'Cost of a smashed room of a house ($)', 0, 200000, 500, 1, true],
+  ['CHIPPER_COST', 'Cost of a wrecked chipper truck ($)', 0, 200000, 500, 1, true],
   ['SHED_DENSITY', 'Board density (kg/m3)', 100, 1200, 10, 1, true],
   ['New tree (these apply when you press Grow)'],
   ['TREE_HEIGHT', 'Height (m)', 3, 30, 0.5, 1, true],
@@ -149,13 +155,29 @@ export class Menu {
     const close = document.createElement('button'); close.textContent = 'Close'; close.className = 'go';
     close.onclick = () => this.toggle(false);
     el.appendChild(close);
+    // a search box: shows only the settings whose label (or config name) has every word typed, sections opened
+    const search = document.createElement('input'); search.type = 'search'; search.className = 'search';
+    search.placeholder = 'Search settings'; el.appendChild(search);
+    let open = {};
+    try { open = JSON.parse(localStorage.getItem(OPEN_KEY) || '{}'); } catch { /* ignore */ }
     this.inputs = [];
+    const sections = [];
+    let sec = null;
     for (const r of ROWS) {
-      if (r.length === 1) { const t = document.createElement('h3'); t.textContent = r[0]; el.appendChild(t); continue; }
+      if (r.length === 1) {         // a section: a collapsible block, closed until opened (remembered)
+        const d = document.createElement('details'); d.open = !!open[r[0]];
+        const sm = document.createElement('summary'); sm.textContent = r[0]; d.appendChild(sm);
+        d.ontoggle = () => {
+          if (search.value.trim()) return;           // opened by a search, not by hand
+          open[r[0]] = d.open; try { localStorage.setItem(OPEN_KEY, JSON.stringify(open)); } catch { /* private window */ }
+        };
+        el.appendChild(d); sec = { d, title: r[0], rows: [] }; sections.push(sec); continue;
+      }
+      const into = sec ? sec.d : el;
       if (r[0] === '@grow' || r[0] === '@chipper') {
         const b = document.createElement('button'); b.textContent = r[1]; b.className = 'go';
         b.onclick = () => (r[0] === '@grow' ? this.onGrow() : this.onChipper && this.onChipper());
-        el.appendChild(b); continue;
+        into.appendChild(b); if (sec) sec.rows.push({ el: b, text: r[1].toLowerCase() }); continue;
       }
       const [key, label, min, max, step, scale] = r;
       const row = document.createElement('label'); row.className = 'row';
@@ -173,8 +195,22 @@ export class Menu {
         nb.onchange = () => { if (Number.isFinite(+nb.value)) { this.set(key, +nb.value * scale); sl.value = nb.value; } };   // the box may go outside the slider's range
         show(); row.appendChild(sl); row.appendChild(nb); this.inputs.push(show);
       }
-      el.appendChild(row);
+      into.appendChild(row);
+      if (sec) sec.rows.push({ el: row, text: (label + ' ' + key).toLowerCase() });
     }
+    search.oninput = () => {
+      const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
+      for (const sc of sections) {
+        const all = !words.length || words.every((wd) => sc.title.toLowerCase().includes(wd));
+        let any = false;
+        for (const rw of sc.rows) {
+          const hit = all || words.every((wd) => rw.text.includes(wd));
+          rw.el.style.display = hit ? '' : 'none'; any = any || hit;
+        }
+        sc.d.style.display = any ? '' : 'none';
+        sc.d.open = words.length ? any : !!open[sc.title];
+      }
+    };
     const reset = document.createElement('button'); reset.textContent = 'Reset everything to defaults';
     reset.onclick = () => { Object.assign(CFG, this.defaults); localStorage.removeItem(KEY); for (const f of this.inputs) f(); this.onChange(); };
     el.appendChild(reset);
