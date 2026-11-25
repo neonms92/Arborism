@@ -10,6 +10,7 @@ import { Input } from './input.js';
 import { LeaveGuard } from './leave.js';
 import { Net } from './net/net.js';
 import { encodeSnapshot, Interp } from './net/snapshot.js';
+import { randomSeed, seedNumbers } from './model/seed.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -17,8 +18,19 @@ const q = new URLSearchParams(location.search);
 const world = new World();
 let view = null;
 const menu = new Menu(() => view && view.applySettings(), () => {
-  if (sim) sim.regrow(); else hud.toast('Only the host can grow a new tree');
+  if (sim) { applySeed(); sim.regrow(); } else hud.toast('Only the host can grow a new tree');
 });     // also loads saved settings into CFG, before anything reads them
+menu.world = world;
+// the world seed: one word for the tree, the ground and the yards (model/seed.js). A fresh random word on
+// every visit, or ?seed=word. The lobby box and the Tab menu's box edit the same value.
+CFG.WORLD_SEED = (q.get('seed') || '').trim().toLowerCase() || randomSeed();
+/** Turn the seed word into the generators' numeric seeds, just before a tree grows. */
+function applySeed() {
+  const n = seedNumbers(CFG.WORLD_SEED);
+  if (n) { CFG.TREE_SEED = n.tree; CFG.TERRAIN_SEED = n.terrain; CFG.YARD_SEED = n.yard; }
+}
+menu.onSeed = () => { $('seed').value = CFG.WORLD_SEED; };
+menu.showSeed();
 menu.onSkip = () => { if (sim) sim.skipTime(); else hud.toast('Only the host can change the time of day'); };
 menu.onChipper = () => { if (sim) sim.chipper.respawn(); else hud.toast('Only the host can respawn the chipper'); };
 view = new View($('game'), world);
@@ -33,6 +45,7 @@ let sim = null, interp = null, me = -1, aux = null, room = '', role = '', runnin
 let nextPid = 1, acc = 0, last = performance.now(), inputTimer = 0;
 
 world.on((ev, info) => {
+  if ((ev.t === 'terrain' || ev.t === 'load') && menu.open) menu.showSeed();
   if (ev.t === 'toast' && (ev.to < 0 || ev.to === me)) hud.toast(ev.msg);
   if (ev.t === 'rmpiece' && interp) interp.drop(ev.piece);
   if (ev.t === 'chip' && interp) for (const id of info.gone) interp.drop(id);
@@ -46,7 +59,8 @@ async function startHost(online) {
   if (running) return; running = true;
   msg('Starting simulation...');
   const { Sim } = await import('./sim/sim.js');
-  if (q.has('seed')) CFG.TREE_SEED = +q.get('seed');
+  CFG.WORLD_SEED = $('seed').value.trim().toLowerCase() || CFG.WORLD_SEED;
+  applySeed();
   sim = await Sim.create(world);
   me = nextPid++;
   sim.players.add(me, 'host');
@@ -118,6 +132,9 @@ function begin() {
   document.activeElement?.blur();
 }
 
+$('seed').value = CFG.WORLD_SEED;
+$('seed').onchange = () => menu.setSeed($('seed').value || randomSeed());
+$('bSeed').onclick = () => menu.setSeed(randomSeed());
 $('bHost').onclick = () => startHost(true);
 $('bSolo').onclick = () => startHost(false);
 $('bJoin').onclick = () => startJoin($('code').value);

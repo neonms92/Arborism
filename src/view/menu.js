@@ -5,8 +5,11 @@
 // To add a variable: put it in config.js and add one line to ROWS.
 // Rows marked host only do something on the machine running the simulation
 // (the host, or solo); on a joined client they are shown but have no effect.
+// Above the rows sits the world seed (CFG.WORLD_SEED, model/seed.js): a word
+// for the next tree, ground and yards. It is not remembered between visits.
 
 import { CFG } from '../config.js';
+import { randomSeed } from '../model/seed.js';
 
 const KEY = 'arb-settings-v1';
 const OPEN_KEY = 'arb-settings-open-v1';   // which sections are expanded
@@ -64,7 +67,7 @@ export const ROWS = [
   ['CLOUD_HOURS', 'Clouds: game hours between changes in the weather', 0.25, 24, 0.25, 1, true],
   ['CLOUD_CHANGE', 'Clouds: time to go from clear to overcast (s)', 5, 1200, 5, 1, true],
   ['CLOUD_DIM', 'Clouds: share of sun and moon light that full cover blocks', 0, 1, 0.05, 1],
-  ['CLOUD_WIND', 'Clouds: drift speed (m/s)', 0, 40, 0.5, 1],
+  ['CLOUD_WIND', 'Clouds: drift speed (m/s)', 0, 4, 0.05, 1],
   ['Wood fibres'],
   ['MOR', 'Tension strength (MPa)', 2, 80, 1, 1e6, true],
   ['COMP', 'Crushing strength (MPa)', 1, 60, 1, 1e6, true],
@@ -115,9 +118,7 @@ export const ROWS = [
   ['FIBRE_PITCH', 'Fibre density: fibre width (mm). Smaller = more fibres', 8, 100, 1, 0.001, true],
   ['GRID_MAX', 'Most fibres across one stem', 3, 25, 2, 1, true],
   ['SEG_LEN', 'Fibre segment length (m)', 0.15, 2, 0.05, 1, true],
-  ['TREE_SEED', 'Shape (seed)', 1, 200, 1, 1, true],
   ['Ground (applies when you press Grow)'],
-  ['TERRAIN_SEED', 'Shape of the hills and ledges (seed)', 1, 200, 1, 1, true],
   ['TERRAIN_HILL_H', 'Hill height (m; 0 = no hills)', 0, 6, 0.1, 1, true],
   ['TERRAIN_HILL_W', 'Hill spacing: hilltop to hilltop (m)', 5, 120, 1, 1, true],
   ['TERRAIN_LEDGES', 'Ledge levels (0 = no ledges)', 0, 10, 1, 1, true],
@@ -128,7 +129,6 @@ export const ROWS = [
   ['TERRAIN_BLEND', 'Level ground (under houses, sheds, patios) blends into the hills over (m)', 0.5, 20, 0.5, 1, true],
   ['Yards (apply when you press Grow)'],
   ['YARD_DENSITY', 'Density of houses, sheds, fences and paving (0 to 1; lots shrink as it rises)', 0, 1, 0.05, 1, true],
-  ['YARD_SEED', 'Layout of the yards (seed)', 1, 200, 1, 1, true],
   ['YARD_LOT_MAX', 'Lot width at density 0 (m)', 8, 60, 1, 1, true],
   ['YARD_LOT_MIN', 'Lot width at density 1 (m)', 8, 60, 1, 1, true],
   ['YARD_EXTENT', 'Yards reach this far from the tree (m; 0 = only the tree\'s yard)', 0, 90, 1, 1, true],
@@ -194,6 +194,7 @@ export class Menu {
     let open = {};
     try { open = JSON.parse(localStorage.getItem(OPEN_KEY) || '{}'); } catch { /* ignore */ }
     this.inputs = [];
+    this.buildSeed(el);
     const sections = [], actions = [];
     let sec = null;
     for (const r of ROWS) {
@@ -256,6 +257,32 @@ export class Menu {
     foot.appendChild(reset); el.appendChild(foot);
   }
 
+  /** The world seed box: the word the next Grow uses, a reroll button, and the seed of the world in play. */
+  buildSeed(el) {
+    const box = document.createElement('div'); box.className = 'seed';
+    const row = document.createElement('label'); row.className = 'seedrow';
+    const name = document.createElement('span'); name.textContent = 'World seed (tree, ground and yards; applies when you press Grow)';
+    const tb = document.createElement('input'); tb.type = 'text'; tb.maxLength = 32; tb.autocomplete = 'off'; tb.spellcheck = false;
+    const dice = document.createElement('button'); dice.textContent = 'New'; dice.title = 'A new random seed';
+    const now = document.createElement('p');
+    row.append(name, tb, dice); box.append(row, now); el.appendChild(box);
+    tb.onchange = () => this.setSeed(tb.value);
+    dice.onclick = (e) => { e.preventDefault(); this.setSeed(randomSeed()); };
+    this.showSeed = () => {
+      if (document.activeElement !== tb) tb.value = CFG.WORLD_SEED;
+      const w = this.world && this.world.seed;
+      now.textContent = w ? `This world: ${w}` : '';
+    };
+    this.inputs.push(this.showSeed); this.showSeed();
+  }
+
+  /** Change the world seed (no localStorage: every visit starts with a fresh random word). */
+  setSeed(word) {
+    CFG.WORLD_SEED = String(word || '').trim().toLowerCase();
+    for (const f of this.inputs) f();
+    this.onSeed && this.onSeed();
+  }
+
   set(key, value) {
     CFG[key] = value;
     const changed = {};
@@ -267,6 +294,6 @@ export class Menu {
   toggle(on = !this.open) {
     this.open = on;
     this.el.style.display = on ? 'block' : 'none';
-    if (on) document.exitPointerLock?.();
+    if (on) { document.exitPointerLock?.(); this.showSeed(); }
   }
 }

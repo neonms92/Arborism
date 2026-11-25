@@ -15,7 +15,7 @@ No build, no npm install. ES modules are served as-is; libraries are in
 `vendor/` and mapped in the import map in `index.html`.
 
 URL parameters: `?solo` (start immediately), `?host=CODE`, `?join=CODE`,
-`?seed=N` (tree), `?signal=host:port` (own PeerJS server), `?ice=<json>`
+`?seed=word` (world seed: tree, ground and yards; random if absent), `?signal=host:port` (own PeerJS server), `?ice=<json>`
 (extra STUN/TURN servers), `?test=FM-10,...|all&mode=smoke|must|explore|sweep`
 (engine tests, headless; docs/TESTS.md section 8), `?view=FM-10` (watch that
 test's default point, touch controls for phones; its Saw button cuts by finger),

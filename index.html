@@ -30,6 +30,11 @@
   #menu details { border-top: 1px solid rgba(255,255,255,.12); padding: 2px 0; }
   #menu summary { cursor: pointer; color: #e8a23a; font-weight: 700; font-size: 14px; padding: 8px 0; }
   #menu input.search { width: 100%; box-sizing: border-box; font: inherit; padding: 7px 9px; border-radius: 6px; border: 0; margin: 6px 0 8px; }
+  #menu .seed { border-top: 1px solid rgba(255,255,255,.12); padding: 6px 0 4px; }
+  #menu .seedrow { display: grid; grid-template-columns: 1fr 130px auto; gap: 10px; align-items: center; }
+  #menu .seedrow input { font: inherit; padding: 5px 7px; border-radius: 4px; border: 0; min-width: 0; }
+  #menu .seedrow button { margin: 0; }
+  #menu .seed p { margin: 4px 0 0; }
   #menu input[type=number] { width: 70px; font: inherit; padding: 3px 4px; border-radius: 4px; border: 0; }
   #menu input[type=checkbox] { justify-self: start; width: 18px; height: 18px; }
   #menu button.go { margin: 8px 0 4px; background: #e8a23a; font-weight: 700; }
@@ -43,6 +48,8 @@
   #lobby button.alt { background: #4a5d42; color: #fff; font-size: 16px; padding: 8px 14px; min-width: 0; }
   #lobby button:focus, #lobby input:focus { outline: 3px solid #fff; }
   #lobby input { width: 130px; text-transform: uppercase; text-align: center; }
+  #lobby input#seed { width: 170px; text-transform: none; }
+  #lobby label { opacity: .8; font-size: 15px; }
   #msg { min-height: 1.4em; color: #ffd27a; }
   #help { font-size: 12.5px; opacity: .75; margin-top: 16px; text-align: left; }
 </style>
@@ -63,6 +70,7 @@
 <div id="lobby"><div class="box">
   <h1>ARBORISM</h1>
   <p>co-op tree work &middot; physics prototype</p>
+  <div><label for="seed">Seed</label> <input id="seed" maxlength="32" autocomplete="off" spellcheck="false"> <button id="bSeed" class="alt" title="A new random seed">New</button></div>
   <div><button id="bHost">Host</button> <button id="bSolo">Solo</button></div>
   <div><button id="bTest" class="alt">Testing</button></div>
   <div><input id="code" maxlength="5" placeholder="CODE" autocomplete="off"> <button id="bJoin">Join</button></div>

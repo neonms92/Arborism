@@ -843,7 +843,7 @@ use: the harness keeps it, `Sim` option `terrain: true` turns it on).
   grip is exceeded, so it does not creep down a slope); chip piles sit on the ground; players spawn 1.2 m
   above it, and a new ground lifts anyone it would bury.
 - **Reset.** A new tree makes the ground again from the current settings
-  (and the menu's `TERRAIN_SEED`), before the pavers, chipper and builds.
+  (and `TERRAIN_SEED`, which the world seed word sets; see 6.9), before the pavers, chipper and builds.
 
 ### 6.8 Yards
 
@@ -852,6 +852,20 @@ use: the harness keeps it, `Sim` option `terrain: true` turns it on).
 it before the ground is made (the plan's pads go into the terrain spec), then
 puts it up through the ordinary `builds` and `pavers` events. Flat ground
 (the engine tests) gets no yards.
+
+### 6.9 World seed
+
+One word drives every procedural part of a new world (`model/seed.js`,
+D82). The game starts with a random eight-letter word of alternating
+consonants and vowels (ph, ch, th, sh and wh count as consonants), rerolled
+if a rough word filter finds something rude in a normalised spelling (ph is
+f, c and ck are k, and so on). The lobby and the Tab menu show it and let
+the player type their own or reroll. Just before a tree grows, the host
+hashes the word into `TREE_SEED`, `TERRAIN_SEED` and `YARD_SEED`; the yard
+trees already take their seeds from the yard plan. The word travels on the
+`terrain` event, so every machine's Tab menu shows the seed of the world in
+play. An empty word leaves the three numeric seeds as they are, which is
+what the engine tests use. The word is not remembered between visits.
 
 - **Lots**: blocks of lots along x, separated by `YARD_STREET` streets; a
   block is two rows back to back, each facing its own street, sharing their

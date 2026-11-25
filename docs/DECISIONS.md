@@ -1143,3 +1143,32 @@ down).
   Pushing the drawbar uphill, a scripted walk toward the grip moved it 2 to
   9 m: it is faster where the player keeps behind the drawbar, which the
   script steers only crudely.
+
+**D82 — One readable world seed; slower clouds; no running total in damage toasts.**
+Owner (2026-11-25): show a seed text box for the procedural generation,
+prefilled with a random eight-character word of alternating consonants and
+vowels, with letter pairs (ph, ch, th...) as consonants and a rudimentary bad
+word filter that rerolls (ph counting as f); show it in the settings menu.
+Slow the clouds 10x. Take the running total out of the damage toasts.
+- *One word for everything.* `model/seed.js` hashes the word (FNV-1a,
+  salted per use, lower-cased and trimmed) into `TREE_SEED`, `TERRAIN_SEED`
+  and `YARD_SEED` (1..1e6) just before a tree grows, on the host. The yard
+  trees already follow `YARD_SEED`. The three numeric rows left the Tab
+  menu; an empty word keeps them as configured, which the engine tests rely
+  on (their `WORLD_SEED` is '').
+- *Where it shows.* A box beside Host / Solo in the lobby and at the top of
+  the Tab menu, each with a New button; both edit the same value. The
+  menu's line "This world: ..." is the seed of the world in play, carried on
+  the `terrain` event and in the welcome, so a joined client sees the
+  host's seed. My choices: the word is not saved between visits (each visit
+  starts with a fresh word, or `?seed=word`), and words are shown lower
+  case. `?seed=` now takes a word, not a tree number.
+- *Filter.* A short list of rude stems matched anywhere in a normalised
+  spelling: ph → f, th → its own letter (so "bathoruk" does not read
+  "hor"), ck / c / q → k, ch → tsh, wh → w, x → ks, z → s, y → i, doubled
+  letters once. Rough on purpose: about 6% of random words are rerolled.
+  Typed seeds are not filtered.
+- *Clouds.* `CLOUD_WIND` 6 → 0.6 m/s; the slider now runs 0..4.
+- *Damage toasts* say only what broke and its cost; the running total stays
+  on the status line.
+
