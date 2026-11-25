@@ -845,3 +845,36 @@ feed, the seize-and-saw test and the smoke run are unchanged. One case
 remains: a thin twig tip that has already sunk below the ground holds a
 branch short of the mouth. That is the heightfield letting small tips through
 (D62), not the chipper.
+
+**D71 — Polish round (owner list of 2026-11-25).** Defaults: mouse look 8,
+new tree 22 m by 1.2 m, cutting rate 200 cm²/s, `STUB_LEN` 0.8 m. The
+bigger default tree has about five times the fibres of the old one (≈ 350
+segments, ≈ 13 700 fibres): FM-22, which grows the default tree, now
+reports an idle step p95 of 2 to 6 ms against its 1 ms limit (0.9 ms on
+main before). Left as a finding, not loosened. Other choices:
+- *Lanyard stays on its stem.* It used to slide onto whichever child pointed
+  most where the player looked, which could be a short branch. Now it only
+  slides onto the child that turns least from the segment it is on, and only
+  if that turn is under `STEM_BEND` (20°; branches leave the trunk at 25° or
+  more off its axis). Going down, it stops where the segment below does not
+  continue the same stem. A general geometric rule, not a "trunk" flag.
+- *Jut is trigonometric.* A branch blocks the lanyard when the farthest
+  point of its wood from the parent stem's axis line, less the stem radius,
+  is at least `STUB_LEN`. The old test was one segment's length, or any
+  branch with more than one segment. On the default tree 62 of 69 branches
+  block.
+- *Off the end releases.* Climbing up past a segment with no children, or
+  down past the bottom of a piece that is not on the ground, drops the
+  climber (with the piece's velocity if it moves) and says so.
+- *Pull force.* Walking away from held wood stopped pulling harder at half of
+  `GRAB_MAX` (300 N). That is now its own setting, `PULL_FORCE`, at 600 N
+  (twice), and `GRAB_MAX` doubles to 1200 N so the margin before wood tears
+  out of the hands is unchanged.
+- *Diagonals.* Two movement keys move at the speed of one: the host scales
+  (mx, my) down to length 1. This also applies to climbing.
+- *Paver slope.* No paver is laid where the ground under its middle is
+  steeper than `PAVER_MAX_SLOPE` (30°). The host sends the limit in the
+  `pavers` event so every machine lays the same set. Default yards: 17 of
+  482 pavers were steeper than 30° on main (up to 66°).
+- Injury thresholds `DV_SHAKEN`, `DV_HURT`, `DV_DOWN` and `SHAKEN_TIME` are
+  in the Tab menu.
