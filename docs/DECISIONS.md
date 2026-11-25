@@ -540,6 +540,13 @@ left is pulled in and chipped (`Rope.swallow`). It also snaps past
 `ROPE_BREAK` like any rope. Damage to the chipper from this is ignored for
 now.
 
+2026-11-25, owner: feeding looked wrong (wood chipped 2 m beside the truck,
+pulled straight at a point inside it). The rollers now pull the wood to the
+hopper mouth first, round behind it if needed, then down the throat; only
+then does it pass through the chipper's colliders, and a segment is chipped
+only with all of it inside the hopper and body. Checked with a limb started
+2.2 m beside the truck: every chipped segment ended within the chassis width.
+
 **D58 — Feet lean into a moving load.** Towing a 600 kg chipper with the
 existing grab tore the hold in one tick (walking speed against a 20 kN/m hold
 with damping). Rather than a special rule for the chipper, holding anything

@@ -659,12 +659,14 @@ log can still drag, tip or hoist it.
   (plus a creep while the pull is under half of `GRAB_MAX`), so the player
   leans into the load instead of walking out of the hold.
 - **Feeding.** Holding loose wood, {interact} while looking at the chipper
-  hands the piece to the feed rollers. They drive the point held toward the
-  drum at `CHIP_FEED_V`: a stiff velocity servo plus a motor term that rises
+  hands the piece to the feed rollers. They drive the point held at
+  `CHIP_FEED_V`: first to the hopper mouth (round behind it when the wood is
+  beside or ahead of it, and colliding with the chipper until then), then
+  centred down the throat to the drum: a stiff velocity servo plus a motor term that rises
   to `CHIP_PULL` within about a second of being held back. The reaction goes
-  into the chipper. A fed piece passes through the chipper's colliders; every
-  segment with both ends past the drum (and in no live joint) is removed by a
-  `chip` event, and its wood (plus leaves) × `CHIP_SWELL` lands as chips at the
+  into the chipper. Once in the mouth a fed piece passes through the chipper's colliders;
+  a segment that has reached the drum with both ends inside the hopper and
+  the chipper's body (and in no live joint) is removed by a `chip` event, and its wood (plus leaves) × `CHIP_SWELL` lands as chips at the
   discharge point. Standing wood cannot be fed.
 - **Chip piles** are cones at a fixed angle of repose whose volume is the
   chips' volume, one pile per landing spot (a new pile when the chipper has
