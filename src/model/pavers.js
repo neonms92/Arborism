@@ -6,9 +6,9 @@
 // ground is divided into cells of side c, and each cell holds two c x c/2
 // pavers, side by side, turned a quarter turn from the cells next to it. Only
 // whole pavers that fit inside the area are laid.
-//   {shape: 'circle', x, z, r, pit}   whole pavers within r of the centre, with a square of
-//                                     half-width pit left open in the middle (the tree pit)
-//   {shape: 'rect', x, z, yaw, w, d}  whole pavers within a w x d rectangle (w along the area's x)
+//   {shape: 'circle', x, z, r, pit}      whole pavers within r of the centre
+//   {shape: 'rect', x, z, yaw, w, d, pit} whole pavers within a w x d rectangle (w along the area's x)
+// pit (optional): a square of that half-width left open in the middle (a tree pit).
 // Their tops are flush with the ground, so the ground collider is what wood
 // and players actually land on; the sim works out which paver a contact
 // point is on (paverAt), and the view lays each one on the ground under it.
@@ -29,18 +29,19 @@ export function layPavers(c, areas) {
   const list = [], grid = new Map();
   for (const A of areas) {
     const ca = Math.cos(A.yaw || 0), sa = Math.sin(A.yaw || 0);
-    let ni, nj, k = 0, fits;
+    let ni, nj, inside;
     if (A.shape === 'circle') {
-      ni = nj = Math.max(1, Math.ceil(A.r / c)); k = Math.max(1, Math.ceil((A.pit || 0) / c - 1e-6));
-      fits = (p) => Math.hypot(Math.abs(p.x) + p.hx, Math.abs(p.z) + p.hz) <= A.r;      // its far corner is inside the circle
+      ni = nj = Math.max(1, Math.ceil(A.r / c));
+      inside = (p) => Math.hypot(Math.abs(p.x) + p.hx, Math.abs(p.z) + p.hz) <= A.r;      // its far corner is inside the circle
     } else {
-      ni = Math.max(1, Math.ceil(A.w / 2 / c)); nj = Math.max(1, Math.ceil(A.d / 2 / c)); k = 0;
-      fits = (p) => Math.abs(p.x) + p.hx <= A.w / 2 + 1e-6 && Math.abs(p.z) + p.hz <= A.d / 2 + 1e-6;
+      ni = Math.max(1, Math.ceil(A.w / 2 / c)); nj = Math.max(1, Math.ceil(A.d / 2 / c));
+      inside = (p) => Math.abs(p.x) + p.hx <= A.w / 2 + 1e-6 && Math.abs(p.z) + p.hz <= A.d / 2 + 1e-6;
     }
+    const pit = A.pit || 0;      // no paver reaches into the square of this half-width round the area's middle (the tree pit)
+    const fits = (p) => inside(p) && !(Math.abs(p.x) - p.hx < pit && Math.abs(p.z) - p.hz < pit);
     // a rectangle's weave starts at its corner, so the pavers fill it to the edge when it is a whole number of cells
     const ox = A.shape === 'rect' ? -A.w / 2 + ni * c : 0, oz = A.shape === 'rect' ? -A.d / 2 + nj * c : 0;
     for (let i = -ni; i < ni; i++) for (let j = -nj; j < nj; j++) {
-      if (k && i >= -k && i < k && j >= -k && j < k) continue;          // the tree pit
       const cx = (i + 0.5) * c + ox, cz = (j + 0.5) * c + oz, alongX = ((i + j) & 1) === 0;
       for (let h = 0; h < 2; h++) {
         const o = (h - 0.5) * c / 2;

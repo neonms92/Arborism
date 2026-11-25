@@ -82,7 +82,7 @@ export class Sim {
   grow() {
     const plan = this.builds.plan();      // the yards round the tree: the ground is made with the level pads they ask for
     this.emit({ t: 'terrain', spec: this.flat ? null : terrainSpec(CFG, plan.pads) });
-    this.pavers.lay(plan.areas); this.chipper.place(); this.builds.place();
+    this.pavers.lay(plan.areas); this.chipper.place(false, plan.chipper); this.builds.place();
     this.emit({ t: 'tree', piece: this.world.newId(), segs: generateTree(CFG.TREE_SEED, () => this.world.newId()) });
   }
 

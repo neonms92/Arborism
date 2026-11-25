@@ -787,3 +787,22 @@ runs at 30 ledges, jumping every 0.4 s while walking at them: 23 got up
 before, with no climbing): landing at a little over `DV_SHAKEN` (4 m/s) after
 slamming into the face or falling back off it. The threshold was left alone.
 
+
+**D69 — The tree's lot is an ordinary lot; its paving, shed and chipper come from the same rules.**
+Owner: "Lot width doesn't seem to be applying to the tree's own lot, as it
+should. The paver circle and prototype shed are not meant to be hard-coded
+features and should instead be part of the generative system." So the tree's
+lot now has the width and depth every lot has at that density, with the tree
+somewhere in its back half. Everything on any lot is placed only where it
+fits, clear of what is already there, so on a small lot things shrink or are
+left out instead of the lot growing. The tree's lot reserves the trunk's
+clear ground (`YARD_TREE_CLEAR`, 4 m by default, so the 4 m player spawn
+stays clear), then usually gets paving round the trunk: a circle or a
+square, up to `PAVER_RADIUS` × `TREE_HEIGHT` and only as big as the lot
+allows. Its shed and house follow the ordinary rules. Judgment calls, not
+reviewed: the chipper still belongs to the tree's lot, parked after the house
+(so the house gets the front yard first) in whichever direction around the
+tree it fits, and in the street in front of the lot when it fits nowhere in
+it, which happens on the small lots of high density. Flat ground (the engine
+tests) keeps the old circle and parking so the tests do not change.
+`SHED_GAP` is gone.
