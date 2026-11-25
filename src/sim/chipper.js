@@ -26,6 +26,7 @@ import { CFG } from '../config.js';
 import { segMass } from '../model/world.js';
 import { SHAPE, parkedPose, pileShape, CHIPPER_BODY_ID } from '../model/chipper.js';
 
+const THROAT = 0.3;                  // m: the feed point counts as in the mouth within this of the hopper's axis
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _a = new THREE.Vector3(), _b = new THREE.Vector3();
 
 export class Chipper {
@@ -102,7 +103,13 @@ export class Chipper {
   noHit(h, seg) {
     if (!this.cols.has(h) || seg === undefined) return false;
     const s = this.sim.world.segs.get(seg);
-    return !!s && this.feeding.has(s.piece);
+    return !!s && !!this.feeding.get(s.piece)?.entered;           // until it is in the mouth, it bumps into the chipper
+  }
+
+  /** How far a chipper-local point is from the line through the hopper mouth and the drum, and whether it is inside. */
+  throat(l) {
+    const S = SHAPE, lat = Math.hypot(l[1] - S.INFEED[1], l[2]);
+    return { lat, inMouth: l[0] > S.INFEED[0] - 0.1 && lat < THROAT };
   }
 
   toWorld(l, target = new THREE.Vector3()) {
@@ -138,16 +145,23 @@ export class Chipper {
   pre(dt) {
     if (!this.body) return;
     this.tyres(dt);
-    const sim = this.sim, w = sim.world, deep = [SHAPE.DRUM_X + 4, SHAPE.INFEED[1], 0];
+    const sim = this.sim, w = sim.world, S = SHAPE;
     for (const [piece, f] of [...this.feeding]) {
       const b = sim.bodies.get(piece);
       if (!b || !w.pieces.has(piece)) { this.feeding.delete(piece); continue; }
       let s = w.segs.get(f.seg);
       if (!s || s.piece !== piece) { if (!this.pickFeed(piece, f)) { this.feeding.delete(piece); continue; } s = w.segs.get(f.seg); }
-      // the rollers: drive the feed point toward the drum at CHIP_FEED_V, with no more than CHIP_PULL
-      const P = sim.segToWorld(s, f.p, _a), dir = this.toWorld(deep, _b).sub(P);
+      // The rollers: drive the feed point at CHIP_FEED_V, with no more than CHIP_PULL. First to the hopper mouth
+      // (round behind it if the wood is beside the chipper), then straight down the throat to the drum.
+      const P = sim.segToWorld(s, f.p, _a), l = this.toLocal(P), th = this.throat(l);
+      if (!f.entered && th.inMouth) f.entered = true;
+      let aim;
+      if (f.entered) aim = [S.DRUM_X + 0.3, S.INFEED[1], 0];                                // down the axis, centred, to the drum
+      else if (l[0] > S.INFEED[0] - 0.3) aim = [S.INFEED[0] - 0.9, S.INFEED[1], 0];        // beside or ahead of the mouth: go round
+      else aim = [S.INFEED[0] + 0.3, S.INFEED[1], 0];                                       // behind it: into the mouth
+      const dir = this.toWorld(aim, _b).sub(P);
       const dist = dir.length(); dir.multiplyScalar(1 / (dist || 1));
-      const vp = b.velocityAtPoint(P), want = CFG.CHIP_FEED_V;           // the target is well past the drum: they never stop
+      const vp = b.velocityAtPoint(P), want = Math.min(CFG.CHIP_FEED_V, dist * 4);   // at the drum they press the wood onto it
       const along = vp.x * dir.x + vp.y * dir.y + vp.z * dir.z;
       const err = new THREE.Vector3(dir.x * want - vp.x, dir.y * want - vp.y, dir.z * want - vp.z), el = err.length();
       // stiff rollers: close the speed error in a few ticks, through the mass the wood presents at the feed point...
@@ -163,14 +177,15 @@ export class Chipper {
     }
   }
 
-  /** The feed point becomes the end of the remaining wood nearest the drum. */
+  /** The feed point becomes the end of the remaining wood nearest the throat (where the last of it was chipped). */
   pickFeed(piece, f) {
-    const sim = this.sim; let best = -Infinity;
+    const sim = this.sim; let best = -Infinity, bl = null;
     f.seg = -1;
     for (const s of sim.world.segsOf(piece)) for (const e of [s.a, s.b]) {
-      const x = this.toLocal(sim.segToWorld(s, e, _a))[0];
-      if (x > best) { best = x; f.seg = s.id; f.p = e.slice(); }
+      const l = this.toLocal(sim.segToWorld(s, e, _a)), sc = Math.min(l[0], SHAPE.DRUM_X) - 2 * this.throat(l).lat;
+      if (sc > best) { best = sc; bl = l; f.seg = s.id; f.p = e.slice(); }
     }
+    f.entered = !!bl && bl[0] > SHAPE.INFEED[0] - 0.1 && this.throat(bl).lat < SHAPE.CHASSIS.h[2];   // already inside the chipper
     return f.seg >= 0;
   }
 
@@ -221,8 +236,9 @@ export class Chipper {
       for (const s of segs) {
         const inJoint = st.noHit.has(s.id) || st.rootOf.has(s.id);      // still part of a live joint: the fibres decide
         const a = this.toLocal(sim.segToWorld(s, s.a, _a)), b = this.toLocal(sim.segToWorld(s, s.b, _b));
-        const inside = (l) => l[0] > SHAPE.DRUM_X && Math.abs(l[2]) < 2 && l[1] > -1.5 && l[1] < 2.5;
-        if (!inJoint && inside(a) && inside(b)) eat.push(s); else left += segMass(s) + s.leaf;
+        // chipped when it reaches the drum with all of it inside the hopper and the chipper's body
+        const inside = (l) => l[0] > SHAPE.INFEED[0] - 0.1 && Math.abs(l[2]) < SHAPE.CHASSIS.h[2] && Math.abs(l[1] - SHAPE.CHASSIS.c[1]) < SHAPE.CHASSIS.h[1] + 0.05;
+        if (!inJoint && f.entered && inside(a) && inside(b) && Math.max(a[0], b[0]) > SHAPE.DRUM_X - 0.1) eat.push(s); else left += segMass(s) + s.leaf;
       }
       if (!eat.length) continue;
       if (left < CFG.DEBRIS_MASS && !st.live.has(piece)) { eat.length = 0; eat.push(...segs); }      // the last twigs go too
@@ -236,7 +252,7 @@ export class Chipper {
     if (r.state !== 2 || r.anchor.seg === undefined) return;
     const s = sim.world.segs.get(r.anchor.seg);
     if (!s || s.piece !== piece) return;
-    if (!force && this.toLocal(sim.segToWorld(s, r.anchor.p, _a))[0] < SHAPE.DRUM_X) return;
+    if (!force) { const l = this.toLocal(sim.segToWorld(s, r.anchor.p, _a)); if (l[0] < SHAPE.DRUM_X || this.throat(l).lat > SHAPE.CHASSIS.h[2]) return; }
     sim.emit({ t: 'rope', rope: { ...r, anchor: { chip: 1 } } });
     sim.rope.L0 = Math.min(sim.rope.L0, sim.rope.pathLength()); sim.rope.prev = 0;
     sim.toast('The rope went into the chipper!');
