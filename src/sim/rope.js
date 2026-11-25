@@ -110,7 +110,7 @@ export class Rope {
     const s = pa.distanceTo(pb) + pb.distanceTo(pd);
     const fed = !!r.anchor.chip;
     if (fed && !sim.structure.isHeld(w.segs.get(r.block.seg).piece)) { this.swallow('The block\'s wood tore free: the chipper took the rope'); return; }
-    if (fed) this.L0 = Math.max(0.3, this.L0 - CFG.CHIP_FEED_V * dt);     // the feed rollers reel it in
+    if (fed && !sim.chipper.seized()) this.L0 = Math.max(0.3, this.L0 - CFG.CHIP_FEED_V * dt);     // the feed rollers reel it in (not while seized)
     let stretch = s - this.L0;
     const aSeg = fed ? null : w.segs.get(r.anchor.seg), aPiece = fed ? null : w.pieces.get(aSeg.piece);
     const m = fed ? sim.chipper.mass() : aPiece.fixed ? 500 : sim.bodies.get(aSeg.piece).mass();
