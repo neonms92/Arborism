@@ -390,9 +390,10 @@ export class View {
     // name tag on the chest (a strip of the torso's own tube) and the name across the back of the helmet
     const tagCv = document.createElement('canvas'); tagCv.width = 256; tagCv.height = 80;
     const tagTex = new THREE.CanvasTexture(tagCv); tagTex.colorSpace = THREE.SRGBColorSpace; tagTex.anisotropy = 4;
-    const tagW = 0.26, tag = new THREE.Mesh(new THREE.CylinderGeometry(0.263, 0.263, 0.08, 6, 1, true, Math.PI - tagW / 0.263 / 2, tagW / 0.263),
+    // over the left breast pocket: upper chest, off to the wearer's left (-x; they face -z)
+    const tagW = 0.15, tagAt = Math.PI + 0.5, tag = new THREE.Mesh(new THREE.CylinderGeometry(0.263, 0.263, 0.047, 4, 1, true, tagAt - tagW / 0.263 / 2, tagW / 0.263),
       new THREE.MeshLambertMaterial({ map: tagTex, polygonOffset: true, polygonOffsetFactor: -2 }));
-    tag.position.y = -0.02;
+    tag.position.y = 0.02;
     const backCv = document.createElement('canvas'); backCv.width = 256; backCv.height = 64;
     const backTex = new THREE.CanvasTexture(backCv); backTex.colorSpace = THREE.SRGBColorSpace; backTex.anisotropy = 4;
     const back = new THREE.Mesh(new THREE.SphereGeometry(0.207, 10, 3, Math.PI / 2 - 0.75, 1.5, 0.72, 0.5),
