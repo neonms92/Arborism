@@ -1,6 +1,6 @@
 // Host only: impacts on the concrete pavers (model/pavers.js).
 //
-// The pavers are flush with the ground, so wood and players land on the
+// The pavers are flush with the ground, so wood, players and the chipper land on the
 // ground collider. Every tick, each pair touching the ground with a contact
 // force event is looked at: the energy of the impact is
 // 1/2 * m_eff * v_n^2, where v_n is the speed the body was closing on the
@@ -13,6 +13,8 @@
 
 import { CFG, MODE } from '../config.js';
 import { paverAt } from '../model/pavers.js';
+
+const TOUCH = 0.01;                // m: contact points this much further than the nearest still share an impact (see impact)
 
 export class Pavers {
   constructor(sim) {
@@ -53,29 +55,45 @@ export class Pavers {
       const v = b.linvel(), vx = v.x, vy = v.y, vz = v.z, w = b.angvel();
       this.vel.set(b.handle, [vx, vy, vz, w.x, w.y, w.z]);
     }
+    sim.chipper.eachRigid((b) => {
+      if (b.isSleeping()) return;
+      const v = b.linvel(), vx = v.x, vy = v.y, vz = v.z, w = b.angvel();
+      this.vel.set(b.handle, [vx, vy, vz, w.x, w.y, w.z]);
+    });
   }
 
   impact(h, pv, out) {
     const sim = this.sim, col = sim.rapier.getCollider(h); if (!col) return;
     const body = col.parent(); if (!body || !body.isDynamic()) return;
     const pid = sim.colPlayer.get(h), pl = pid !== undefined ? sim.players.list.get(pid) : null;
-    if (pid === undefined && sim.colSeg.get(h) === undefined) return;
+    const chip = sim.chipper.solid(h);
+    if (pid === undefined && sim.colSeg.get(h) === undefined && !chip) return;
     if (pl && pl.mode === MODE.CLIMB) return;
 
-    // contact points on the ground (world), the impulse at each and the ground's normal, read out before calling Rapier again
-    const gt = this.ground.translation(), gx = gt.x, gy = gt.y, gz = gt.z, pts = [];
-    let nx = 0, ny = 0, nz = 0;
+    // On the heightfield ground Rapier reports no per-point impulses (contactImpulse is 0, though the pair's contact
+    // force event fires, so it is pushing). Then the closest points (within TOUCH of the nearest; with soft CCD the
+    // push can come before they meet) share it equally.
+    const gt = this.ground.translation(), gx = gt.x, gy = gt.y, gz = gt.z, cand = [];
+    let anyJ = false;
     sim.rapier.contactPair(this.ground, col, (man, flipped) => {
       const nm = man.normal(), s = nm.y < 0 ? -1 : 1;      // the ground's upward normal (the manifold's points from one collider to the other)
-      let any = false;
+      const n3 = [s * nm.x, s * nm.y, s * nm.z];
       for (let i = 0, n = man.numContacts(); i < n; i++) {
-        const J = man.contactImpulse(i); if (!(J > 0)) continue;
+        const J = man.contactImpulse(i), d = man.contactDist(i);
         const lp = flipped ? man.localContactPoint2(i) : man.localContactPoint1(i);
-        pts.push([lp.x + gx, lp.y + gy, lp.z + gz, J]); any = true;
+        cand.push([lp.x + gx, lp.y + gy, lp.z + gz, J > 0 ? J : 0, d, n3]);
+        if (J > 0) anyJ = true;
       }
-      if (any) { nx += s * nm.x; ny += s * nm.y; nz += s * nm.z; }
     });
+    let pts;
+    if (anyJ) pts = cand.filter((p) => p[3] > 0);
+    else {
+      let dmin = Infinity; for (const p of cand) dmin = Math.min(dmin, p[4]);
+      pts = cand.filter((p) => p[4] <= dmin + TOUCH); for (const p of pts) p[3] = 1;
+    }
     if (!pts.length) return;
+    let nx = 0, ny = 0, nz = 0;
+    for (const p of pts) { nx += p[5][0]; ny += p[5][1]; nz += p[5][2]; }
     let W = 0, cx = 0, cy = 0, cz = 0;
     for (const p of pts) { W += p[3]; cx += p[0] * p[3]; cy += p[1] * p[3]; cz += p[2] * p[3]; }
     cx /= W; cy /= W; cz /= W;
@@ -101,7 +119,7 @@ export class Pavers {
     }
     if (!(vn > 0)) return;
     const E = 0.5 * meff * vn * vn, thr = Math.max(1e-6, CFG.PAVER_CRACK_E);
-    if (this.log) this.log.push({ tick: sim.tick, E: Math.round(E), vn: +vn.toFixed(2), meff: Math.round(meff), n: pts.length, x: +cx.toFixed(2), z: +cz.toFixed(2), who: pl ? 'player' : 'wood' });
+    if (this.log) this.log.push({ tick: sim.tick, E: Math.round(E), vn: +vn.toFixed(2), meff: Math.round(meff), n: pts.length, x: +cx.toFixed(2), z: +cz.toFixed(2), who: pl ? 'player' : chip ? 'chipper' : 'wood' });
     if (E < thr) return;
 
     // share it out by impulse between the pavers under the points

@@ -754,3 +754,21 @@ outer end falls instead of being dragged in. `CHIP_CAPACITY` defaults to
 weigh 25 kg or less except for about a dozen, and those dozen range from
 136 kg up to the whole 1.2 t tree, so small limbs go straight in and big
 leaders and logs need sawing first.
+
+**D67 — The chipper cracks pavers and breaks structures; paver cracking works again on hilly ground.** The
+owner asked for pavers and structures to react to a falling chipper, and said
+that structures flattened by the rope feed (66 kN of drag, above every
+module's break force) are a feature, so no separate threshold. The chipper's
+colliders and its wreck parts now count in `builds.hurts` and in
+`pavers.impact`, with the same rules as wood: summed contact force against
+the module's break force, and impact energy against `PAVER_CRACK_E`. A parked,
+respawned or rolling chipper closes on the ground at about 0 m/s and cracks
+nothing; dropped 0.3 m it cracked one paver, dropped 1.5 m two. While testing,
+it turned out no paver had cracked since the heightfield ground (D62): on a
+heightfield Rapier's `contactImpulse` is always 0, though the contact force
+event fires, so `impact` found no points. Without impulses, the contact points
+within 1 cm of the nearest now share the impact equally (with soft CCD the
+push can come before they touch). A 1 t log dropped 3 m cracks pavers again.
+`rollResist` in `sim.js` reads the same impulses, so loose wood has had no
+rolling resistance on hilly ground since D62 either; it is not fixed here
+because that changes how logs roll.
