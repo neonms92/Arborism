@@ -130,10 +130,9 @@ export const CFG = {
   // --- breakable structures (sim/builds.js): the shed; rigid until hit hard enough, then loose boards ---
   SHED_GAP: 3,             // m between the edge of the paving and the shed, where it is put up
   SHED_BREAK_F: 25000,     // N of contact force from wood in one tick that breaks a module (the shed) apart
-  SHED_SCATTER: 1.0,       // how hard the boards are thrown out from the hit point, as a fraction of the impact speed
-  SHED_REACH: 1.5,         // m over which that throw falls off away from the hit point
-  SHED_APART: 0.3,         // s after a module breaks during which its own boards pass through each other while they fly apart
-  SHED_DENSITY: 450,       // kg/m3 of the shed's boards (applies at the next new tree)
+  FENCE_BREAK_F: 10000,    // N of contact force from wood in one tick that breaks one fence section apart
+  FENCE_GAP: 3,            // m between the edge of the paving and the fences
+  SHED_DENSITY: 450,       // kg/m3 of the shed's and fences' boards
 };
 
 // The values above as shipped, before the Tab menu loads saved settings over them (the test runner starts from these).

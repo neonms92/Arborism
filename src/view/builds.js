@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { compose } from '../model/builds.js';
 
-const COLORS = { wall: 0x7a5534, door: 0x5e7f4a, floor: 0x8f6a42, post: 0x6b4a2c, roof: 0x3b3f44 };
+const COLORS = { wall: 0x7a5534, door: 0x5e7f4a, floor: 0x8f6a42, post: 0x6b4a2c, roof: 0x3b3f44, rail: 0xb08a5a, picket: 0xc19a66, rough: 0xa39a8a };
 
 export class BuildsView {
   constructor(scene, world) {

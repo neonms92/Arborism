@@ -681,13 +681,21 @@ log can still drag, tip or hoist it.
 - **Reset.** A new tree re-lays the pavers fresh and re-parks the chipper
   (`chipper` event): default pose, brakes on, nothing feeding, no chips.
 
-### 6.6 Breakable structures: the shed
+### 6.6 Breakable structures: the shed and fences
 
 Structures (`model/builds.js`, `sim/builds.js`, `view/builds.js`) are built
 from **modules** glued together. A module is one unit, made of parts
-(boards: boxes in the module's frame). The shed is one module, put up
-`SHED_GAP` outside the paving on the far side of the trunk from the chipper's
-chute, door toward the trunk: about the chipper's distance from the tree.
+(boards: boxes in the module's frame, from the module's `shape`). The shed
+is one module, put up `SHED_GAP` outside the paving on the far side of the
+trunk from the chipper's chute, door toward the trunk: about the chipper's
+distance from the tree. A fence (`fence:<style>`, n sections) is one module
+per section, each with its first post (the last also has the closing post),
+each glued to the next and standing on the ground. Styles: `rail2` (two-rail:
+square posts, two boards on edge, 2.44 m sections), `split` (split rail:
+rough posts, three split logs, 3 m), `privacy` (6 ft: three rails, pickets on
+the good face, 2.44 m). A run of each is put up `FENCE_GAP` outside the
+paving: privacy on the −x side, two-rail on the +z side, split rail between
+the shed and the chipper. Procedural yard boundaries will place these later.
 
 - **Intact** modules have no physics of their own: their parts are colliders
   on the body the module is in, so things bump into them and nothing else.
@@ -695,24 +703,23 @@ chute, door toward the trunk: about the chipper's distance from the tree.
   or through intact glue, are in the build's fixed body.
 - **Breaking.** Each tick the contact forces on an intact module from wood,
   or from loose parts and bodies of a build, are added up; players and the
-  chipper do not count. At `SHED_BREAK_F` the module breaks (`smash` event)
-  and each part becomes a loose body. It gives way rather than stopping what
-  hit it: that body gets back its velocity from before the step, so it ploughs
-  on into the boards. The parts are thrown off from the contact point with the
-  closing speed there: `SHED_SCATTER` of it outward across the ground and half
-  that upward, falling off over `SHED_REACH` (never under 0.3 of it), plus a
-  spin, and for `SHED_APART` the boards of that module pass through each other
-  so they fly apart instead of jamming.
+  chipper do not count. At `SHED_BREAK_F` (shed) or `FENCE_BREAK_F` (one
+  fence section) the module breaks (`smash` event) and each part becomes a
+  loose body where it was, moving as the module was. It gives way rather than
+  stopping what hit it: that body gets back its velocity from before the step,
+  so it ploughs on into the boards. Everything after is ordinary physics: the
+  boards start a few millimetres apart, so with nothing pushing they would
+  stand; hit, they slump and are knocked about by what hit them.
 - **Glue.** After a break, intact modules no longer held by the ground
   through intact glue move together as one loose body (new id), with the
   velocity of the body they were in. A loose body also breaks on the ground,
   so a storey whose lower storey was smashed falls and comes apart where it
-  lands. Kind `stack` (two sheds, one glued on the other) exercises this; only
-  `shed` is put up by default.
+  lands. Kind `stack` (two sheds, one glued on the other) exercises this; it
+  is not put up by default.
 - **Sync.** Loose bodies and parts are ordinary snapshot transforms; the
   `smash` event carries their ids and the pose the module's body had, so a
   client draws the parts where they were until their first transform.
-- **Reset.** A new tree puts the shed up again, intact (`builds` event).
+- **Reset.** A new tree puts the shed and fences up again, intact (`builds` event).
 
 ---
 
