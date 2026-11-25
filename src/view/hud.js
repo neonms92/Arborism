@@ -42,6 +42,7 @@ export class Hud {
     this.fps += (1 / Math.max(dt, 1e-3) - this.fps) * 0.05;
     const a = aux && aux.pl.find((p) => p.id === me);
     let s = `${info}  |  ${Math.round(this.fps)} fps`;
+    if (a && a.ck > 0) s += `  |  carrying ${Math.round(a.ck * 1000)} L of chips`;
     if (a) s += `  |  ${a.m === MODE.CLIMB ? 'on spurs, lanyard on' : a.m === MODE.ROPE ? 'on the rope' : 'on the ground'}  |  ${INJ_NAME[a.inj]}`;
     this.status.textContent = s;
     this.prompt.textContent = a ? describe(a.pr, device, device === 'touch' && a.m === MODE.ROPE ? TOUCH_ROPE : null) : '';

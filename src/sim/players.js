@@ -114,7 +114,7 @@ export class Players {
   /** All wood is gone: everyone is on the ground with empty hands on the tree. */
   onReset() {
     for (const p of this.list.values()) {
-      sawOff(this.sim, p); p.grab = null;
+      sawOff(this.sim, p); p.grab = null; p.chips = 0;
       if (p.mode === MODE.ROPE) this.leaveRope(p);
       if (p.mode === MODE.CLIMB) this.toGround(p);
     }
@@ -292,11 +292,17 @@ export class Players {
     if (nearDev && rope.holder < 0 && !p.grab) {
       first = '{interact}: take the rope tail';
       if (pressed.interact) { p.mode = MODE.ROPE; rope.holder = p.id; }
+    } else if (p.chips > 0 && !p.grab) {
+      // hands full of chips: {interact} takes more off the pile looked at, while there is room, or puts them all down
+      const pile = control ? sim.chipper.aimPile(p) : -1, room = p.chips < CFG.CHIP_CARRY - 1e-5;
+      if (pressed.interact) { if (pile >= 0 && room) sim.chipper.take(p, pile); else sim.chipper.drop(p); p.chLock.add('lanyard'); }
+      first = pile >= 0 && room ? '{interact}: pick up more chips' : '{interact}: put the chips down';
     } else {
       // {interact} toggles holding the wood. Letting go does not start a lanyard throw until the button is
       // released; a press that grabs standing wood and keeps being held goes on to throw the lanyard.
       // At the chipper: with wood in hand it feeds it in; at its grip it takes hold of the chipper.
       const ca = control ? sim.chipper.aim(p) : null, atChip = ca && ca.dist < CFG.REACH;
+      const pile = control && !p.grab ? sim.chipper.aimPile(p) : -1;      // a chip pile within reach
       const wood = p.grab && !p.grab.chip ? sim.world.segs.get(p.grab.seg) : null;
       const loose = wood && !sim.world.pieces.get(wood.piece).fixed;
       if (pressed.interact && wood && atChip) {
@@ -304,10 +310,12 @@ export class Players {
         else this.say(p, 'Only loose wood can go in the chipper');
       } else if (pressed.interact && p.grab) { p.grab = null; p.chLock.add('lanyard'); }
       else if (pressed.interact && atChip && ca.grip) this.grabChipper(p, ca);
+      else if (pressed.interact && pile >= 0) { sim.chipper.take(p, pile); p.chLock.add('lanyard'); }
       else if (pressed.interact && reach) this.grabStart(p, aim);
       if (wood && atChip) first = loose ? '{interact}: feed it into the chipper' : 'Only loose wood can go in the chipper';
       else if (p.grab) first = p.grab.chip ? '{interact}: let go of the chipper   {move}: tow it' : '{interact}: let go of the wood';
       else if (atChip) first = ca.grip ? '{interact}: take hold of the chipper' : 'Chipper: grab a limb, then {interact} here to feed it in. Its grip is at the front';
+      else if (pile >= 0) first = '{interact}: pick up chips';
       else first = reach ? '{interact}: grab the wood' : '';
     }
     if (reach && !(nearDev && rope.holder < 0 && !p.grab)) {
@@ -451,7 +459,7 @@ export class Players {
     for (const p of this.list.values()) {
       const s = p.saw;
       out.push({
-        id: p.id, m: p.mode, inj: p.inj, gr: p.grab ? [p.grab.chip ? -1 : p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pr: p.prompt,
+        id: p.id, m: p.mode, inj: p.inj, ck: +(p.chips || 0).toFixed(4), gr: p.grab ? [p.grab.chip ? -1 : p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pr: p.prompt,
         cl: p.cl ? [p.cl.seg, +p.cl.t.toFixed(3), p.cl.side.map((x) => +x.toFixed(3))] : 0,
         saw: s.on ? [...s.A.toArray(), ...s.b.toArray(), ...s.f.toArray(), s.stuck ? 1 : 0, s.cutting ? 1 : 0, CFG.BAR_LEN].map((x) => +x.toFixed(3)) : 0,
       });
