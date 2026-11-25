@@ -967,7 +967,70 @@ and "Grow a new tree" still start from `CFG_DEFAULTS` (22 m, 1.2 m). This
 brings FM-22, which grows the default tree, back to the tree it was written
 for (see D71).
 
-**D76 — Back and swipe-back ask before leaving a game.** Owner: players
+**D76 — Day, night and the moon.** Owner asked for a simple sun and moon
+cycle "similar to Minecraft", moonlight that follows how bright the moon is,
+and headlamps at night.
+
+- *Clock.* The host keeps it (`sim.days`, days since the first midnight,
+  advancing `1 / DAY_LENGTH` per second) and sends `sky: [days, DAY_LENGTH]`
+  in aux. A client runs its own copy between packets, eases onto the host's
+  and jumps if it is more than 0.005 days off (a skip). It is a small
+  continuous value, so aux, not an event. It is not reset by a new tree.
+  The lobby behind the main menu keeps its own clock.
+- *Default length 20 minutes* (`DAY_LENGTH` 1200 s), the same as
+  Minecraft's day, starting at `DAY_START` 0.3 (mid-morning) so a game
+  starts in daylight. 0 stops time. Tab menu: Day, night and moon.
+- *Sky.* The sun rises in +x, leans `TILT` (0.45 rad) towards +z at noon and
+  sets in −x. The moon is always opposite the sun, as in Minecraft (so it is
+  up all night whatever its phase; a real new moon would rise with the sun).
+  The phase changes each noon, never during a night, and runs through
+  `MOON_DAYS` (8) from full to new and back. The look is our own: a soft
+  glowing sun disc, a moon drawn per phase on a canvas with a soft
+  terminator, faint dark side and grey seas, and 900 stars that turn with
+  the sky. They sit at 0.9 of the far plane, ignore fog and are depth-tested,
+  so wood and ground in front hide them.
+- *Light.* lit = (1 + cos(2π k / MOON_DAYS)) / 2. Moonlight =
+  `MOON_LIGHT` × lit, sky glow = `NIGHT_AMBIENT` + `MOON_AMBIENT` × lit, both
+  faded in with the moon's height. The scene's one shadow-casting
+  directional light is the sun by day and the moon by night (whichever is
+  brighter), so moonlit wood casts faint shadows. Sky and fog share one
+  colour, from night blue (lighter under a bright moon) through a warm band
+  at sunrise and sunset to the old day blue, so the fog of D73 still meets
+  the sky with no seam.
+- *Headlamps.* Every player has one: a spot light (`HEADLAMP` 14 cd, beam
+  half-width `HEADLAMP_ANGLE` 0.45 rad, no shadows) that fades in as the sun
+  nears the horizon (`HEADLAMPS` off = never). Your own follows the camera;
+  others' follow their yaw and pitch (pitch `pt` added to the player aux).
+  The light is in the scene, not the body, because your own body is hidden.
+  A small lamp on the helmet glows while it is on. Each player adds a light,
+  so a player joining makes three.js recompile shaders once (a short hitch).
+- *Not done.* Cloud cover (described to the owner, not built), weather,
+  seasons, the moon's position following its phase.
+
+**D77 — Frosted windows and weeds.** Owner asked for windows "frosted to
+opaque" and a toggle for weeds growing next to fences, structures and trees.
+
+- *Windows.* House glass is drawn opaque and pale (no transparency, casts a
+  shadow like the walls), so nobody sees into the empty rooms. Only houses
+  have glass; sheds have none.
+- *Weeds* (`view/weeds.js`, drawing only, no colliders, no events). Every
+  part of an intact module that stands on the ground and reaches within
+  0.3 m of it gives its footprint; tufts go just outside its outline,
+  `WEEDS_DENSITY` (8) per metre, skipping spots inside another footprint
+  (between pickets, between a foundation's rooms). A ring of them goes round
+  the base of every rooted trunk and every dormant yard tree. Where each tuft
+  stands and how it looks is hashed from the model, so every machine draws
+  the same weeds. A broken module's weeds go (rebuilt on the next
+  `builds`/`tree`/`terrain` event, not on the smash itself, so they stay
+  until then: cheap, and nobody looks at the grass under a wreck).
+- *Cost.* About 10 400 tufts at the default yards (10 triangles each),
+  instanced, one batch per 24 m square; squares past `WEEDS_DIST` (60 m) are
+  not drawn, under the frame-rate draw distance of D73. Building them takes
+  about 30 ms on a grow. In software GL the render-time difference with
+  them on or off was inside the run-to-run noise. Tab menu, View: `WEEDS`
+  (on by default), density, height, distance.
+
+**D78 — Back and swipe-back ask before leaving a game.** Owner: players
 lose the game to swipe-back gestures. No browser lets a page turn the
 gesture off, so: (1) CSS `overscroll-behavior: none` on the page (stops
 pull-to-refresh and Chrome / Edge's overscroll swipe-back, touch and

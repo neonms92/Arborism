@@ -1,4 +1,4 @@
-// Keeps a back gesture or the Back button from dropping the player out of a game (DECISIONS D76).
+// Keeps a back gesture or the Back button from dropping the player out of a game (DECISIONS D78).
 // Browsers do not let a page turn the gesture off, so the page keeps one history entry of its own on top: Back
 // pops that entry instead of leaving, and we ask. beforeunload covers what gets past it (a second Back while
 // the question is up on Chrome, closing the tab, typing a URL). iOS Safari has no beforeunload.

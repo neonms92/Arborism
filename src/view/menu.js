@@ -44,6 +44,22 @@ export const ROWS = [
   ['DRAW_ADAPT', 'Draw distance: how fast it drops (fraction per second; grows back 5x slower)', 0.01, 2, 0.01, 1],
   ['AUTO_FOG', 'Fog hides the edge of the draw distance'],
   ['FOG_START', 'Fog begins at this fraction of the draw distance', 0, 0.95, 0.05, 1],
+  ['WEEDS', 'Weeds grow along fences, buildings and tree trunks'],
+  ['WEEDS_DENSITY', 'Weeds: tufts per metre of edge', 0.5, 20, 0.5, 1],
+  ['WEEDS_HEIGHT', 'Weeds: height of an average tuft (cm)', 5, 120, 1, 0.01],
+  ['WEEDS_DIST', 'Weeds: drawn out to this distance (m)', 5, 300, 5, 1],
+  ['Day, night and moon'],
+  ['DAY_LENGTH', 'Length of a whole day and night (minutes; 0 = time stands still)', 0, 120, 0.5, 60, true],
+  ['MOON_DAYS', 'Days from one full moon to the next', 1, 30, 1, 1, true],
+  ['@skip', 'Skip ahead to the next sunrise, noon, sunset or midnight'],
+  ['SUN_LIGHT', 'Sunlight brightness', 0, 5, 0.05, 1],
+  ['MOON_LIGHT', 'Moonlight brightness under a full moon', 0, 2, 0.01, 1],
+  ['NIGHT_AMBIENT', 'Sky glow on a moonless night', 0, 1, 0.01, 1],
+  ['MOON_AMBIENT', 'Extra sky glow under a full moon', 0, 1, 0.01, 1],
+  ['STARS', 'Star brightness', 0, 1, 0.05, 1],
+  ['HEADLAMPS', 'Headlamps come on at night'],
+  ['HEADLAMP', 'Headlamp brightness (candela)', 0, 100, 1, 1],
+  ['HEADLAMP_ANGLE', 'Headlamp beam half-width (degrees)', 5, 80, 1, Math.PI / 180],
   ['Wood fibres'],
   ['MOR', 'Tension strength (MPa)', 2, 80, 1, 1e6, true],
   ['COMP', 'Crushing strength (MPa)', 1, 60, 1, 1e6, true],
@@ -190,6 +206,11 @@ export class Menu {
         const b = document.createElement('button'); b.textContent = r[1]; b.className = 'go';
         b.onclick = () => (r[0] === '@grow' ? this.onGrow() : this.onChipper && this.onChipper());
         actions.push(b); continue;
+      }
+      if (r[0] === '@skip') {                           // an action that belongs to its section
+        const b = document.createElement('button'); b.textContent = r[1]; b.className = 'go';
+        b.onclick = () => this.onSkip && this.onSkip();
+        into.appendChild(b); if (sec) sec.rows.push({ el: b, text: r[1].toLowerCase() }); continue;
       }
       const [key, label, min, max, step, scale] = r;
       const row = document.createElement('label'); row.className = 'row';

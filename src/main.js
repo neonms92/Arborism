@@ -19,6 +19,7 @@ let view = null;
 const menu = new Menu(() => view && view.applySettings(), () => {
   if (sim) sim.regrow(); else hud.toast('Only the host can grow a new tree');
 });     // also loads saved settings into CFG, before anything reads them
+menu.onSkip = () => { if (sim) sim.skipTime(); else hud.toast('Only the host can change the time of day'); };
 menu.onChipper = () => { if (sim) sim.chipper.respawn(); else hud.toast('Only the host can respawn the chipper'); };
 view = new View($('game'), world);
 const hud = new Hud(world);
