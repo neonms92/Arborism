@@ -10,6 +10,7 @@
 
 import { CFG } from '../config.js';
 import { randomSeed } from '../model/seed.js';
+import { budgetMath, wageMath } from './hud.js';
 
 const KEY = 'arb-settings-v1';
 const OPEN_KEY = 'arb-settings-open-v1';   // which sections are expanded
@@ -93,6 +94,7 @@ export const ROWS = [
   ['CHIP_PULL', 'Feed rollers: most they pull with (N)', 500, 40000, 100, 1, true],
   ['CHIP_CAPACITY', 'Feed rollers: heaviest piece they take before seizing (kg)', 5, 2000, 5, 1, true],
   ['CHIP_FEED_V', 'Feed rollers: speed (m/s)', 0.05, 3, 0.05, 1, true],
+  ['CHIP_WINCH_F', 'Hopper winch: most pull (kN)', 0.5, 30, 0.5, 1000, true],
   ['CHIP_ROLL', 'Wheels: rolling resistance while towed (fraction of weight)', 0, 0.3, 0.005, 1, true],
   ['CHIP_BRAKE', 'Wheels: brakes when nobody holds the grip (fraction of weight)', 0, 1.5, 0.05, 1, true],
   ['CHIP_MASS', 'Mass (kg, applies at the next new tree)', 100, 5000, 50, 1, true],
@@ -104,12 +106,18 @@ export const ROWS = [
   ['HOUSE_BREAK_F', 'House: force from wood that breaks one room apart (N)', 500, 400000, 500, 1, true],
   ['SHED_BREAK_F', 'Shed: force from wood that breaks it apart (N)', 500, 200000, 500, 1, true],
   ['FENCE_BREAK_F', 'Fence: force from wood that breaks one section apart (N)', 500, 200000, 500, 1, true],
+  ['SHED_DENSITY', 'Board density (kg/m3)', 100, 1200, 10, 1, true],
+  ['Money: budget, wages and damage'],
+  ['BUDGET_BASE', 'Budget for the reference tree ($; applies when you press Grow)', 0, 100000, 500, 1, true],
+  ['BUDGET_REF_H', 'Reference tree height (m)', 1, 40, 0.1, 1, true],
+  ['BUDGET_REF_D', 'Reference tree diameter (m)', 0.1, 3, 0.05, 1, true],
+  ['BUDGET_LOT_REF', 'Reference lot width (m)', 8, 60, 1, 1, true],
+  ['WAGE', 'Wage per player per game hour ($)', 0, 100, 0.25, 1, true],
   ['PAVER_COST', 'Cost of a cracked paver ($)', 0, 500, 5, 1, true],
   ['FENCE_COST', 'Cost of a broken fence section ($)', 0, 5000, 25, 1, true],
   ['SHED_COST', 'Cost of a smashed shed ($)', 0, 20000, 100, 1, true],
   ['HOUSE_COST', 'Cost of a smashed room of a house ($)', 0, 200000, 500, 1, true],
   ['CHIPPER_COST', 'Cost of a wrecked chipper truck ($)', 0, 200000, 500, 1, true],
-  ['SHED_DENSITY', 'Board density (kg/m3)', 100, 1200, 10, 1, true],
   ['New tree (these apply when you press Grow)'],
   ['TREE_HEIGHT', 'Height (m)', 3, 30, 0.5, 1, true],
   ['TREE_DIAMETER', 'Trunk diameter at the base (m)', 0.1, 1.5, 0.02, 1, true],
@@ -264,14 +272,17 @@ export class Menu {
     const name = document.createElement('span'); name.textContent = 'World seed (tree, ground and yards; applies when you press Grow)';
     const tb = document.createElement('input'); tb.type = 'text'; tb.maxLength = 32; tb.autocomplete = 'off'; tb.spellcheck = false;
     const dice = document.createElement('button'); dice.textContent = 'New'; dice.title = 'A new random seed';
-    const now = document.createElement('p');
-    row.append(name, tb, dice); box.append(row, now); el.appendChild(box);
+    const now = document.createElement('p'), job = document.createElement('p');
+    row.append(name, tb, dice); box.append(row, now, job); el.appendChild(box);
     tb.onchange = () => this.setSeed(tb.value);
     dice.onclick = (e) => { e.preventDefault(); this.setSeed(randomSeed()); };
     this.showSeed = () => {
       if (document.activeElement !== tb) tb.value = CFG.WORLD_SEED;
       const w = this.world && this.world.seed;
       now.textContent = w ? `This world: ${w}` : '';
+      // the job's money, worked out (sim/damage.js)
+      const j = this.world && this.world.job;
+      job.textContent = j ? `${budgetMath(j)}. Paid out: ${wageMath(Math.max(1, this.world.players.size))}.` : '';
     };
     this.inputs.push(this.showSeed); this.showSeed();
   }

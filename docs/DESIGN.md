@@ -679,12 +679,19 @@ log can still drag, tip or hoist it.
   anything that can move, the feet go no faster away from it than it follows
   (the legs push with at most `LEG_FORCE`, D81), so the player
   leans into the load instead of walking out of the hold.
-- **Feeding.** Holding loose wood, {interact} while looking at the chipper
-  hands the piece to the feed rollers. They take the end of the wood nearest
-  the hopper's mouth (a cut end or a tip), wherever it was held, and drive it
-  at `CHIP_FEED_V`: first to the mouth (round to a point on the axis behind it
-  when the wood is beside, above or ahead of it), then centred down the
-  throat to the drum. Each tick they give that point the impulse that takes
+- **Feeding (D84).** Holding loose wood, {interact} while looking at the
+  chipper moves the grab rope from the player's hands onto a winch drum just
+  inside the top lip of the hopper's mouth, still tied where the wood was
+  held. The winch reels in at `CHIP_FEED_V`, pulling only toward the drum (a
+  rope), with the same impulse-plus-motor law as the rollers below, capped at
+  `CHIP_WINCH_F`; half the wood's weight rides on the hopper tray meanwhile.
+  As soon as any of the wood is past the hopper's front (its mouth) and
+  inside it, the rollers take the point furthest in; the winch keeps reeling
+  until its knot is at the drum, then the rope comes off. Sawing the wood
+  through outside: the rope stays with the side it is tied to. The rollers
+  drive their point centred down the throat to the drum at `CHIP_FEED_V`.
+  (Before D84 they took the end of the wood nearest the mouth and dragged it
+  there themselves.) Each tick they give that point the impulse that takes
   it halfway to the roller speed through the mass the wood presents there,
   plus a motor term for a load that holds it back, which rises while the
   wood lags and is capped at ten times the wood's weight plus the tension of

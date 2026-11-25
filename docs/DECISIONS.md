@@ -1193,3 +1193,48 @@ cut every button caption to two words at most.
   (the long text is the tooltip and still searchable); Testing: Main menu,
   View default, "Click again". Hints and help text that are not on a button
   (the lobby help, "Look at wood within reach...") are unchanged.
+
+**D84 — Hopper winch; a job budget that wages drain.**
+Owner (2026-11-25): when we deposit into the chipper, transfer our grab rope
+to a winch at the top of the hopper; once a piece passes the front of the
+hopper the rollers can start pulling it in, with no wait for it to hit the
+back of the hopper. Turn the damage counter into a cash balance: a budget at
+the start of the job of $5,000 for an 18 ft tree 0.8 m across, scaling up
+with tree size and with smaller lots, $30,000 at the current defaults; drain
+it by the U.S. federal minimum wage, $7.50 per player per scaled hour of the
+20-minute day, and show the math.
+- *Winch.* `SHAPE.WINCH` (a drum on two posts just inside the hopper's top
+  lip; the rope must end inside the hopper, or wood hung from a drum above
+  the mouth dangled there and never went in). Pull only along the rope, half
+  the gap to `CHIP_FEED_V` per tick plus the rollers' motor term, capped at
+  `CHIP_WINCH_F` (6 kN, my choice) and ten times the wood's weight. The
+  rollers take over at the deepest point of the wood inside the hopper
+  (sampled at five points per segment), and the winch keeps pulling until
+  its knot is 0.3 m from the drum. Half the wood's weight rides on the tray
+  until it is in, as the rollers did (D70): without it the winch's pull swung
+  long branches and drove their tips under the heightfield, where they held
+  the wood short of the drum. The rollers' guide now aligns whichever end of
+  the held segment is further out (their point can be mid-segment now).
+  Headless: four branches (0.3, 15, 33, 57 kg) left 2 m behind or beside the
+  chipper all went in and the 57 kg one was chipped to nothing in about
+  9 s of sim time.
+- *Budget* (`sim/damage.js job`): `BUDGET_BASE` × (height × diameter) /
+  (`BUDGET_REF_H` × `BUDGET_REF_D`) × `BUDGET_LOT_REF` / lot width, to the
+  nearest `BUDGET_ROUND` ($500). Height × diameter gives ×6.01 from the
+  reference tree to the 22 m × 1.2 m default, which is the owner's $5,000 →
+  $30,000. Lot width is the nominal width for the yard density (22 m at the
+  default 0.5), not the jittered width of this seed's lot, so the default is
+  always $30,000 (my choice; the actual lot varies ±15%). Reference tree at
+  density 0 / 0.5 / 1: $3,500 / $5,000 / $8,000. Flat test ground counts as
+  the reference lot.
+- *Wages* (`Damage.step`): `WAGE` × players × dt / (`DAY_LENGTH` / 24),
+  paid in whole dollars by a `wages` event. Counted on play time, not on the
+  clock, so the Tab menu's skip-ahead does not charge for skipped hours (my
+  choice). No wages when `DAY_LENGTH` is 0.
+- *Cash* = budget − damage − wages (`world.cash()`), may go negative. The
+  status line shows "cash $29,870, wages 2 × $7.50 per game hour ÷ 50 s =
+  $0.30/s". The budget's own math is in the Tab menu under the seed ("Budget
+  $30,000 = $5,000 (for a tree 18 ft x 2.6 ft) × 6.01 (this tree is ...) ×
+  1.00 (lots ... wide against ...), to the nearest $500") and a toast says
+  the budget when a job starts. Damage toasts are unchanged. Settings in the
+  Tab menu under "Money: budget, wages and damage".

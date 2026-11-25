@@ -7,7 +7,12 @@
 // axle. Nothing else about it is special: rope, wood and players push and
 // pull it like any body, and it can be dragged, tipped or hoisted.
 //
-// Feeding: a loose piece handed to the chipper is drawn into the infeed by
+// Feeding: a loose piece handed to the chipper goes on the winch over the
+// hopper (D84): the player's grab rope, still tied where they held the wood,
+// is reeled in at CHIP_FEED_V with up to CHIP_WINCH_F, pulling straight
+// toward the winch (a rope: it only pulls). As soon as any of the wood is
+// past the hopper's front (its mouth) and inside it, the rope comes off and
+// the wood is drawn in by
 // the feed rollers, a velocity servo at CHIP_FEED_V whose pull is capped at
 // CHIP_PULL (the rollers slip past it). The same pull goes back into the
 // chipper. A fed piece does not collide with the chipper, and every segment
@@ -28,7 +33,7 @@ import { SHAPE, parkedPose, pileShape, chipToWorld, CHIPPER_BODY_ID, WRECK } fro
 import { compose } from '../model/builds.js';
 
 const THROAT = 0.3;                  // m: the feed point counts as in the mouth within this of the hopper's axis
-const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _a = new THREE.Vector3(), _b = new THREE.Vector3();
+const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
 
 export class Chipper {
   constructor(sim) {
@@ -76,10 +81,16 @@ export class Chipper {
     else if (ev.t === 'split' && info.moved) {
       const f = this.feeding.get(info.oldPiece); if (!f) return;
       const moved = info.moved.includes(f.seg);
+      // not in the hopper yet: the winch rope stays with the side it is tied to, the other side falls away
+      if (f.wait) { if (info.moved.includes(f.wseg)) { this.feeding.delete(info.oldPiece); this.feeding.set(ev.newPiece, f); } return; }
+      // in the rollers with the rope still on: it goes with the side it is tied to
+      const wMoved = !!f.winch && info.moved.includes(f.wseg);
       // both sides stay fed; once the wood is in the rollers, only a side that still has wood inside the chipper
       // stays in them (post drops the other: it was sawn off outside)
-      this.feeding.set(ev.newPiece, { seg: moved ? f.seg : -1, p: f.p, entered: f.entered, split: f.entered });
+      this.feeding.set(ev.newPiece, { seg: moved ? f.seg : -1, p: f.p, entered: f.entered, split: f.entered,
+        winch: wMoved, wseg: f.wseg, wp: f.wp });
       if (moved) f.seg = -1;
+      if (wMoved) f.winch = false;
       if (f.entered) f.split = true;
     } else if (ev.t === 'chip' || ev.t === 'chips') {
       if (info.gone) for (const pc of info.gone) this.feeding.delete(pc);
@@ -248,19 +259,55 @@ export class Chipper {
 
   /** Hand loose wood to the feed rollers, drawn in by piece-local point pl on segment seg. */
   feed(piece, seg, pl) {
-    // The rollers take the end of the wood nearest the hopper's mouth (a cut end or a tip, not a fork), wherever the
-    // player was holding it: wood held by its middle would otherwise meet the chipper end-first and stall there.
-    const f = { seg, p: pl }; this.feeding.set(piece, f);
-    const sim = this.sim, w = sim.world, segs = w.segsOf(piece), used = new Map();
-    const key = (e) => e.map((v) => v.toFixed(3)).join(',');
-    for (const s of segs) for (const e of [s.a, s.b]) used.set(key(e), (used.get(key(e)) || 0) + 1);
-    const M = this.infeed(new THREE.Vector3());
-    let best = Infinity;
-    for (const s of segs) for (const e of [s.a, s.b]) {
-      if (used.get(key(e)) > 1) continue;                     // a joint between segments, not an end of the wood
-      const d = sim.segToWorld(s, e, _a).distanceTo(M);
-      if (d < best) { best = d; f.seg = s.id; f.p = e.slice(); }
+    // The grab rope goes from the player's hands onto the winch, still tied where they held the wood.
+    // wait: no part of it in the hopper yet, so the rollers have nothing to take
+    this.feeding.set(piece, { seg, p: pl.slice(), wseg: seg, wp: pl.slice(), winch: true, wait: true });
+  }
+
+  /** Is a chipper-local point past the hopper's front (its mouth) and inside the hopper or the body behind it? */
+  inHopper(l, r = 0) {
+    const S = SHAPE, H = S.HOPPER;
+    return l[0] > S.INFEED[0] - r && l[0] < S.DRUM_X && Math.abs(l[1] - H.c[1]) < H.h[1] + r && Math.abs(l[2]) < H.h[2] + r;
+  }
+
+  /** The point of this piece furthest into the hopper, if any of it is past the mouth: {seg, p} or null. */
+  intoHopper(piece) {
+    const sim = this.sim; let best = null, bx = -Infinity;
+    for (const s of sim.world.segsOf(piece)) {
+      for (let k = 0; k <= 4; k++) {
+        const t = k / 4, pl = [s.a[0] + (s.b[0] - s.a[0]) * t, s.a[1] + (s.b[1] - s.a[1]) * t, s.a[2] + (s.b[2] - s.a[2]) * t];
+        const l = this.toLocal(sim.segToWorld(s, pl, _a));
+        if (this.inHopper(l, feedR(s, pl)) && l[0] > bx) { bx = l[0]; best = { seg: s.id, p: pl }; }
+      }
     }
+    return best;
+  }
+
+  /** The winch reels the grab rope in: a pull toward the winch only (a rope does not push), up to CHIP_WINCH_F. */
+  winch(b, s, f, dt) {
+    const sim = this.sim, P = sim.segToWorld(s, f.wp, _a), W = this.toWorld(SHAPE.WINCH, _b);
+    const dir = W.clone().sub(P), d = dir.length();
+    if (d < 0.3) { f.winch = false; f.T = 0; return; }       // reeled all the way in: the rope comes off
+    dir.multiplyScalar(1 / d);
+    const vp = b.velocityAtPoint(P), along = vp.x * dir.x + vp.y * dir.y + vp.z * dir.z;
+    const want = Math.min(CFG.CHIP_FEED_V, Math.max(0, d - 0.15) * 4);
+    // as the rollers do: the impulse that brings it to the reeling speed, plus a motor term that builds up while the
+    // wood lags (snagged on the ground or the chipper) and drops away once it keeps up; never past CHIP_WINCH_F
+    f.wvs = (f.wvs ?? along) * 0.85 + along * 0.15;
+    f.wF = f.wvs >= want ? 0 : Math.min(CFG.CHIP_WINCH_F, 10 * b.mass() * CFG.GRAVITY, (f.wF || 0) + (want - along) / Math.max(0.05, want) * CFG.CHIP_WINCH_F * dt);
+    // (half the gap each tick, as the rollers do: a whole-gap snap swung long wood about the rope and drove its far
+    // end down through the ground)
+    const J = Math.min(CFG.CHIP_WINCH_F * dt, Math.max(0, 0.5 * (want - along) * effMass(b, P, dir)) + f.wF * dt);
+    f.T = J / dt;                                           // rope tension, for the view and tests
+    if (f.wait) {
+      // until it reaches the hopper half its weight rides on the hopper's tray, as it did on the rollers before the
+      // winch (D70): its tips are not ploughed into the ground on the way
+      const mg = b.mass() * CFG.GRAVITY * dt * 0.5;
+      b.applyImpulse({ x: 0, y: mg, z: 0 }, true); this.body.applyImpulseAtPoint({ x: 0, y: -mg, z: 0 }, this.infeed(_c), true);
+    }
+    if (!J) return;
+    sim.applyForce(s.id, P, dir.clone().multiplyScalar(J / dt));
+    this.body.applyImpulseAtPoint({ x: -dir.x * J, y: -dir.y * J, z: -dir.z * J }, W, true);
   }
 
   // ---- per tick, before physics ----
@@ -272,6 +319,17 @@ export class Chipper {
       const b = sim.bodies.get(piece);
       if (!b || !w.pieces.has(piece)) { this.feeding.delete(piece); continue; }
       let s = w.segs.get(f.seg);
+      // The winch reels its rope in until the point it is tied to is at the drum. Meanwhile, as soon as any of the
+      // wood is past the hopper's mouth, the rollers take it there (the winch keeps lifting the rest in after it).
+      if (f.winch) {
+        const ws = w.segs.get(f.wseg);
+        if (ws && ws.piece === piece && !f.seized) this.winch(b, ws, f, dt); else { f.winch = false; f.T = 0; }
+      }
+      if (f.wait) {
+        const into = this.intoHopper(piece);
+        if (!into) { if (!f.winch) this.feeding.delete(piece); continue; }   // the rope's wood was sawn off outside
+        f.wait = false; f.entered = true; f.seg = into.seg; f.p = into.p; s = w.segs.get(f.seg);
+      }
       if (!s || s.piece !== piece) { if (!this.pickFeed(piece, f)) { this.feeding.delete(piece); continue; } s = w.segs.get(f.seg); }
       // The rollers: drive the feed point at CHIP_FEED_V, with no more than CHIP_PULL. First to the hopper mouth
       // (round behind it if the wood is beside the chipper), then straight down the throat to the drum.
@@ -338,7 +396,9 @@ export class Chipper {
 
   /** Bring the far end of feed segment s across to the throat's axis (sideways only), with no more than CHIP_PULL. */
   guide(b, s, f, dt) {
-    const sim = this.sim, S = SHAPE, far = Math.abs(f.p[0] - s.a[0]) + Math.abs(f.p[1] - s.a[1]) + Math.abs(f.p[2] - s.a[2]) < 1e-6 ? s.b : s.a;
+    // the far end: whichever end of the segment is further out of the chipper (the rollers may hold it anywhere along it)
+    const sim = this.sim, S = SHAPE, la = this.toLocal(sim.segToWorld(s, s.a, _a)), lb = this.toLocal(sim.segToWorld(s, s.b, _a));
+    const far = la[0] <= lb[0] ? s.a : s.b;
     const Q = sim.segToWorld(s, far, new THREE.Vector3()), l = this.toLocal(Q);
     const ly = S.INFEED[1] - l[1], lz = -l[2], off = Math.hypot(ly, lz);
     const toW = (d) => this.dirToWorld(d, new THREE.Vector3());
@@ -522,7 +582,13 @@ export class Chipper {
     this.pileCols.set(i, { col, r }); this.colPile.set(col.handle, i);
   }
 
-  aux() { return this.body ? { on: this.busy > 0 ? 1 : 0, jam: this.seized() ? 1 : 0 } : null; }
+  aux() {
+    if (!this.body) return null;
+    // the winch's ropes: [seg, x, y, z] of the point each is tied to
+    const wn = [];
+    for (const f of this.feeding.values()) if (f.winch) wn.push([f.wseg, ...f.wp.map((x) => +x.toFixed(3))]);
+    return { on: this.busy > 0 ? 1 : 0, jam: this.seized() ? 1 : 0, wn };
+  }
   static get ID() { return CHIPPER_BODY_ID; }
 }
 

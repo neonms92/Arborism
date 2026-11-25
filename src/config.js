@@ -184,6 +184,7 @@ export const CFG = {
   CHIP_GAP: 3,             // m between the tree's paving (or the trunk) and the chipper, where it is parked
   CHIP_PULL: 15000,        // N, most the feed rollers pull with (on wood and on rope); they slip past it
   CHIP_FEED_V: 0.6,        // m/s the feed rollers draw wood and rope in
+  CHIP_WINCH_F: 6000,      // N, most the winch over the hopper pulls the grab rope with (it reels at CHIP_FEED_V)
   CHIP_ROLL: 0.02,         // rolling resistance of its wheels, as a fraction of the weight on them
   CHIP_BRAKE: 0.7,         // braked wheels (whenever nobody holds the grip), as a fraction of the weight on them
   CHIP_GRIP: 0.9,          // sideways grip of the tyres (friction coefficient)
@@ -213,6 +214,14 @@ export const CFG = {
   YARD_TREES_PITCH: 0.06,  // m, fibre width once one comes to life (FIBRE_PITCH is the job tree's): wider = fewer fibres, cheaper
   MARK_HEIGHT: 1.4,        // m above the ground of the orange X sprayed on the job tree
   // --- what breaking things costs (sim/damage.js), in dollars, added to a running total on the HUD ---
+  // the job's budget (sim/damage.js): BUDGET_BASE for a tree BUDGET_REF_H tall and BUDGET_REF_D across at the base on a
+  // lot BUDGET_LOT_REF wide, in proportion to height x diameter and to BUDGET_LOT_REF / the lot width, rounded to BUDGET_ROUND
+  BUDGET_BASE: 5000,       // $
+  BUDGET_REF_H: 5.4864,    // m (18 ft)
+  BUDGET_REF_D: 0.8,       // m
+  BUDGET_LOT_REF: 22,      // m, the lot width at the default yards (density 0.5)
+  BUDGET_ROUND: 500,       // $
+  WAGE: 7.5,               // $ per player per game hour (U.S. federal minimum wage, rounded); a game hour is DAY_LENGTH / 24
   PAVER_COST: 25,          // one paver, the first time it cracks
   FENCE_COST: 300,         // one fence section broken apart
   SHED_COST: 2500,         // the shed broken apart
