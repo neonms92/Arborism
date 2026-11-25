@@ -61,6 +61,7 @@ export const CFG = {
   PAVER_RADIUS: 0.5,       // largest paving round the trunk (its radius), as a fraction of TREE_HEIGHT; the lot may allow less
   PAVER_PIT: 0.3,          // m of open soil left between the trunk and the nearest paver (at least)
   PAVER_CRACK_E: 800,      // J of impact energy on one paver that cracks it; each hit adds (its energy / this) damage
+  PAVER_MAX_SLOPE: 0.5236, // rad (30°): no paver is laid on ground steeper than this
   PAVER_GRAVEL: 30,        // damage at which a paver is drawn as gravel (the counter goes on past it)
 
   // --- fibres (every segment is a bundle of them) ---
@@ -121,6 +122,7 @@ export const CFG = {
   CLIMB_BOUNCE: 1.6,       // weight multiplier while moving on spurs
   STANDOFF: 0.38,          // m from bark to body centre
   SPUR_MIN_R: 0.03,
+  STEM_BEND: 0.35,         // rad: a child segment turning less than this from its parent carries on the same stem (the lanyard slides onto it)
   STUB_LEN: 0.8,           // m: a branch jutting out less than this past the bark does not block the lanyard
   REACH: 2.6,              // m, interact reach
   DV_SHAKEN: 4, DV_HURT: 7, DV_DOWN: 11,   // m/s impact thresholds (sudden change of velocity)

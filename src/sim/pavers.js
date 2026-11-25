@@ -34,7 +34,7 @@ export class Pavers {
   lay(areas) {
     const c = CFG.PAVER_SIZE, pit = CFG.TREE_DIAMETER / 2 + CFG.PAVER_PIT;
     if (this.sim.flat) areas = [{ shape: 'circle', x: 0, z: 0, r: CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, pit }];
-    this.sim.emit({ t: 'pavers', c, areas });
+    this.sim.emit({ t: 'pavers', c, areas, slope: CFG.PAVER_MAX_SLOPE });
   }
 
   /** From sim.onContact: a contact force event between colliders h1 and h2. */

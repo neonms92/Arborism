@@ -411,29 +411,22 @@ export class Players {
       let t = cl.t + inp.my * sign * CFG.CLIMB * dt / L;
       if (t > cl.t && segRadius(s, Math.min(1, t)) < CFG.SPUR_MIN_R) { t = cl.t; this.say(p, 'Too thin for spurs'); }
       if (t > 1) {
-        const kids = w.kids(s.id).filter((k) => w.segs.get(k).r0 >= CFG.SPUR_MIN_R);
-        const real = w.kids(s.id).filter((k) => w.isRealBranch(k)).length;
-        if (!kids.length) t = 1;
-        else if (real >= 2) { t = 1; this.say(p, 'The lanyard stops at the union. Look at the stem you want and hold {interact} to move it'); }
-        else {
-          const want = _c.set(-Math.sin(inp.yaw) * Math.cos(inp.pitch), Math.sin(inp.pitch), -Math.cos(inp.yaw) * Math.cos(inp.pitch)).multiplyScalar(0.9).add(axW);
-          let best = kids[0], bd = -Infinity;
-          for (const k of kids) {
-            const d = sim.segDirToWorld(w.segs.get(k), segAxis(w.segs.get(k)), _b).dot(want);
-            if (d > bd) { bd = d; best = k; }
-          }
-          s = w.segs.get(best); cl.seg = best; t = 0.01;
-          cl.side = perp(cl.side, segAxis(s));
-        }
+        // the lanyard only slides on along the same stem; onto a branch it has to be thrown ({interact})
+        const next = w.stemNext(s.id), block = w.kids(s.id).some((k) => k !== next && w.isRealBranch(k));
+        if (!w.kids(s.id).length) { this.offTheEnd(p, s, fixed); return; }
+        if (!next) { t = 1; this.say(p, 'The stem ends here. Look at a branch and hold {interact} to move the lanyard onto it'); }
+        else if (w.segs.get(next).r0 < CFG.SPUR_MIN_R) { t = 1; this.say(p, 'Too thin for spurs'); }
+        else if (block) { t = 1; this.say(p, 'The lanyard stops at the union. Look at the stem you want and hold {interact} to move it'); }
+        else { s = w.segs.get(next); cl.seg = next; t = 0.01; cl.side = perp(cl.side, segAxis(s)); }
       } else if (t < 0) {
         if (s.parent < 0) {
-          t = 0;
-          if (sim.segToWorld(s, s.a, _b).y < 0.6) { this.toGround(p); return; }
-        } else {
-          const real = w.kids(s.parent).filter((k) => w.isRealBranch(k)).length;
-          if (real >= 2) { t = 0; this.say(p, 'The lanyard stops at the union. Look at the stem you want and hold {interact} to move it'); }
-          else { s = w.segs.get(s.parent); cl.seg = s.id; t = 0.99; cl.side = perp(cl.side, segAxis(s)); }
+          // the bottom of the wood: stepping off onto the ground, or off the end of a hanging piece
+          if (sim.segToWorld(s, s.a, _b).y < sim.groundY(_b.x, _b.z) + 0.6) this.toGround(p); else this.offTheEnd(p, s, fixed);
+          return;
         }
+        const up = w.stemNext(s.parent), block = w.kids(s.parent).some((k) => k !== s.id && w.isRealBranch(k));
+        if (up !== s.id || block) { t = 0; this.say(p, 'The lanyard stops at the union. Look at the stem you want and hold {interact} to move it'); }
+        else { s = w.segs.get(s.parent); cl.seg = s.id; t = 0.99; cl.side = perp(cl.side, segAxis(s)); }
       }
       cl.t = t;
     }
@@ -469,6 +462,13 @@ export class Players {
       rd.prev = pos.clone();
       p.prompt = 'Lanyarded to a falling piece!   hold {drop}: let go';
     }
+  }
+
+  /** Climbed past the end of the wood: the lanyard comes off it and the climber falls. */
+  offTheEnd(p, s, fixed) {
+    const v = fixed ? null : this.sim.bodies.get(s.piece).velocityAtPoint(p.body.translation());
+    this.toGround(p, v);
+    this.sim.toast('You climbed off the end of the wood and the lanyard came off', p.id);
   }
 
   // ---- after physics: read impacts on dynamic players ----

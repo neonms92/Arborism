@@ -17,15 +17,17 @@
 // impact energy) and the places it was hit (in its own frame), which the view
 // grows cracks from.
 
+import { groundN } from './terrain.js';
+
 export const HITS_KEPT = 16;   // crack origins remembered per paver (damage itself keeps counting)
 const BUCKET = 2;              // m, side of the lookup grid's squares
 
 /**
  * The layout for cell size c and these areas: {c, list: [{x, z, a, hx, hz}], grid}. a: the paver's turn
  * about +y (its hx is along its own x). Areas are laid in order and a paver that would overlap one already
- * laid is left out, so areas can touch or overlap.
+ * laid is left out, so areas can touch or overlap. keep(paver) (optional) can turn a paver down (too steep).
  */
-export function layPavers(c, areas) {
+export function layPavers(c, areas, keep) {
   const list = [], grid = new Map();
   for (const A of areas) {
     const ca = Math.cos(A.yaw || 0), sa = Math.sin(A.yaw || 0);
@@ -49,6 +51,7 @@ export function layPavers(c, areas) {
         if (!fits(p)) continue;
         const w = { x: +(A.x + p.x * ca + p.z * sa).toFixed(4), z: +(A.z - p.x * sa + p.z * ca).toFixed(4), a: A.yaw || 0, hx: p.hx, hz: p.hz };
         if (paverAt({ list, grid }, w.x, w.z) >= 0) continue;           // an area laid earlier is already there
+        if (keep && !keep(w)) continue;
         add(grid, list.length, w);
         list.push(w);
       }
@@ -84,10 +87,15 @@ export function paverAt(L, x, z) {
   return -1;
 }
 
-/** A fresh paved area: {c, areas, L, dmg[], hits[][]}. hits are [u, v, amount], paver-local (m from its centre). */
-export function newPaving(c, areas) {
-  const L = layPavers(c, areas);
-  return { c, areas, L, dmg: new Array(L.list.length).fill(0), hits: L.list.map(() => []) };
+/**
+ * A fresh paved area: {c, areas, slope, L, dmg[], hits[][]}. hits are [u, v, amount], paver-local (m from its centre).
+ * slope (rad, optional): no paver is laid where the ground under its middle is steeper than this (the host's
+ * PAVER_MAX_SLOPE, sent in the event so every machine lays the same pavers).
+ */
+export function newPaving(c, areas, terrain = null, slope) {
+  const minY = slope >= 0 ? Math.cos(slope) : -2;
+  const L = layPavers(c, areas, terrain && minY > -1 ? (p) => groundN(terrain, p.x, p.z)[1] >= minY - 1e-9 : null);
+  return { c, areas, slope, L, dmg: new Array(L.list.length).fill(0), hits: L.list.map(() => []) };
 }
 
 /** Add damage to paver i, struck at world (x, z). */
@@ -105,11 +113,11 @@ export function packPaving(pv) {
   if (!pv) return null;
   const d = [];
   pv.dmg.forEach((v, i) => { if (v > 0) d.push([i, v, pv.hits[i]]); });
-  return { c: pv.c, areas: pv.areas, d };
+  return { c: pv.c, areas: pv.areas, slope: pv.slope, d };
 }
-export function unpackPaving(o) {
+export function unpackPaving(o, terrain) {
   if (!o) return null;
-  const pv = newPaving(o.c, o.areas);
+  const pv = newPaving(o.c, o.areas, terrain, o.slope);
   for (const [i, v, h] of o.d) { pv.dmg[i] = v; pv.hits[i] = h; }
   return pv;
 }
