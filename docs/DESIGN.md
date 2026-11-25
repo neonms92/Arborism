@@ -413,7 +413,7 @@ Debris: pieces under 2 kg are removed 10 s after creation.
 
 Both are built from the bundles, so neither can disagree with the physics.
 
-**Fibres** — every fibre is its own unlit box, converging with the stem's
+**Fibres** — every fibre is its own box, lit like the bark (dark at night, D84), converging with the stem's
 taper exactly as the physics has it, split in two where sawn.
 With `STRESS_COLORS`:
 
