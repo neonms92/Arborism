@@ -429,13 +429,15 @@ Stiff bundles are coloured from their stress plane (three numbers per
 segment in aux); live bundles fibre by fibre. `COLOR_GAMMA` lifts small
 loads into view.
 
-**Bark** — a skin of panels just outside the bundle's outline. Each panel is
+**Bark** — a skin of panels just outside the bundle's outline: a polygon
+circumscribed about the fibre boxes at their drawn width, so no fibre shows
+through, however few the panels or steep the taper (DECISIONS D63). Each panel is
 owned by the outermost fibre behind it and is drawn only where that fibre
 still exists. A kerf is therefore a slot in the bark, a notch is a missing
 wedge with pale wood inside, and a stump's bark ends where its fibres end.
 There are no end caps: the fibre ends are the cut face.
 
-`BARK_OPACITY` (0 = fibres only, 1 = solid bark) blends the two; it and the
+`BARK_OPACITY` (0 = fibres only, 1 = solid bark; 1 in the game, 0 in the test viewer) blends the two; it and the
 other view switches are in the Tab menu (section 7).
 
 ---
