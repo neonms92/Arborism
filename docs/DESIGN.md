@@ -622,8 +622,14 @@ The tree stands in a paved circle (`model/pavers.js`): a basket weave of
 `PAVER_SIZE` × `PAVER_SIZE`/2 slabs, whole slabs only, within
 `PAVER_RADIUS` × `TREE_HEIGHT` of the trunk (half the height by default), with
 a square pit of open soil at least `PAVER_PIT` wider than the trunk. The
-layout is generated from three numbers in the `pavers` event, so a client
-never depends on its own settings. They are laid fresh with every new tree.
+yards (6.8) add patios, porches and sidewalks: paving is a list of **areas**
+(a circle with a pit, or a turned rectangle), each laid in its own basket
+weave, whole slabs only, an area laid later leaving out slabs an earlier one
+already covers. A lookup grid finds the paver under a point. The layout is
+generated from the cell size and the areas in the `pavers` event, so a
+client never depends on its own settings. They are laid fresh with every new
+tree, and each slab lies on the ground under its middle, tilted with it: the
+tree's circle is not levelled, so on a ledge it steps with the ground.
 
 The slabs are flush with the ground, so physics is unchanged: wood and
 players land on the ground collider, and the host (`sim/pavers.js`) works out
@@ -701,7 +707,7 @@ log can still drag, tip or hoist it.
 - **Reset.** A new tree re-lays the pavers fresh and re-parks the chipper
   (`chipper` event): default pose, brakes on, nothing feeding, no chips.
 
-### 6.6 Breakable structures: the shed and fences
+### 6.6 Breakable structures: sheds, fences and houses
 
 Structures (`model/builds.js`, `sim/builds.js`, `view/builds.js`) are built
 from **modules** glued together. A module is one unit, made of parts
@@ -709,22 +715,40 @@ from **modules** glued together. A module is one unit, made of parts
 is one module, put up `SHED_GAP` outside the paving on the far side of the
 trunk from the chipper's chute, door toward the trunk: about the chipper's
 distance from the tree. A fence (`fence:<style>`, n sections) is one module
-per section, each with its first post (the last also has the closing post),
-each glued to the next and standing on the ground. Styles: `rail2` (two-rail:
-square posts, two boards on edge, 2.44 m sections), `split` (split rail:
-rough posts, three split logs, 3 m), `privacy` (6 ft: three rails, pickets on
-the good face, 2.44 m). A run of each is put up `FENCE_GAP` outside the
-paving: privacy on the −x side, two-rail on the +z side, split rail between
-the shed and the chipper. Procedural yard boundaries will place these later.
+per section, each with its first post (the last also has the closing post;
+a run that starts or ends on a post another run already put up leaves that
+one out), each glued to the next and standing on the ground. Styles: `rail2`
+(two-rail: square posts, two boards on edge, 2.44 m sections), `split` (split
+rail: rough posts, three split logs, 3 m), `privacy` (6 ft: three rails,
+pickets on the good face, 2.44 m). A run on a lot line has as many whole
+sections as come closest to the style's span, stretched to fit (`span`).
+
+A **house** (`kind: 'house'`, spec `h`) is a grid of rooms, `nx` × `nz`, one
+or two storeys, sometimes with a front corner left out (an L), with a gable
+roof whose ridge runs along its length. Each room is a module: a floor, walls
+of panels on its outside edges with a window (the front room in the door's
+column has the door and a window), an inside wall with a doorway on its +x
+and +z edges where it has a neighbour, and on the top storey the walls go up
+to the roof (stepped strips under a gable) and it carries its own roof
+boards. Rooms are glued to their neighbours on the storey and to the room
+below; the ground floor is glued to the **foundation**, a module of concrete
+slabs that stands on the ground and never breaks (`breakForce` ∞). So a room
+only comes loose when every glued path from it to the foundation is gone.
+Siding and roof colours are picked per house in the view.
 
 - **Intact** modules have no physics of their own: their parts are colliders
   on the body the module is in, so things bump into them and nothing else.
+  Parts turned alike that line up face to face are merged into one collider
+  (`modProxies`: wall panels into a wall, pickets into a panel, a window's
+  sill, glass and lintel into a column), because Rapier's step grows with the
+  number of colliders even when they never move: a neighbourhood is about
+  4 000 boards but 1 800 colliders. The parts come back when it breaks.
   Modules joined to a module that stands on the ground (`ground`), directly
   or through intact glue, are in the build's fixed body.
 - **Breaking.** Each tick the contact forces on an intact module from wood,
   or from loose parts and bodies of a build, are added up; players and the
-  chipper do not count. At `SHED_BREAK_F` (shed) or `FENCE_BREAK_F` (one
-  fence section) the module breaks (`smash` event) and each part becomes a
+  chipper do not count. At `SHED_BREAK_F` (shed), `FENCE_BREAK_F` (one
+  fence section) or `HOUSE_BREAK_F` (one room) the module breaks (`smash` event) and each part becomes a
   loose body where it was, moving as the module was. It gives way rather than
   stopping what hit it: that body gets back its velocity from before the step,
   so it ploughs on into the boards. Everything after is ordinary physics: the
@@ -739,9 +763,12 @@ the shed and the chipper. Procedural yard boundaries will place these later.
 - **Sync.** Loose bodies and parts are ordinary snapshot transforms; the
   `smash` event carries their ids and the pose the module's body had, so a
   client draws the parts where they were until their first transform.
-- **Reset.** A new tree puts the shed and fences up again, intact (`builds` event).
-- **On the ground.** A shed gets a level pad (6.7) and stands at the highest
-  ground under its footprint. A fence follows the ground in steps: each
+- **Reset.** A new tree puts the builds up again, intact (`builds` event).
+- **Welcome.** Parts are left out of the welcome's builds; every machine makes
+  them again from the module's shape (`packBuilds` / `unpackBuilds`).
+- **On the ground.** A shed or house gets a level pad (6.7) and stands at
+  the highest ground under its footprint, a house `HOUSE_RAISE` above it on
+  its foundation, which reaches 0.3 m below the lowest ground under it. A fence follows the ground in steps: each
   section is level at the lower of its two posts (`ys` in the `builds` list),
   so its posts sink deeper on the uphill side.
 
@@ -762,11 +789,12 @@ use: the harness keeps it, `Sim` option `terrain: true` turns it on).
   level; they wind about `TERRAIN_LEDGE_W` apart. A third field eases about
   `TERRAIN_LEDGE_GAPS` of each ledge's length into a slope you can walk up,
   so no hollow is walled in.
-- **Pads**: level ground `{x, z, r, blend, y}`, flat within r and blending
-  into the natural ground over `blend`. The tree's yard (paving +
-  `TERRAIN_YARD`, at y = 0 where the tree is rooted), the shed and the
-  parked chipper each get one (`sim.pads()`). The yard generator will add
-  pads for houses and anything else that must be level.
+- **Pads**: level ground `{x, z, r, blend, y, yAt}`, flat within r and
+  blending into the natural ground over `blend`, at y, or the natural height
+  at `yAt`, or at its own middle. Houses (out to their porch), sheds and
+  patios get one (a patio at its house's height), from the yard plan (6.8).
+  The tree, its paving and the chipper do not: the work area is the natural
+  ground, ledges and all (the owner: "complexity creates intrigue").
 - **Queries**: `heightAt(x, z)`, `normalAt`, `slopeAt` and `range(points)`
   (lowest and highest ground over a footprint) on the model, and
   `sim.groundY` / `sim.groundN`, which also work on flat ground. Heights
@@ -778,12 +806,36 @@ use: the harness keeps it, `Sim` option `terrain: true` turns it on).
   dynamic body looks `TERRAIN_CCD` ahead for contacts (soft CCD) on terrain.
   Without it, sticks dropped at 12 m/s went through.
 - **What sits on it**: pavers lie on the ground under their middle (the
-  physics surface is the ground itself, as before); the chipper is parked on
-  its pad with its wheels on the ground and its tyre model works in the
-  ground's tangent plane; chip piles sit on the ground; players spawn 1.2 m
+  physics surface is the ground itself, as before); the chipper is parked
+  with its wheels on the ground and its tyre model works in the ground's
+  tangent plane (a braked tyre sticks to the spot where it stopped until its
+  grip is exceeded, so it does not creep down a slope); chip piles sit on the ground; players spawn 1.2 m
   above it, and a new ground lifts anyone it would bury.
 - **Reset.** A new tree makes the ground again from the current settings
   (and the menu's `TERRAIN_SEED`), before the pavers, chipper and builds.
+
+### 6.8 Yards
+
+`model/yards.js` plans a neighbourhood round the tree from a seed
+(`YARD_SEED`) and the `YARD_*` settings, as a pure function: the host plans
+it before the ground is made (the plan's pads go into the terrain spec), then
+puts it up through the ordinary `builds` and `pavers` events. Flat ground
+(the engine tests) gets no yards.
+
+- **Lots**: blocks of lots along x, separated by `YARD_STREET` streets; a
+  block is two rows back to back, each facing its own street, sharing their
+  lot lines. Lot width goes from `YARD_LOT_MAX` at density 0 to
+  `YARD_LOT_MIN` at density 1 (±15 %), depth about 1.4 × width. Lots reach
+  `YARD_EXTENT` from the tree (0: only the tree's lot).
+- **The tree's lot** is wide enough for the paving and the parked chipper,
+  deep enough behind the tree for the shed, and has its house in front of
+  the paving, toward the street. Its shed stays where it was (6.6).
+- **Each lot**, with chances that rise with `YARD_DENSITY`: a house facing
+  the street (always on the tree's lot), set back 3–6 m, with a paver porch
+  at the door, a paver sidewalk to the street, or both; a patio behind it; a
+  shed in a back corner, door toward the house; and, with chance
+  `YARD_FENCE`, a fence of one style round its sides and back, sometimes
+  along the front too with a gap at the path. A lot line is fenced once.
 
 ---
 

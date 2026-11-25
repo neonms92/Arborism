@@ -662,3 +662,46 @@ Carrying is a volume, `CHIP_CARRY` (40 L), shown on the status line. The
 chips are not drawn in the hands. Respawning keeps the chip piles. A new tree
 still clears them.
 
+
+## Yards
+
+**D65 — Yards are a pure, seeded plan put up through the existing events; houses are rooms glued on a foundation.**
+The owner asked for procedurally generated obstacles: pavers, sheds, houses
+and fences made into yards, including the tree's, sometimes fenced, houses
+with paver sidewalks or porches, density tunable, and yards smaller as
+density rises. Then, after trying the terrain: "don't feel the need to make
+the work area flat. Complexity creates intrigue." So:
+
+- The plan (`model/yards.js`) is a pure function of a seed and the `YARD_*`
+  settings. It is made before the ground, because the ground carries the
+  pads the plan asks for; then the builds and pavers go out as the usual
+  `builds` and `pavers` events, so nothing new crosses the network.
+- The tree's paving, the chipper and the tree itself no longer get a pad
+  (`TERRAIN_YARD` is gone). Houses (out to the porch), sheds and patios
+  still do, a patio at its house's height (pad `yAt`), because a house on a
+  raw ledge would need a foundation taller than a person. Fences and
+  sidewalks follow the ground.
+- Lots come in blocks of two back-to-back rows sharing lot lines, so a lot
+  line is one fence; a run is a whole number of sections stretched to fit
+  the line, and a corner post two runs share is put up once.
+- A house is one module per room, so a falling tree takes out the rooms it
+  hits. Upper rooms are glued to the room below and their neighbours, and
+  the ground floor to a concrete foundation that never breaks; this is the
+  same glue rule as the `stack` of sheds (D59), so a room comes loose only
+  when it has no glued path to the ground. `HOUSE_BREAK_F` 40 kN, between a
+  shed (25 kN) and the felled-tree forces seen on fences (50 kN), a guess.
+- Intact modules collide as their parts merged where they line up face to
+  face (`modProxies`). 4 000 fixed cuboids cost Rapier ≈ 0.45 ms a step even
+  with nothing touching them; merged, 1 800 cost ≈ 0.15 ms. The drawn boards
+  and the loose parts after a break are unchanged.
+- The view merges each intact body's boards into one mesh per material, and
+  redraws only the build that changed on a `smash`.
+- Flat ground (the engine tests) gets no yards and no shed, so the tests do
+  not depend on the yard settings.
+
+Not plain physics, found on the way: on a slope the parked chipper crept
+(0.04 m/s on 6.5°) because its tyre grips cancel velocity before the step
+and the step's contact forces leave a little drift every time. A braked tyre
+now sticks: it is pulled back toward the spot where it stopped, up to the
+same friction cap, and that spot moves with it when it slips. The grips are
+also solved together over a few passes. Towed, the tyres roll as before.
