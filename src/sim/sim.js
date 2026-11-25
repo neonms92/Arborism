@@ -17,6 +17,7 @@ import { Pavers } from './pavers.js';
 import { Damage } from './damage.js';
 import { Chipper } from './chipper.js';
 import { Builds } from './builds.js';
+import { Ground } from './ground.js';
 import { CHIPPER_BODY_ID } from '../model/chipper.js';
 import { terrainSpec, groundY, groundN } from '../model/terrain.js';
 
@@ -56,6 +57,7 @@ export class Sim {
 
     this.flat = opts.terrain === undefined ? opts.tree === false : !opts.terrain;
     this.groundCol = null;
+    this.solid = new Ground(this);    // wood that ends up inside the ground is pushed back out
     this.makeGround();
 
     // wood still joined by a live fibre bundle must not also collide across that joint
@@ -131,6 +133,7 @@ export class Sim {
     // (no FIX_INTERNAL_EDGES: with it, thin rods slid through the crease at the foot of a ledge)
     else g = R.ColliderDesc.heightfield(t.n, t.n, t.h, { x: t.n * t.cell, y: 1, z: t.n * t.cell });
     this.groundCol = this.rapier.createCollider(g.setFriction(0.9));
+    this.solid.onGround(this.groundCol);
     const d = this.ccd();
     this.rapier.forEachRigidBody((b) => { if (b.isDynamic()) b.setSoftCcdPrediction(d); });
   }
@@ -242,6 +245,7 @@ export class Sim {
       .setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(CFG.CONTACT_MIN);
     if (this.structure && (this.structure.noHit.has(s.id) || this.structure.rootOf.has(s.id))) desc.setActiveHooks(RAPIER.ActiveHooks.FILTER_CONTACT_PAIRS);
     const col = this.rapier.createCollider(desc, body);
+    this.solid.onCollider(s.id);
     this.segCol.set(s.id, col); this.colSeg.set(col.handle, s.id);
     this.colBase.set(s.id, { mid, q: [_q.x, _q.y, _q.z, _q.w], at: mid.slice() });
   }
@@ -352,6 +356,7 @@ export class Sim {
     this.structure.step(dt);
     if (this.tick % 2 === 0) this.syncColliders();
     this.rollResist();
+    this.solid.pre(dt);
     this.rapier.step(this.eq, this.hooks);
     this.eq.drainContactForceEvents((e) => this.onContact(e));
     this.players.post(dt);
