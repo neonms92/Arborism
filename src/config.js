@@ -15,7 +15,7 @@ export const CFG = {
   TOUCH_SAW_SENS: 1.5,     // touch: the bar pivots this many times as far per pixel as with the mouse (SAW_SENS)
   TOUCH_STICK_R: 60,       // px a thumb moves from where it landed for full speed (CSS px)
   // --- view (all in the Tab menu) ---
-  BARK_OPACITY: 1,         // 0 = bark hidden, 1 = solid bark (the test viewer starts from TEST_VIEW_DEFAULTS instead)
+  BARK_OPACITY: 1,         // 0 = bark hidden, 1 = solid bark (the test viewer starts from TEST_DEFAULTS instead)
   SHOW_FIBRES: true,       // draw every fibre
   STRESS_COLORS: true,     // colour fibres by load (off: plain wood)
   LEAF_OPACITY: 0.7,
