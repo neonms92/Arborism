@@ -614,6 +614,11 @@ top of the screen while touch controls are shown. On by default when the
 primary pointer is coarse and there is no fine pointer; `?touch` forces it on,
 `?touch=0` off, and a finger on the canvas turns it on on other touch screens.
 The Tab menu gained a Close button (phones have no Tab key).
+Follow-up (owner: "no button for tying a branch to a block which has been
+set"): the Rig button is labelled with what it will do (hang / tie / untie /
+take the block down), since looking within 0.7 m of the block turns the tie
+into a take-down; with a block hung and no wood in reach it stays up, dimmed,
+reading "Tie: get closer", and the host prompt now says "within reach".
 Idea 2 lives only in the test viewer (`Saw` button): a stand-in climber with
 no body, its eyes 1 m back along the finger's ray, drives the real
 `sawStep`, so bar, pivot limits, cutting rate and pinch are the game's own.
