@@ -547,3 +547,29 @@ that can move (loose wood too) now limits how fast the feet go away from it
 to how fast it follows, plus 0.15 m/s while the pull is under half of
 `GRAB_MAX`. Standing wood is unchanged: walking away still tears it out of
 the hands. Dragging a heavy log is now slow instead of an instant tear-out.
+
+## Shed
+
+**D59 — Breakable structures are glued rigid modules that turn into loose
+boards past a force.** The owner asked for a shed near the tree, about the
+chipper's distance from it, with no physics but simple collision until wood
+hits it hard enough, then loose pieces that "scatter terrifically"; bigger
+structures will be sheds glued together that break apart separately. So an
+intact module is just colliders on a fixed body (or on a loose body, once
+cut off from the ground), and the test is the summed contact force on it in
+one tick from wood (or other structure bodies), against `SHED_BREAK_F`. Force
+rather than energy because the owner said force; Rapier reports it as the
+impulse of the step / dt, so it is about m·v·60 for a hard hit: 25 kN (the
+default) is a 42 kg limb at ≈ 10 m/s or a 127 kg log dropped ≈ 0.5 m. A
+127 kg log dropped 0.3 m measured 20 kN, and a 42 kg one dropped 1 m 12.5 kN.
+Players and the chipper do not count (a walking player shoving a wall would
+otherwise break it).
+
+What is not plain physics, all for the "terrific" scatter: the body that hit
+it keeps its velocity from before the step (the module gave way), the boards
+get a velocity kick out from the hit point (`SHED_SCATTER` × closing speed,
+plus half that upward), and the boards of a module that has just broken do
+not collide with each other for `SHED_APART` (0.3 s). Without the last, the
+boards, which start touching, lost two thirds of their speed to each other
+within four ticks and the shed just slumped. Loose boards are not wood: they
+cannot be cut, grabbed or chipped, and do not crack pavers.

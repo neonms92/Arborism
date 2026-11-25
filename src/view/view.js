@@ -19,6 +19,7 @@ import { Flex, frameApply } from '../model/flex.js';
 import { CFG, MODE, INJ } from '../config.js';
 import { PaverView } from './pavers.js';
 import { ChipperView } from './chipper.js';
+import { BuildsView } from './builds.js';
 import { SHAPE } from '../model/chipper.js';
 
 const SIDES = 7;
@@ -53,6 +54,7 @@ export class View {
     ground.receiveShadow = true; this.scene.add(ground);
     this.paverView = new PaverView(this.scene, world);   // concrete pavers round the tree, and their cracks
     this.chipperView = new ChipperView(this.scene, world);   // the wood chipper and its chip piles
+    this.buildsView = new BuildsView(this.scene, world);     // the shed, whole or in pieces
 
     this.barkMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, side: THREE.DoubleSide });
     this.leafMat = new THREE.MeshLambertMaterial({ color: 0x3f7d3a, flatShading: true, transparent: true });
@@ -97,6 +99,7 @@ export class View {
   onEvent(ev, info) {
     this.paverView.onEvent(ev);
     this.chipperView.onEvent(ev);
+    this.buildsView.onEvent(ev);
     switch (ev.t) {
       case 'reset':
         for (const id of [...this.pieces.keys()]) this.dropPiece(id);
@@ -385,6 +388,7 @@ export class View {
     if (flex) for (const p of this.pieces.values()) this.bendPiece(p, flex);
     if (aux && CFG.SHOW_FIBRES && aux.tick !== this.lastAuxTick && (CFG.STRESS_COLORS || !this.painted)) { this.lastAuxTick = aux.tick; this.painted = true; this.paintFibres(aux); }
     this.chipperView.update(dt, src, aux);
+    this.buildsView.update(src);
     const seen = new Set();
     let mePos = null;
     if (aux) for (const a of aux.pl) {

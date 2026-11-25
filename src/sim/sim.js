@@ -13,6 +13,7 @@ import { Rope } from './rope.js';
 import { Structure } from './structure.js';
 import { Pavers } from './pavers.js';
 import { Chipper } from './chipper.js';
+import { Builds } from './builds.js';
 import { CHIPPER_BODY_ID } from '../model/chipper.js';
 
 export const PLAYER_BODY_ID = 60000;   // snapshot ids >= this are players
@@ -51,6 +52,7 @@ export class Sim {
     const noHit = (c1, c2) => {
       const s1 = this.colSeg.get(c1), s2 = this.colSeg.get(c2);
       if (this.chipper.noHit(c1, s2) || this.chipper.noHit(c2, s1)) return true;     // wood being fed passes into the chipper
+      if (this.builds.noHit(c1, c2)) return true;     // boards of a module that has just broken fly apart
       if (s1 === undefined || s2 === undefined) return false;
       const a = this.world.segs.get(s1), b = this.world.segs.get(s2), nh = this.structure.noHit;
       if (!a || !b) return false;
@@ -67,12 +69,13 @@ export class Sim {
     this.rope = new Rope(this);
     this.structure = new Structure(this);
     this.chipper = new Chipper(this);  // its body is made by the first 'chipper' event (grow)
+    this.builds = new Builds(this);    // the shed; its bodies are made by the 'builds' event (grow)
     this.onLoads = null;              // optional fn(dt), called each tick where point loads go in (test harness)
 
     if (opts.tree !== false) this.grow();
   }
 
-  grow() { this.pavers.lay(); this.chipper.place(); this.emit({ t: 'tree', piece: this.world.newId(), segs: generateTree(CFG.TREE_SEED, () => this.world.newId()) }); }
+  grow() { this.pavers.lay(); this.chipper.place(); this.builds.place(); this.emit({ t: 'tree', piece: this.world.newId(), segs: generateTree(CFG.TREE_SEED, () => this.world.newId()) }); }
   /** Clear all wood and grow a new tree from the current TREE_* settings. */
   regrow() { this.emit({ t: 'reset' }); this.grow(); this.toast('A new tree'); }
 
@@ -82,6 +85,7 @@ export class Sim {
   // ---- model -> physics ----
   onEvent(ev, info) {
     this.chipper.onEvent(ev, info);
+    this.builds.onEvent(ev, info);
     if (ev.t === 'tree') {
       const body = this.rapier.createRigidBody(RAPIER.RigidBodyDesc.fixed());
       this.bodies.set(ev.piece, body);
@@ -269,6 +273,7 @@ export class Sim {
     this.rapier.step(this.eq, this.hooks);
     this.eq.drainContactForceEvents((e) => this.onContact(e));
     this.players.post(dt);
+    this.builds.post();          // before pavers.post: it reads the velocities from before the step
     this.pavers.post();
     this.chipper.post();
 
@@ -279,6 +284,7 @@ export class Sim {
     const h1 = e.collider1(), h2 = e.collider2();
     const mag = e.totalForceMagnitude(), dir = e.maxForceDirection();
     this.pavers.onContact(h1, h2);
+    this.builds.onContact(h1, h2, mag);
     for (const [h, other] of [[h1, h2], [h2, h1]]) {
       const pid = this.colPlayer.get(h);
       if (pid !== undefined) { this.players.onContact(pid, mag); continue; }
@@ -341,9 +347,10 @@ export class Sim {
     for (const p of this.players.list.values()) fn(PLAYER_BODY_ID + p.id, p.body.translation(), p.body.rotation(), true);
     const c = this.chipper.body;
     if (c) fn(CHIPPER_BODY_ID, c.translation(), c.rotation(), !c.isSleeping());
+    this.builds.eachBody(fn);
   }
   pose(id) {
-    const b = id >= PLAYER_BODY_ID ? this.players.list.get(id - PLAYER_BODY_ID)?.body : id === CHIPPER_BODY_ID ? this.chipper.body : this.bodies.get(id);
+    const b = id >= PLAYER_BODY_ID ? this.players.list.get(id - PLAYER_BODY_ID)?.body : id === CHIPPER_BODY_ID ? this.chipper.body : this.bodies.get(id) || this.builds.body(id);
     return b ? { p: b.translation(), q: b.rotation() } : null;
   }
   aux() {
