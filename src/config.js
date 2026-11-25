@@ -32,6 +32,19 @@ export const CFG = {
   FOG_START: 0.3,          // fog begins at this fraction of the draw distance
   PEER_PREFIX: 'arborism-',
 
+  // --- sky: sun, moon and headlamps (view/sky.js; the host keeps the clock and sends it in aux) ---
+  DAY_LENGTH: 1200,        // s of play for one whole day and night (0 = time stands still)
+  DAY_START: 0.3,          // time of day the game starts at (0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset)
+  MOON_DAYS: 8,            // days from one full moon to the next (it changes phase each noon)
+  SUN_LIGHT: 2.0,          // intensity of sunlight with the sun high
+  MOON_LIGHT: 0.35,        // intensity of moonlight under a full moon; it scales with how much of the moon is lit
+  NIGHT_AMBIENT: 0.06,     // sky glow on a moonless night (the ambient light is 1.2 at noon)
+  MOON_AMBIENT: 0.22,      // extra sky glow under a full moon, scaled the same way as MOON_LIGHT
+  STARS: 1,                // how bright the stars are on a dark night (0 = none)
+  HEADLAMPS: true,         // players switch headlamps on when the sun goes down
+  HEADLAMP: 14,            // candela: brightness of a headlamp (lights a surface 1 m away with this, 3 m away with a ninth)
+  HEADLAMP_ANGLE: 0.45,    // rad, half-width of a headlamp's beam
+
   // --- wood (green hardwood) ---
   DENSITY: 900,            // kg/m^3
   MOR: 30e6,               // Pa, modulus of rupture (tension failure in bending)

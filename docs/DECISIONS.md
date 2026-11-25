@@ -966,3 +966,43 @@ defaults of every test parameter in `tests.js`, which used to read
 and "Grow a new tree" still start from `CFG_DEFAULTS` (22 m, 1.2 m). This
 brings FM-22, which grows the default tree, back to the tree it was written
 for (see D71).
+
+**D76 — Day, night and the moon.** Owner asked for a simple sun and moon
+cycle "similar to Minecraft", moonlight that follows how bright the moon is,
+and headlamps at night.
+
+- *Clock.* The host keeps it (`sim.days`, days since the first midnight,
+  advancing `1 / DAY_LENGTH` per second) and sends `sky: [days, DAY_LENGTH]`
+  in aux. A client runs its own copy between packets, eases onto the host's
+  and jumps if it is more than 0.005 days off (a skip). It is a small
+  continuous value, so aux, not an event. It is not reset by a new tree.
+  The lobby behind the main menu keeps its own clock.
+- *Default length 20 minutes* (`DAY_LENGTH` 1200 s), the same as
+  Minecraft's day, starting at `DAY_START` 0.3 (mid-morning) so a game
+  starts in daylight. 0 stops time. Tab menu: Day, night and moon.
+- *Sky.* The sun rises in +x, leans `TILT` (0.45 rad) towards +z at noon and
+  sets in −x. The moon is always opposite the sun, as in Minecraft (so it is
+  up all night whatever its phase; a real new moon would rise with the sun).
+  The phase changes each noon, never during a night, and runs through
+  `MOON_DAYS` (8) from full to new and back. The look is our own: a soft
+  glowing sun disc, a moon drawn per phase on a canvas with a soft
+  terminator, faint dark side and grey seas, and 900 stars that turn with
+  the sky. They sit at 0.9 of the far plane, ignore fog and are depth-tested,
+  so wood and ground in front hide them.
+- *Light.* lit = (1 + cos(2π k / MOON_DAYS)) / 2. Moonlight =
+  `MOON_LIGHT` × lit, sky glow = `NIGHT_AMBIENT` + `MOON_AMBIENT` × lit, both
+  faded in with the moon's height. The scene's one shadow-casting
+  directional light is the sun by day and the moon by night (whichever is
+  brighter), so moonlit wood casts faint shadows. Sky and fog share one
+  colour, from night blue (lighter under a bright moon) through a warm band
+  at sunrise and sunset to the old day blue, so the fog of D73 still meets
+  the sky with no seam.
+- *Headlamps.* Every player has one: a spot light (`HEADLAMP` 14 cd, beam
+  half-width `HEADLAMP_ANGLE` 0.45 rad, no shadows) that fades in as the sun
+  nears the horizon (`HEADLAMPS` off = never). Your own follows the camera;
+  others' follow their yaw and pitch (pitch `pt` added to the player aux).
+  The light is in the scene, not the body, because your own body is hidden.
+  A small lamp on the helmet glows while it is on. Each player adds a light,
+  so a player joining makes three.js recompile shaders once (a short hitch).
+- *Not done.* Cloud cover (described to the owner, not built), weather,
+  seasons, the moon's position following its phase.
