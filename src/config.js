@@ -159,6 +159,8 @@ export const CFG = {
 
   // --- player ---
   P_MASS: 85, P_RADIUS: 0.28, P_HALF: 0.6,
+  PLAYER_NAME_MAX: 16,     // characters in a player's name (lobby box, toasts, name tag, helmet)
+  BLINK_GAP: 4,            // s, mean time between blinks (view only)
   WALK: 3.5, JUMP: 3.4,
   WALK_SLOPE: 0.785,       // rad (45°): ground up to this steep is stood on (the legs work on it)
   JUMP_SLOPE: 1.22,        // rad (70°): sliding on ground up to this steep (a ledge face), a jump still pushes off it

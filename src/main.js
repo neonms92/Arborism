@@ -12,6 +12,7 @@ import { Net } from './net/net.js';
 import { encodeSnapshot, Interp } from './net/snapshot.js';
 import { NetStats, upCount, upLoss } from './net/stats.js';
 import { randomSeed, seedNumbers } from './model/seed.js';
+import { cleanName, cleanColor, playerName } from './model/world.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -53,6 +54,22 @@ world.on((ev, info) => {
 });
 
 // ---------- lobby ----------
+// name and shirt colour: chosen in the lobby, remembered in this browser, sent to the host (players.setLook)
+const PALETTE = [0xe8a23a, 0x3a9be8, 0xd94f6a, 0x62c462, 0xb07be0, 0xe0d24a];
+const hex = (c) => '#' + c.toString(16).padStart(6, '0');
+function look() {
+  const c = cleanColor(parseInt(($('pcolor').value || '').slice(1), 16));
+  return { name: cleanName($('pname').value), color: c };
+}
+{
+  let n = '', c = -1;
+  try { n = localStorage.getItem('arb-name') || ''; c = cleanColor(parseInt(localStorage.getItem('arb-color'), 10)); } catch { /* storage blocked */ }
+  if (c < 0) c = PALETTE[Math.random() * PALETTE.length | 0];
+  $('pname').maxLength = CFG.PLAYER_NAME_MAX;
+  $('pname').value = n; $('pcolor').value = hex(c);
+  const save = () => { const l = look(); try { localStorage.setItem('arb-name', l.name); localStorage.setItem('arb-color', String(l.color)); } catch { /* storage blocked */ } };
+  $('pname').onchange = save; $('pcolor').oninput = save; save();
+}
 const msg = (s) => { $('msg').textContent = s; };
 const randomRoom = () => Array.from({ length: 5 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.random() * 24 | 0]).join('');
 
@@ -64,7 +81,7 @@ async function startHost(online) {
   applySeed();
   sim = await Sim.create(world);
   me = nextPid++;
-  sim.players.add(me, 'host');
+  sim.players.add(me, look().name, look().color);
   role = 'solo';
   if (online) {
     room = (q.get('host') || randomRoom()).toUpperCase();
@@ -84,19 +101,23 @@ function wireHost() {
   net.onJoin = (key, c) => {
     flushEvents();                               // existing clients get everything up to now
     c.pid = nextPid++;
-    sim.players.add(c.pid, 'p' + c.pid);
+    sim.players.add(c.pid, '');                  // name and colour follow in their 'me' message
     flushEvents();                               // ...including the new player
     net.sendRel(c, { t: 'welcome', pid: c.pid, tick: sim.tick, world: world.serialize() });
     c.ready = true;
-    hud.toast(`Player ${c.pid} joined`);
   };
-  net.onLeave = (key, c) => { if (c.pid > 0) { sim.players.remove(c.pid); hud.toast(`Player ${c.pid} left`); } };
+  net.onLeave = (key, c) => { if (c.pid > 0) { const n = playerName(world, c.pid); sim.players.remove(c.pid); hud.toast(`${n} left`); } };
   net.onClientData = (key, c, d) => {
     if (typeof d !== 'string' || c.pid < 0) return;
     let m; try { m = JSON.parse(d); } catch { return; }
     if (m.t === 'pi' && Number.isFinite(m.s)) {        // ping: answer at once, with the input loss seen here (net/stats.js)
       if (c.fast?.open) c.fast.send(JSON.stringify({ t: 'po', s: m.s, up: upLoss(c), fps: Math.round(hud.fps), q: Net.queued(c.fast), sk: c.skipped || 0 }));
       c.st = { r: +m.r || 0, l: +m.l || 0, via: typeof m.via === 'string' ? m.via.slice(0, 12) : '' };
+      return;
+    }
+    if (m.t === 'me') {                                // the joiner's lobby name and shirt colour (cleaned in players.setLook)
+      sim.players.setLook(c.pid, m.name, m.color);
+      if (!c.named) { c.named = true; hud.toast(`${playerName(world, c.pid)} joined`); }
       return;
     }
     // inputs arrive unordered: one older than an input already used is dropped, so a late "still climbing" cannot undo a stop
@@ -130,7 +151,7 @@ async function startJoin(code) {
     }
     const m = JSON.parse(d);
     if (m.t === 'po') { stats.pong(m, now); return; }
-    if (m.t === 'welcome') { world.load(m.world); me = m.pid; role = 'client'; begin(); }
+    if (m.t === 'welcome') { world.load(m.world); me = m.pid; role = 'client'; net.sendRel(net, { t: 'me', ...look() }); begin(); }
     else if (m.t === 'ev') for (const ev of m.evs) world.apply(ev);
     else if (m.t === 'aux') { if (!aux || m.tick > aux.tick) aux = m; }
   };
