@@ -36,6 +36,19 @@ export const CFG = {
   WEEDS_DIST: 60,          // m, weeds further from the eye than this are not drawn
   PEER_PREFIX: 'arborism-',
 
+  // --- sky: sun, moon and headlamps (view/sky.js; the host keeps the clock and sends it in aux) ---
+  DAY_LENGTH: 1200,        // s of play for one whole day and night (0 = time stands still)
+  DAY_START: 0.3,          // time of day the game starts at (0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset)
+  MOON_DAYS: 8,            // days from one full moon to the next (it changes phase each noon)
+  SUN_LIGHT: 2.0,          // intensity of sunlight with the sun high
+  MOON_LIGHT: 0.35,        // intensity of moonlight under a full moon; it scales with how much of the moon is lit
+  NIGHT_AMBIENT: 0.06,     // sky glow on a moonless night (the ambient light is 1.2 at noon)
+  MOON_AMBIENT: 0.22,      // extra sky glow under a full moon, scaled the same way as MOON_LIGHT
+  STARS: 1,                // how bright the stars are on a dark night (0 = none)
+  HEADLAMPS: true,         // players switch headlamps on when the sun goes down
+  HEADLAMP: 14,            // candela: brightness of a headlamp (lights a surface 1 m away with this, 3 m away with a ninth)
+  HEADLAMP_ANGLE: 0.45,    // rad, half-width of a headlamp's beam
+
   // --- wood (green hardwood) ---
   DENSITY: 900,            // kg/m^3
   MOR: 30e6,               // Pa, modulus of rupture (tension failure in bending)
@@ -198,8 +211,9 @@ export const CFG = {
 // The values above as shipped, before the Tab menu loads saved settings over them (the test runner starts from these).
 export const CFG_DEFAULTS = Object.freeze({ ...CFG });
 // What the test runner and its viewer start from instead: the same, except that tests are watched for their
-// fibres, so the bark starts hidden there. The viewer's Tune panel can still change it.
-export const TEST_DEFAULTS = Object.freeze({ ...CFG_DEFAULTS, BARK_OPACITY: 0 });
+// fibres, so the bark starts hidden there (the viewer's Tune panel can still change it), and tests keep the
+// smaller tree they were written for (play grows the bigger one, D75).
+export const TEST_DEFAULTS = Object.freeze({ ...CFG_DEFAULTS, BARK_OPACITY: 0, TREE_HEIGHT: 11, TREE_DIAMETER: 0.54 });
 
 export const INJ = { OK: 0, SHAKEN: 1, HURT: 2, DOWN: 3 };
 export const INJ_NAME = ['ok', 'shaken', 'HURT', 'DOWN'];

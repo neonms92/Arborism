@@ -38,6 +38,7 @@ export class Sim {
     this.R = RAPIER;
     this.world = world;
     this.tick = 0;
+    this.days = CFG.DAY_START;        // the clock: days since the first midnight (view/sky.js draws the sun and moon from it)
     this.outbox = [];                 // events waiting to go to clients
     this.rapier = new RAPIER.World({ x: 0, y: -CFG.GRAVITY, z: 0 });
     this.rapier.timestep = CFG.TICK;
@@ -313,6 +314,7 @@ export class Sim {
   step() {
     const dt = CFG.TICK;
     this.tick++;
+    if (CFG.DAY_LENGTH > 0) this.days += dt / CFG.DAY_LENGTH;
     this.loads.length = 0;
     // filtered contact loads from the previous physics step
     const k = Math.min(1, dt / CFG.CONTACT_TAU);
@@ -417,7 +419,11 @@ export class Sim {
     const b = id >= PLAYER_BODY_ID ? this.players.list.get(id - PLAYER_BODY_ID)?.body : id === CHIPPER_BODY_ID ? this.chipper.body : this.bodies.get(id) || this.builds.body(id) || this.chipper.partBody(id);
     return b ? { p: b.translation(), q: b.rotation() } : null;
   }
+  /** Jump the clock to the next sunrise, noon, sunset or midnight (the Tab menu). */
+  skipTime() { this.days = (Math.floor(this.days * 4 + 1e-6) + 1) / 4; }
+
   aux() {
-    return { t: 'aux', tick: this.tick, pl: this.players.aux(), rope: this.rope.aux(), chip: this.chipper.aux(), ...this.structure.aux() };
+    // sky: [days, s per day] so a client can run its clock smoothly between packets
+    return { t: 'aux', tick: this.tick, sky: [+this.days.toFixed(6), CFG.DAY_LENGTH], pl: this.players.aux(), rope: this.rope.aux(), chip: this.chipper.aux(), ...this.structure.aux() };
   }
 }

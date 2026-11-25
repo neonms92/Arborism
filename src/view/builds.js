@@ -31,7 +31,7 @@ export class BuildsView {
     let m = this.mats[key];
     if (!m) {
       m = this.mats[key] = key === 'glass'
-        ? new THREE.MeshLambertMaterial({ color, emissive: 0x1c2226 })     // frosted glass: opaque, a faint glow so it reads as glass
+        ? new THREE.MeshLambertMaterial({ color })     // frosted glass: opaque, smooth-shaded
         : new THREE.MeshLambertMaterial({ color, flatShading: true });
     }
     return m;

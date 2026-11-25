@@ -47,6 +47,18 @@ export const ROWS = [
   ['WEEDS_DENSITY', 'Weeds: tufts per metre of edge', 0.5, 20, 0.5, 1],
   ['WEEDS_HEIGHT', 'Weeds: height of an average tuft (cm)', 5, 120, 1, 0.01],
   ['WEEDS_DIST', 'Weeds: drawn out to this distance (m)', 5, 300, 5, 1],
+  ['Day, night and moon'],
+  ['DAY_LENGTH', 'Length of a whole day and night (minutes; 0 = time stands still)', 0, 120, 0.5, 60, true],
+  ['MOON_DAYS', 'Days from one full moon to the next', 1, 30, 1, 1, true],
+  ['@skip', 'Skip ahead to the next sunrise, noon, sunset or midnight'],
+  ['SUN_LIGHT', 'Sunlight brightness', 0, 5, 0.05, 1],
+  ['MOON_LIGHT', 'Moonlight brightness under a full moon', 0, 2, 0.01, 1],
+  ['NIGHT_AMBIENT', 'Sky glow on a moonless night', 0, 1, 0.01, 1],
+  ['MOON_AMBIENT', 'Extra sky glow under a full moon', 0, 1, 0.01, 1],
+  ['STARS', 'Star brightness', 0, 1, 0.05, 1],
+  ['HEADLAMPS', 'Headlamps come on at night'],
+  ['HEADLAMP', 'Headlamp brightness (candela)', 0, 100, 1, 1],
+  ['HEADLAMP_ANGLE', 'Headlamp beam half-width (degrees)', 5, 80, 1, Math.PI / 180],
   ['Wood fibres'],
   ['MOR', 'Tension strength (MPa)', 2, 80, 1, 1e6, true],
   ['COMP', 'Crushing strength (MPa)', 1, 60, 1, 1e6, true],
@@ -176,7 +188,7 @@ export class Menu {
     let open = {};
     try { open = JSON.parse(localStorage.getItem(OPEN_KEY) || '{}'); } catch { /* ignore */ }
     this.inputs = [];
-    const sections = [];
+    const sections = [], actions = [];
     let sec = null;
     for (const r of ROWS) {
       if (r.length === 1) {         // a section: a collapsible block, closed until opened (remembered)
@@ -189,9 +201,14 @@ export class Menu {
         el.appendChild(d); sec = { d, title: r[0], rows: [] }; sections.push(sec); continue;
       }
       const into = sec ? sec.d : el;
-      if (r[0] === '@grow' || r[0] === '@chipper') {
+      if (r[0] === '@grow' || r[0] === '@chipper') {   // actions: kept out of the sections, beside the reset button
         const b = document.createElement('button'); b.textContent = r[1]; b.className = 'go';
         b.onclick = () => (r[0] === '@grow' ? this.onGrow() : this.onChipper && this.onChipper());
+        actions.push(b); continue;
+      }
+      if (r[0] === '@skip') {                           // an action that belongs to its section
+        const b = document.createElement('button'); b.textContent = r[1]; b.className = 'go';
+        b.onclick = () => this.onSkip && this.onSkip();
         into.appendChild(b); if (sec) sec.rows.push({ el: b, text: r[1].toLowerCase() }); continue;
       }
       const [key, label, min, max, step, scale] = r;
@@ -228,7 +245,9 @@ export class Menu {
     };
     const reset = document.createElement('button'); reset.textContent = 'Reset everything to defaults';
     reset.onclick = () => { Object.assign(CFG, this.defaults); localStorage.removeItem(KEY); for (const f of this.inputs) f(); this.onChange(); };
-    el.appendChild(reset);
+    const foot = document.createElement('div'); foot.className = 'actions';
+    for (const b of actions) foot.appendChild(b);
+    foot.appendChild(reset); el.appendChild(foot);
   }
 
   set(key, value) {

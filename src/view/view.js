@@ -18,6 +18,7 @@ import { bundleBasis, layout, CUT } from '../model/fibres.js';
 import { Flex, frameApply } from '../model/flex.js';
 import { CFG, MODE, INJ } from '../config.js';
 import { PaverView } from './pavers.js';
+import { Sky } from './sky.js';
 import { TerrainView } from './terrain.js';
 import { groundY } from '../model/terrain.js';
 import { ChipperView } from './chipper.js';
@@ -48,12 +49,13 @@ export class View {
     this.frameMs = 0; this.lastFrame = 0;
     this.camera.position.set(6, 3, 9); this.camera.lookAt(0, 4, 0);
 
-    this.scene.add(new THREE.HemisphereLight(0xdfeeff, 0x4a5a3a, 1.2));
-    const sun = new THREE.DirectionalLight(0xfff2d8, 2.0);
+    const hemi = new THREE.HemisphereLight(0xdfeeff, 0x4a5a3a, 1.2);
+    const sun = new THREE.DirectionalLight(0xfff2d8, 2.0);   // the sun by day, the moon by night (sky.js)
     sun.position.set(14, 26, 10); sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
     Object.assign(sun.shadow.camera, { left: -18, right: 18, top: 18, bottom: -18, near: 1, far: 70 });
-    this.scene.add(sun);
+    this.scene.add(hemi, sun);
+    this.sky = new Sky(this.scene, hemi, sun);
 
     this.terrainView = new TerrainView(this.scene, world);  // the ground: hills and ledges, or flat
     this.paverView = new PaverView(this.scene, world);   // concrete pavers round the tree, and their cracks
@@ -321,7 +323,13 @@ export class View {
     const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.2, 7, 5), new THREE.MeshLambertMaterial({ color: 0xf4f4f4, flatShading: true }));
     helmet.position.y = 0.78;
     body.castShadow = true;
-    group.add(body, helmet);
+    const lampMat = new THREE.MeshBasicMaterial({ color: 0x555555 });
+    const lampBox = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.06, 0.05), lampMat);
+    lampBox.position.set(0, 0.82, -0.19);
+    group.add(body, helmet, lampBox);
+    // headlamp: in the scene, not the body, so it still shines from your own head while your body is hidden
+    const lamp = new THREE.SpotLight(0xfff4e0, 0, 0, CFG.HEADLAMP_ANGLE, 0.55, 2);
+    this.scene.add(lamp, lamp.target);
     const saw = new THREE.Group();
     const eng = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.13, 0.1), new THREE.MeshLambertMaterial({ color: 0xe05a1a, flatShading: true }));
     // the planted point is the middle of the bar's leading edge; the powerhead hangs off the -X end
@@ -333,7 +341,7 @@ export class View {
     const grab = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat);
     grab.frustumCulled = false; grab.visible = false;
     this.scene.add(group, saw, lanyard, grab);
-    p = { group, saw, bar, eng, lanyard, grab };
+    p = { group, saw, bar, eng, lanyard, grab, lamp, lampMat };
     this.players.set(id, p);
     return p;
   }
@@ -374,7 +382,7 @@ export class View {
       this.poseLanyard(pm, a);
       this.poseGrab(pm, a);
     }
-    for (const [id, pm] of [...this.players]) if (!seen.has(id)) { this.scene.remove(pm.group, pm.saw, pm.lanyard, pm.grab); this.players.delete(id); }
+    for (const [id, pm] of [...this.players]) if (!seen.has(id)) { this.scene.remove(pm.group, pm.saw, pm.lanyard, pm.grab, pm.lamp, pm.lamp.target); pm.lamp.dispose(); this.players.delete(id); }
     this.updateRope(aux);
 
     if (mePos) {                                      // first person
@@ -394,7 +402,28 @@ export class View {
       this.camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, roll, 'YXZ'));
     }
     this.adaptDraw();
+    this.sky.update(dt, aux, this.camera);
+    this.scene.background.copy(this.sky.color); this.fog.color.copy(this.sky.color);
+    if (aux) for (const a of aux.pl) this.poseLamp(this.players.get(a.id), a, a.id === me ? inp : null);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  // a headlamp shines where its wearer looks (your own from the camera, so it follows your view exactly)
+  poseLamp(pm, a, mine) {
+    const on = this.sky.lamps, L = pm.lamp;
+    L.intensity = CFG.HEADLAMP * on; L.angle = CFG.HEADLAMP_ANGLE;
+    pm.lampMat.color.setHex(on > 0.5 ? 0xfff6c8 : 0x555555);
+    if (mine) {
+      L.position.copy(this.camera.position).addScaledVector(Y, 0.08);
+      this.camera.getWorldDirection(_v);
+    } else {
+      const yaw = a.yaw, p = a.pt || 0;
+      L.position.copy(pm.group.position).addScaledVector(Y, CFG.EYE + 0.15);
+      _v.set(-Math.sin(yaw) * Math.cos(p), Math.sin(p), -Math.cos(yaw) * Math.cos(p));
+      L.position.addScaledVector(_v, 0.2);
+    }
+    L.target.position.copy(L.position).add(_v);
+    L.target.updateMatrixWorld();
   }
 
   /**
