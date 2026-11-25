@@ -37,6 +37,7 @@ yet swung the saw with a real mouse.
 | Network | Host, client and a late joiner agree on fibres cut, pieces, live bundles and rope. Tested against a **local** PeerJS server only. |
 | Concrete pavers (D49) | Basket weave in a circle of half the tree height (5.5 m on the demo tree). Numbers below were measured on an earlier, larger square: A player dropped from 1 m: no damage; from ≈ 4 m: 4 units on one paver and DOWN. A 93 kg limb cut at 4 m: 2 units. Felled demo tree: the crown tip hit one paver for 28 units. Cracks at 1, 2, 4, 8, 14, 20, 27 units grow as intended; 35 and 80 are gravel. Host, client and a late joiner agree on damage and draw the same cracks. Headless only. |
 | Wood chipper (D57, D58) | Parked 3 m outside the paving, hopper toward the tree. Holding loose wood, R at the chipper feeds it: a 25 kg limb went in and was chipped in ≈ 2.5 s, leaving a 0.07 m³ pile. A rigging line tied to it went into the rollers when its knot reached the drum; with the rope over a block 4.7 m up the trunk, the rollers dragged the 600 kg chipper 9 m to the trunk and hoisted it 2.2 m, holding 15 kN until the rope came free. Cutting the fed rope, taking the block down, or the block's limb tearing off each ended the feed, and the rest of the rope went into the chipper. A new tree put it back, with no chips and no rope, and fresh pavers. R at the grip tows it (1.7 m in 5 s from rest, turns about its axle); let go and the brakes hold it. Host, client and a late joiner agree on piles, the fed rope and the chipper's pose. Headless only. |
+| Shed (D59) | Put up 3 m outside the paving opposite the chipper's chute, door toward the tree: 40 boards, one module. A 127 kg log dropped 3 m onto the roof (62 kN) smashed it and boards landed up to 4.4 m from its centre; dropped 0.5 m (27 kN) it still broke; a 42 kg log from 1 m (12.5 kN) did not. Two sheds glued one on the other (kind `stack`, console only): a log thrown into the lower one smashed it, the upper one fell intact and broke where it landed. A new tree put it back intact. Host, client and a late joiner agree on where the boards are. Headless only. |
 | Controls text | Lobby help, HUD hint line, prompts and toasts name keys or buttons for the device last touched. |
 | Controls (D47) | ESDF; R hold 4 s spurs in (ring round the reticle fills), C hold 4 s lets go, a tap of either does nothing; W hangs the block, ties, unties, takes the block down when looking at it; R on the ground grabs / lets go of wood (a short rope; pulled out of the hands past `GRAB_MAX`); G punches and stacks; saw always on the mouse. Checked in headless Chromium through real key presses; a second tab joins and sees the new HUD. Gamepad mapping (Y rigging, RB punch) not tried on a pad. |
 | Look | First person. Vertical look inverted (`INVERT_Y`). |
@@ -167,6 +168,9 @@ mass, TESTS.md section 8).
   whole segments at a time; chip piles are cones, not particles; nothing
   about its feel has been tried by a person. Dragging loose wood is now slower
   (feet lean into the load, D58).
+- Shed: loose boards are not wood (no saw, grab, chipper or paver cracks);
+  the threshold has not been tried against a felled tree; only one kind of
+  module (the shed) exists.
 
 ## Proposed: automated fibre tests
 

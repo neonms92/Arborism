@@ -681,6 +681,39 @@ log can still drag, tip or hoist it.
 - **Reset.** A new tree re-lays the pavers fresh and re-parks the chipper
   (`chipper` event): default pose, brakes on, nothing feeding, no chips.
 
+### 6.6 Breakable structures: the shed
+
+Structures (`model/builds.js`, `sim/builds.js`, `view/builds.js`) are built
+from **modules** glued together. A module is one unit, made of parts
+(boards: boxes in the module's frame). The shed is one module, put up
+`SHED_GAP` outside the paving on the far side of the trunk from the chipper's
+chute, door toward the trunk: about the chipper's distance from the tree.
+
+- **Intact** modules have no physics of their own: their parts are colliders
+  on the body the module is in, so things bump into them and nothing else.
+  Modules joined to a module that stands on the ground (`ground`), directly
+  or through intact glue, are in the build's fixed body.
+- **Breaking.** Each tick the contact forces on an intact module from wood,
+  or from loose parts and bodies of a build, are added up; players and the
+  chipper do not count. At `SHED_BREAK_F` the module breaks (`smash` event)
+  and each part becomes a loose body. It gives way rather than stopping what
+  hit it: that body gets back its velocity from before the step, so it ploughs
+  on into the boards. The parts are thrown off from the contact point with the
+  closing speed there: `SHED_SCATTER` of it outward across the ground and half
+  that upward, falling off over `SHED_REACH` (never under 0.3 of it), plus a
+  spin, and for `SHED_APART` the boards of that module pass through each other
+  so they fly apart instead of jamming.
+- **Glue.** After a break, intact modules no longer held by the ground
+  through intact glue move together as one loose body (new id), with the
+  velocity of the body they were in. A loose body also breaks on the ground,
+  so a storey whose lower storey was smashed falls and comes apart where it
+  lands. Kind `stack` (two sheds, one glued on the other) exercises this; only
+  `shed` is put up by default.
+- **Sync.** Loose bodies and parts are ordinary snapshot transforms; the
+  `smash` event carries their ids and the pose the module's body had, so a
+  client draws the parts where they were until their first transform.
+- **Reset.** A new tree puts the shed up again, intact (`builds` event).
+
 ---
 
 ## 7. Controls
