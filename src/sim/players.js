@@ -22,8 +22,9 @@ export class Players {
 
   add(id, name) {
     const sim = this.sim, R = sim.R;
-    const ang = id * 1.3, sp = [4 * Math.cos(ang), 1.2, 4 * Math.sin(ang)];
-    const body = sim.rapier.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(sp[0], sp[1], sp[2]).lockRotations());
+    const ang = id * 1.3, sp = [4 * Math.cos(ang), 1.2, 4 * Math.sin(ang)];       // spawn y is above the ground there
+    sp[1] += sim.groundY(sp[0], sp[2]);
+    const body = sim.rapier.createRigidBody(sim.dynamic().setTranslation(sp[0], sp[1], sp[2]).lockRotations());
     const col = sim.rapier.createCollider(R.ColliderDesc.capsule(CFG.P_HALF, CFG.P_RADIUS).setMass(CFG.P_MASS)
       .setFriction(0.2).setActiveEvents(R.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(300), body);
     sim.colPlayer.set(col.handle, id);
@@ -76,6 +77,22 @@ export class Players {
   }
 
   // ---- mode changes ----
+  /** Back to where p started, 1.2 m above the ground there (the ground may have changed since). */
+  toSpawn(p) {
+    const s = p.spawn;
+    s[1] = this.sim.groundY(s[0], s[2]) + 1.2;
+    p.body.setTranslation({ x: s[0], y: s[1], z: s[2] }, true);
+  }
+
+  /** New ground: anyone standing where it now rises is lifted onto it. */
+  onTerrain() {
+    for (const p of this.list.values()) {
+      if (p.mode === MODE.CLIMB) continue;
+      const t = p.body.translation(), y = this.sim.groundY(t.x, t.z) + CFG.P_HALF + CFG.P_RADIUS + 0.05;
+      if (t.y < y) p.body.setTranslation({ x: t.x, y, z: t.z }, true);
+    }
+  }
+
   toGround(p, vel) {
     if (p.mode === MODE.CLIMB) {
       p.body.setBodyType(this.sim.R.RigidBodyType.Dynamic, true);
@@ -205,7 +222,7 @@ export class Players {
       sawOff(sim, p); if (p.mode === MODE.ROPE) this.leaveRope(p);
       this.toGround(p);
       p.inj = INJ.OK; p.shakenT = 0;
-      p.body.setTranslation({ x: p.spawn[0], y: p.spawn[1], z: p.spawn[2] }, true);
+      this.toSpawn(p);
       p.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     }
     const control = p.inj < INJ.DOWN && p.shakenT <= 0;
@@ -424,7 +441,8 @@ export class Players {
       const v = p.body.linvel();
       const dv = Math.hypot(v.x - p.vPre.x, v.y - p.vPre.y, v.z - p.vPre.z);
       if (dv > CFG.DV_SHAKEN) this.impact(p, dv);
-      if (p.body.translation().y < -20) p.body.setTranslation({ x: p.spawn[0], y: p.spawn[1], z: p.spawn[2] }, true);
+      const t = p.body.translation();
+      if (t.y < this.sim.groundY(t.x, t.z) - 20) this.toSpawn(p);
     }
   }
 

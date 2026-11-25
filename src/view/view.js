@@ -18,6 +18,8 @@ import { bundleBasis, layout, CUT } from '../model/fibres.js';
 import { Flex, frameApply } from '../model/flex.js';
 import { CFG, MODE, INJ } from '../config.js';
 import { PaverView } from './pavers.js';
+import { TerrainView } from './terrain.js';
+import { groundY } from '../model/terrain.js';
 import { ChipperView } from './chipper.js';
 import { BuildsView } from './builds.js';
 import { SHAPE } from '../model/chipper.js';
@@ -49,9 +51,7 @@ export class View {
     Object.assign(sun.shadow.camera, { left: -18, right: 18, top: 18, bottom: -18, near: 1, far: 70 });
     this.scene.add(sun);
 
-    const ground = new THREE.Mesh(new THREE.CircleGeometry(150, 48).rotateX(-Math.PI / 2),
-      new THREE.MeshLambertMaterial({ color: 0x5d8a48 }));
-    ground.receiveShadow = true; this.scene.add(ground);
+    this.terrainView = new TerrainView(this.scene, world);  // the ground: hills and ledges, or flat
     this.paverView = new PaverView(this.scene, world);   // concrete pavers round the tree, and their cracks
     this.chipperView = new ChipperView(this.scene, world);   // the wood chipper and its chip piles
     this.buildsView = new BuildsView(this.scene, world);     // the shed, whole or in pieces
@@ -97,6 +97,7 @@ export class View {
 
   // ---- model -> meshes ----
   onEvent(ev, info) {
+    this.terrainView.onEvent(ev);
     this.paverView.onEvent(ev);
     this.chipperView.onEvent(ev);
     this.buildsView.onEvent(ev);
@@ -466,7 +467,7 @@ export class View {
     const pts = [];
     const span = (p, q, sag, n, skipFirst) => {
       for (let i = skipFirst ? 1 : 0; i <= n; i++) {
-        const t = i / n, v = new THREE.Vector3().lerpVectors(p, q, t); v.y = Math.max(0.03, v.y - sag * 4 * t * (1 - t));
+        const t = i / n, v = new THREE.Vector3().lerpVectors(p, q, t); v.y = Math.max(groundY(this.world.terrain, v.x, v.z) + 0.03, v.y - sag * 4 * t * (1 - t));
         pts.push(v);
       }
     };
@@ -475,7 +476,7 @@ export class View {
     span(B, D, 0, 4, true);
     const holder = aux && aux.rope && aux.rope.holder >= 0 ? this.players.get(aux.rope.holder) : null;
     if (holder) span(D, _w.copy(holder.group.position).addScaledVector(Y, 0.2), 0.15, 5, true);
-    else span(D, _w.set(D.x + 0.5, 0.04, D.z + 0.3), 0, 3, true);
+    else span(D, _w.set(D.x + 0.5, groundY(this.world.terrain, D.x + 0.5, D.z + 0.3) + 0.04, D.z + 0.3), 0, 3, true);
     this.ropeMesh.geometry.dispose();
     this.ropeMesh.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.05), pts.length * 2, CFG.ROPE_RADIUS, 6);
   }
