@@ -26,6 +26,7 @@ import { BuildsView } from './builds.js';
 import { SHAPE } from '../model/chipper.js';
 import { woodInto, fibreWidth } from './wood.js';
 import { StandsView } from './stands.js';
+import { WeedsView } from './weeds.js';
 
 const PLAYER_COLORS = [0xe8a23a, 0x3a9be8, 0xd94f6a, 0x62c462, 0xb07be0, 0xe0d24a];
 const Y = new THREE.Vector3(0, 1, 0);
@@ -60,6 +61,7 @@ export class View {
     this.paverView = new PaverView(this.scene, world);   // concrete pavers round the tree, and their cracks
     this.chipperView = new ChipperView(this.scene, world);   // the wood chipper and its chip piles
     this.buildsView = new BuildsView(this.scene, world);     // the shed, whole or in pieces
+    this.weedsView = new WeedsView(this.scene, world);       // long grass at the foot of fences, buildings and trunks
 
     this.barkMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, side: THREE.DoubleSide });
     this.leafMat = new THREE.MeshLambertMaterial({ color: 0x3f7d3a, flatShading: true, transparent: true });
@@ -108,6 +110,7 @@ export class View {
     this.chipperView.onEvent(ev);
     this.buildsView.onEvent(ev);
     this.standsView.onEvent(ev);
+    this.weedsView.onEvent(ev);
     switch (ev.t) {
       case 'reset':
         for (const id of [...this.pieces.keys()]) this.dropPiece(id);
@@ -364,6 +367,7 @@ export class View {
     if (aux && CFG.SHOW_FIBRES && aux.tick !== this.lastAuxTick && (CFG.STRESS_COLORS || !this.painted)) { this.lastAuxTick = aux.tick; this.painted = true; this.paintFibres(aux); }
     this.chipperView.update(dt, src, aux);
     this.buildsView.update(src);
+    this.weedsView.update(this.camera);
     const seen = new Set();
     let mePos = null, meA = null;
     if (aux) for (const a of aux.pl) {

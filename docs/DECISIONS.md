@@ -1006,3 +1006,26 @@ and headlamps at night.
   so a player joining makes three.js recompile shaders once (a short hitch).
 - *Not done.* Cloud cover (described to the owner, not built), weather,
   seasons, the moon's position following its phase.
+
+**D77 — Frosted windows and weeds.** Owner asked for windows "frosted to
+opaque" and a toggle for weeds growing next to fences, structures and trees.
+
+- *Windows.* House glass is drawn opaque and pale (no transparency, casts a
+  shadow like the walls), so nobody sees into the empty rooms. Only houses
+  have glass; sheds have none.
+- *Weeds* (`view/weeds.js`, drawing only, no colliders, no events). Every
+  part of an intact module that stands on the ground and reaches within
+  0.3 m of it gives its footprint; tufts go just outside its outline,
+  `WEEDS_DENSITY` (8) per metre, skipping spots inside another footprint
+  (between pickets, between a foundation's rooms). A ring of them goes round
+  the base of every rooted trunk and every dormant yard tree. Where each tuft
+  stands and how it looks is hashed from the model, so every machine draws
+  the same weeds. A broken module's weeds go (rebuilt on the next
+  `builds`/`tree`/`terrain` event, not on the smash itself, so they stay
+  until then: cheap, and nobody looks at the grass under a wreck).
+- *Cost.* About 10 400 tufts at the default yards (10 triangles each),
+  instanced, one batch per 24 m square; squares past `WEEDS_DIST` (60 m) are
+  not drawn, under the frame-rate draw distance of D73. Building them takes
+  about 30 ms on a grow. In software GL the render-time difference with
+  them on or off was inside the run-to-run noise. Tab menu, View: `WEEDS`
+  (on by default), density, height, distance.

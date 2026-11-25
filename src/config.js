@@ -30,6 +30,10 @@ export const CFG = {
   DRAW_ADAPT: 0.25,        // fraction of the draw distance it shrinks by per second while too slow (it grows back at a fifth of this)
   AUTO_FOG: true,          // fog thickens towards the draw distance so the far edge fades into the sky instead of being clipped
   FOG_START: 0.3,          // fog begins at this fraction of the draw distance
+  WEEDS: true,             // tufts of long grass along the foot of fences, sheds, houses and tree trunks (drawing only)
+  WEEDS_DENSITY: 8,        // tufts per metre of edge
+  WEEDS_HEIGHT: 0.45,      // m, height of an average tuft
+  WEEDS_DIST: 60,          // m, weeds further from the eye than this are not drawn
   PEER_PREFIX: 'arborism-',
 
   // --- sky: sun, moon and headlamps (view/sky.js; the host keeps the clock and sends it in aux) ---
