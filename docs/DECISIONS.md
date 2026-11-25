@@ -806,3 +806,42 @@ tree it fits, and in the street in front of the lot when it fits nowhere in
 it, which happens on the small lots of high density. Flat ground (the engine
 tests) keeps the old circle and parking so the tests do not change.
 `SHED_GAP` is gone.
+
+**D70 — The chipper's rollers: a speed drive with a capped motor, a straight throat, and no snags at the mouth.**
+The owner reported that logs that are too big jam the chipper and that small
+branches easily make the physics go wild, and asked whether collision should
+be relaxed while chipping. Fed one at a time, a 5 kg and a 25 kg branch were
+flung about at 42 to 58 m/s, and an 81 kg log and a 136 kg limb never went in.
+There were four causes, and each is fixed by a general rule:
+- Wood lined up with the mouth but 0.3 m short of it flipped each tick
+  between "go round" and "go in", so it stayed there. Now the path round is
+  followed all the way to the axis behind the mouth, and only wood off the
+  axis goes round.
+- A wood's end met the hopper's face while its centre line, by which entry
+  was judged, was still its radius short of the mouth, so a log over about
+  0.1 m in radius never counted as in. Entry now counts the radius, and fed
+  wood never collides with the hopper (it is a funnel; side branches fold
+  in). The truck's other parts still stop it until its end is in.
+- The motor term wound up to 15 kN whenever the wood lagged, and flung small
+  branches when what held them let go. The drive now takes the point halfway
+  to roller speed each tick through its effective mass. The motor term
+  only builds while the smoothed speed is short, drops to nothing when the
+  wood keeps up or a segment is chipped, and is capped at ten times the
+  wood's weight plus the tension of a rope tied to it. A rope still goes into
+  the rollers as before.
+- Wood that passed through the chipper pivoted on the one point held and
+  folded out through the sides and floor into the ground, where segments
+  were never "inside" and were never chipped. Now the throat carries the
+  weight and draws the far end of the held segment onto its axis, a segment
+  is chipped once its front end is past the drum (side branches go with the
+  stem), and bits left unconnected after chipping become separate pieces
+  (until now they stayed rigidly fixed out beside the truck).
+
+The rollers take the wood's end nearest the mouth, not the point the player
+held. After the change, the same branches peaked at 1 to 4 m/s (mostly while
+falling into place), and the 81 kg log and the 136 kg limb were chipped
+completely. A 307 kg log went in and seized (D66), as it should. The rope
+feed, the seize-and-saw test and the smoke run are unchanged. One case
+remains: a thin twig tip that has already sunk below the ground holds a
+branch short of the mouth. That is the heightfield letting small tips through
+(D62), not the chipper.
