@@ -68,6 +68,13 @@ export class Hud {
     while (this.toasts.children.length > 5) this.toasts.firstChild.remove();
   }
 
+  /** The network box (net/stats.js), top right on a joined client; null hides it. */
+  net(lines) {
+    const el = this.netEl || (this.netEl = $('net'));
+    el.style.display = lines ? 'block' : 'none';
+    if (lines) { const t = lines.join('\n'); if (el.textContent !== t) el.textContent = t; }
+  }
+
   update(dt, aux, me, info, device) {
     this.device = device;
     this.fps += (1 / Math.max(dt, 1e-3) - this.fps) * 0.05;

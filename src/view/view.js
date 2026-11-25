@@ -99,7 +99,7 @@ export class View {
     this.barkMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, side: THREE.DoubleSide });
     this.leafMat = new THREE.MeshLambertMaterial({ color: 0x3f7d3a, flatShading: true, transparent: true });
     this.standsView = new StandsView(this.scene, world, this.leafMat);   // the other trees in the yards, until they come to life
-    this.fibreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });   // unlit: the colour IS the information
+    this.fibreMat = new THREE.MeshLambertMaterial({ color: 0xffffff });   // lit like the bark: dark at night, seen by headlamp (D84)
     this.fibreGeo = new THREE.BoxGeometry(1, 1, 1);
     this.ropeMat = new THREE.MeshLambertMaterial({ color: 0xf2e9d0, flatShading: true });
     this.lanyardMat = new THREE.MeshLambertMaterial({ color: 0xffd21a, flatShading: true });

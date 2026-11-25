@@ -9,6 +9,8 @@ export const CFG = {
   FULL_EVERY: 60,          // ticks between full (all bodies) snapshots
   INTERP_DELAY: 0.1,       // s, client render delay
   INPUT_HZ: 30,
+  PING_EVERY: 0.5,         // s between pings from a joined client (net/stats.js)
+  NET_STATS: true,         // show the network box on a joined client
   INVERT_Y: true,          // push forward / mouse forward looks down
   LOOK_SENS: 0.008,         // rad of look per pixel of mouse travel
   TOUCH_LOOK_SENS: 0.006,  // rad of look per pixel a finger drags on the right of the screen

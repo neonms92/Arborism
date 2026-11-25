@@ -10,6 +10,7 @@ import { Input } from './input.js';
 import { LeaveGuard } from './leave.js';
 import { Net } from './net/net.js';
 import { encodeSnapshot, Interp } from './net/snapshot.js';
+import { NetStats, upCount, upLoss } from './net/stats.js';
 import { randomSeed, seedNumbers } from './model/seed.js';
 
 const $ = (id) => document.getElementById(id);
@@ -42,7 +43,7 @@ const leaveGuard = new LeaveGuard((open) => { input.active = !open; });
 const net = new Net();
 
 let sim = null, interp = null, me = -1, aux = null, room = '', role = '', running = false;
-let nextPid = 1, acc = 0, last = performance.now(), inputTimer = 0;
+let nextPid = 1, acc = 0, last = performance.now(), inputTimer = 0, inSeq = 0, stats = null;
 
 world.on((ev, info) => {
   if ((ev.t === 'terrain' || ev.t === 'load') && menu.open) menu.showSeed();
@@ -93,6 +94,13 @@ function wireHost() {
   net.onClientData = (key, c, d) => {
     if (typeof d !== 'string' || c.pid < 0) return;
     let m; try { m = JSON.parse(d); } catch { return; }
+    if (m.t === 'pi' && Number.isFinite(m.s)) {        // ping: answer at once, with the input loss seen here (net/stats.js)
+      if (c.fast?.open) c.fast.send(JSON.stringify({ t: 'po', s: m.s, up: upLoss(c), fps: Math.round(hud.fps) }));
+      c.st = { r: +m.r || 0, l: +m.l || 0 };
+      return;
+    }
+    // inputs arrive unordered: one older than an input already used is dropped, so a late "still climbing" cannot undo a stop
+    if (m.t === 'in' && Number.isFinite(m.n) && !upCount(c, m.n, performance.now())) return;
     const i = m.i;
     if (m.t === 'in' && i && i.c && ['mx', 'my', 'yaw', 'pitch', 'sy', 'sp', 'rt', 'lt'].every((k) => Number.isFinite(i[k]))) sim.players.setInput(c.pid, i);
   };
@@ -109,10 +117,17 @@ async function startJoin(code) {
   room = code.toUpperCase().trim();
   if (room.length < 3) { msg('Enter the host\'s room code'); return; }
   running = true; msg('Connecting to ' + room + '...');
-  interp = new Interp();
+  interp = new Interp(); stats = new NetStats();
   net.onHostData = (d) => {
-    if (typeof d !== 'string') { interp.push(d instanceof ArrayBuffer ? d : d.buffer); return; }
+    const now = performance.now();
+    stats.packet(typeof d === 'string' ? d.length : d.byteLength, now);
+    if (typeof d !== 'string') {
+      const buf = d instanceof ArrayBuffer ? d : d.buffer, dv = new DataView(buf);
+      if (dv.getUint8(0) === 1) { const tick = dv.getUint32(2, true); stats.snap(tick, now, tick <= interp.lastTick); }
+      interp.push(buf); return;
+    }
     const m = JSON.parse(d);
+    if (m.t === 'po') { stats.pong(m, now); return; }
     if (m.t === 'welcome') { world.load(m.world); me = m.pid; role = 'client'; begin(); }
     else if (m.t === 'ev') for (const ev of m.evs) world.apply(ev);
     else if (m.t === 'aux') { if (!aux || m.tick > aux.tick) aux = m; }
@@ -215,11 +230,14 @@ function frame(now) {
   } else {
     interp.advance();
     inputTimer += dt;
-    if (inputTimer >= 1 / CFG.INPUT_HZ) { inputTimer = 0; net.sendFast({ t: 'in', i: inp }); }
+    if (inputTimer >= 1 / CFG.INPUT_HZ) { inputTimer = 0; net.sendFast({ t: 'in', n: ++inSeq, i: inp }); }
+    const pm = stats.ping(performance.now()); if (pm) net.sendFast(pm);
   }
 
   view.update(dt, sim ? hostSource : interp, aux, me, inp);
-  const info = role === 'solo' ? 'solo' : role === 'host' ? `HOST  room ${room}  (${net.clients.size} joined)` : `joined ${room}`;
+  let info = role === 'solo' ? 'solo' : role === 'host' ? `HOST  room ${room}  (${net.clients.size} joined)` : `joined ${room}  ${stats.short()}`;
+  if (role === 'host') for (const c of net.clients.values()) if (c.st) info += `  P${c.pid} ${c.st.r} ms ${Math.round(Math.max(c.st.l, upLoss(c)) * 100)}%`;
+  hud.net(role === 'client' && CFG.NET_STATS ? stats.lines(performance.now()) : null);
   hud.update(dt, aux, me, info, input.device);
   input.touch.sync(mine, !menu.open);
 }

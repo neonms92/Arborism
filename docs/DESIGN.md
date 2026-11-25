@@ -219,6 +219,25 @@ means "interact has been pressed 17 times since join"); the host acts on the
 difference from the last value it saw. A lost packet therefore never loses a
 press and never duplicates one.
 
+### 2.6 Network statistics (D86)
+
+A joined client shows a box top right (Tab menu → View: "Network box when
+joined") and a short `ping / loss` on the status line; the host's status
+line lists each player's ping and loss. All of it is in `net/stats.js`:
+
+- **Ping**: `{t:'pi', s}` on `fast` every `PING_EVERY` (0.5 s), answered at
+  once with `{t:'po', s, up, fps}`. The host answers between its frames, so
+  a slow host frame shows up in ping (the box says so below 40 fps).
+- **Loss down**: snapshot ticks are multiples of `SNAP_EVERY`, so gaps in
+  the last 5 s are lost snapshots. **Loss up**: inputs carry a sequence
+  number `n`; the host counts the gaps and returns the figure in `po`. An
+  input older than one already used is dropped (the channel is unordered).
+- **Host speed**: host ticks per wall second; below 95% the host machine
+  cannot keep up and everything runs in slow motion.
+- **"Your moves show after"**: an estimate, ping + half the input period +
+  half a host frame + `INTERP_DELAY`. On a LAN the render delay (100 ms)
+  is most of it; it is in the Tab menu.
+
 ---
 
 ## 3. Physics: the tree
@@ -413,7 +432,7 @@ Debris: pieces under 2 kg are removed 10 s after creation.
 
 Both are built from the bundles, so neither can disagree with the physics.
 
-**Fibres** — every fibre is its own unlit box, converging with the stem's
+**Fibres** — every fibre is its own box, lit like the bark (dark at night, D84), converging with the stem's
 taper exactly as the physics has it, split in two where sawn.
 With `STRESS_COLORS`:
 
@@ -679,7 +698,7 @@ log can still drag, tip or hoist it.
   anything that can move, the feet go no faster away from it than it follows
   (the legs push with at most `LEG_FORCE`, D81), so the player
   leans into the load instead of walking out of the hold.
-- **Feeding (D84).** Holding loose wood, {interact} while looking at the
+- **Feeding (D87).** Holding loose wood, {interact} while looking at the
   chipper moves the grab rope from the player's hands onto a winch drum just
   inside the top lip of the hopper's mouth, still tied where the wood was
   held. The winch reels in at `CHIP_FEED_V`, pulling only toward the drum (a
@@ -690,7 +709,7 @@ log can still drag, tip or hoist it.
   until its knot is at the drum, then the rope comes off. Sawing the wood
   through outside: the rope stays with the side it is tied to. The rollers
   drive their point centred down the throat to the drum at `CHIP_FEED_V`.
-  (Before D84 they took the end of the wood nearest the mouth and dragged it
+  (Before D87 they took the end of the wood nearest the mouth and dragged it
   there themselves.) Each tick they give that point the impulse that takes
   it halfway to the roller speed through the mass the wood presents there,
   plus a motor term for a load that holds it back, which rises while the

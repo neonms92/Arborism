@@ -1194,7 +1194,34 @@ cut every button caption to two words at most.
   View default, "Click again". Hints and help text that are not on a button
   (the lobby help, "Look at wood within reach...") are unchanged.
 
-**D84 — Hopper winch; a job budget that wages drain.**
+
+**D84 — Fibres are lit.** Owner (2026-11-25): at night the fibres stayed
+super bright. They were `MeshBasicMaterial` (unlit) so the stress colour
+read the same from every side. Now `MeshLambertMaterial`, like the bark:
+they follow the sun, the moon and the headlamps. By day the colours are the
+same, with a little face shading that helps tell neighbouring fibres apart;
+at night stress colours are read by headlamp.
+
+**D85 — The end of the wood stops a climber once.** Owner (2026-11-25): on
+a LAN a client climbing a limbless trunk kept going over the top without
+noticing, because they see themselves 0.1–0.2 s late (D3). Climbing past
+the free end of the wood (the top of a stem with nothing above it, or the
+bottom of a hanging piece) now stops at the end with a toast; letting go of
+{move} (or pushing the other way) and pushing on again climbs off as before.
+Moving 0.3 m back from the end forgets the stop. This is a host rule, so it
+holds whatever the network does. Unions and stem changes are unchanged.
+
+**D86 — Network statistics on the client; inputs carry a sequence number.**
+Owner (2026-11-25): show at least ping and packet loss when joined. See
+DESIGN 2.6. Ping rides the unreliable channel on purpose, so it measures
+what snapshots and inputs see and its own loss is a third loss figure.
+Inputs now carry `n`; the host drops one older than the newest it has used,
+so a reordered "still climbing" packet cannot restart a climb after a stop
+(old clients without `n` are accepted as before). `INTERP_DELAY` moved into
+the Tab menu (View) as the one lever a player has on a LAN.
+Prediction (D3, task P2-9) is not built; the plan is in STATUS "Next".
+
+**D87 — Hopper winch; a job budget that wages drain.**
 Owner (2026-11-25): when we deposit into the chipper, transfer our grab rope
 to a winch at the top of the hopper; once a piece passes the front of the
 hopper the rollers can start pulling it in, with no wait for it to hit the
