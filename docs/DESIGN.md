@@ -620,12 +620,14 @@ gripping hands, saw pinch release, cutting your own lanyard.
 
 ### 6.4 Concrete pavers
 
-The tree stands in a paved circle (`model/pavers.js`): a basket weave of
-`PAVER_SIZE` × `PAVER_SIZE`/2 slabs, whole slabs only, within
-`PAVER_RADIUS` × `TREE_HEIGHT` of the trunk (half the height by default), with
-a square pit of open soil at least `PAVER_PIT` wider than the trunk. The
-yards (6.8) add patios, porches and sidewalks: paving is a list of **areas**
-(a circle with a pit, or a turned rectangle), each laid in its own basket
+Pavers (`model/pavers.js`) are a basket weave of `PAVER_SIZE` ×
+`PAVER_SIZE`/2 slabs, whole slabs only. The yard plan (6.8) decides where:
+often paving round the tree (a circle or a square, up to `PAVER_RADIUS` ×
+`TREE_HEIGHT` across its radius and no bigger than its lot allows, with a
+square pit of open soil at least `PAVER_PIT` wider than the trunk), patios,
+porches and sidewalks. Flat ground (the engine tests) has no yards and gets
+the old full circle round the tree. Paving is a list of **areas** (a circle
+or a turned rectangle, either with an optional pit), each laid in its own basket
 weave, whole slabs only, an area laid later leaving out slabs an earlier one
 already covers. A lookup grid finds the paver under a point. The layout is
 generated from the cell size and the areas in the `pavers` event, so a
@@ -653,8 +655,10 @@ further past it). Gravel is still flat ground to the physics.
 ### 6.5 The wood chipper
 
 A towable chipper (`model/chipper.js` shape and chip piles, `sim/chipper.js`,
-`view/chipper.js`) is parked `CHIP_GAP` outside the paving with its infeed
-hopper toward the trunk and its discharge chute to the side. It is an
+`view/chipper.js`) is parked by the yard plan (6.8) `CHIP_GAP` outside the
+tree's paving (or its clear ground) with its infeed hopper toward the trunk,
+in whichever direction it fits in the tree's lot, or in the street in front
+of the lot when it fits nowhere there. "Respawn chipper" uses the same spot. It is an
 ordinary heavy dynamic body (`CHIP_MASS`) on two frictionless wheel balls and
 a jockey wheel; the sim models the tyres: under the axle they grip sideways
 (`CHIP_GRIP` × the weight on them) and roll with `CHIP_ROLL`, or with
@@ -722,10 +726,8 @@ log can still drag, tip or hoist it.
 
 Structures (`model/builds.js`, `sim/builds.js`, `view/builds.js`) are built
 from **modules** glued together. A module is one unit, made of parts
-(boards: boxes in the module's frame, from the module's `shape`). The shed
-is one module, put up `SHED_GAP` outside the paving on the far side of the
-trunk from the chipper's chute, door toward the trunk: about the chipper's
-distance from the tree. A fence (`fence:<style>`, n sections) is one module
+(boards: boxes in the module's frame, from the module's `shape`). A shed
+is one module, put up by the yard plan (6.8) in a lot's back corner. A fence (`fence:<style>`, n sections) is one module
 per section, each with its first post (the last also has the closing post;
 a run that starts or ends on a post another run already put up leaves that
 one out), each glued to the next and standing on the ground. Styles: `rail2`
@@ -838,11 +840,17 @@ puts it up through the ordinary `builds` and `pavers` events. Flat ground
   lot lines. Lot width goes from `YARD_LOT_MAX` at density 0 to
   `YARD_LOT_MIN` at density 1 (±15 %), depth about 1.4 × width. Lots reach
   `YARD_EXTENT` from the tree (0: only the tree's lot).
-- **The tree's lot** is wide enough for the paving and the parked chipper,
-  deep enough behind the tree for the shed, and has its house in front of
-  the paving, toward the street. Its shed stays where it was (6.6).
+- **The tree's lot** is a lot like the others, the same size for the
+  density, placed so the tree stands in its back half. It starts with the
+  trunk's clear ground taken (`YARD_TREE_CLEAR` beyond the trunk), then
+  usually gets paving round the trunk (6.4) and, once its house is placed,
+  the chipper (6.5); then it is filled like any lot.
+- **Fitting**: everything on a lot goes only where it fits, inside the lot
+  and clear of what is already there (rectangles in the lot's frame): a
+  house tries smaller sizes and other positions, a shed the other corner,
+  and what fits nowhere is left out.
 - **Each lot**, with chances that rise with `YARD_DENSITY`: a house facing
-  the street (always on the tree's lot), set back 3–6 m, with a paver porch
+  the street (usually on the tree's lot), set back 3–6 m, with a paver porch
   at the door, a paver sidewalk to the street, or both; a patio behind it; a
   shed in a back corner, door toward the house; and, with chance
   `YARD_FENCE`, a fence of one style round its sides and back, sometimes

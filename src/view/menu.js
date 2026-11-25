@@ -95,6 +95,7 @@ export const ROWS = [
   ['YARD_EXTENT', 'Yards reach this far from the tree (m; 0 = only the tree\'s yard)', 0, 90, 1, 1, true],
   ['YARD_STREET', 'Street width between blocks (m)', 3, 30, 0.5, 1, true],
   ['YARD_FENCE', 'Chance a yard is fenced', 0, 1, 0.05, 1, true],
+  ['YARD_TREE_CLEAR', 'Clear ground round the trunk (m; no house, shed or chipper)', 0, 10, 0.5, 1, true],
   ['@grow', 'Clear all wood and grow a new tree'],
   ['Chainsaw'],
   ['CUT_RATE', 'Cutting rate (cm2 of wood per second)', 10, 1000, 10, 1e-4, true],
@@ -112,7 +113,7 @@ export const ROWS = [
   ['PAVER_CRACK_E', 'Impact energy that cracks a paver (J)', 50, 10000, 50, 1, true],
   ['PAVER_GRAVEL', 'Damage at which a paver is gravel (1 = one cracking impact)', 2, 200, 1, 1],
   ['PAVER_SIZE', 'Paver length (m; applies when you grow a new tree)', 0.2, 1.5, 0.05, 1, true],
-  ['PAVER_RADIUS', 'Paved circle radius (fraction of tree height; applies when you grow a new tree)', 0.1, 2, 0.05, 1, true],
+  ['PAVER_RADIUS', 'Largest paving round the trunk (fraction of tree height; applies when you grow a new tree)', 0.1, 2, 0.05, 1, true],
 ];
 
 export class Menu {

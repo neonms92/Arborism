@@ -20,6 +20,7 @@ import { CFG } from '../config.js';
 import { groundRange } from '../model/terrain.js';
 import { compose, regroup, partMass, breakForce, qrot, modProxies, SHED, FENCE } from '../model/builds.js';
 import { planYards, footprint } from '../model/yards.js';
+import { SHAPE as CHIP_SHAPE } from '../model/chipper.js';
 
 const CONTACT_EVENT_F = 300;      // N: contact force below which Rapier does not report a pair on a module (too small to matter)
 
@@ -38,22 +39,24 @@ export class Builds {
   }
 
   /**
-   * The neighbourhood for the current settings (model/yards.js): lots of houses, sheds, fences and paving
-   * round the tree's own lot, which also holds the shed on the far side of the trunk from the chipper's
-   * chute, door toward the trunk. Planned before the ground is made, since the ground is made with the
-   * pads the plan asks for. Flat ground (the engine tests) gets none of it.
+   * The neighbourhood for the current settings (model/yards.js): lots of houses, sheds, fences and paving,
+   * one of them the tree's own lot with paving round the trunk and the parked chipper. Planned before the
+   * ground is made, since the ground is made with the pads the plan asks for. Flat ground (the engine tests)
+   * gets none of it.
    */
   plan() {
-    if (this.sim.flat) return (this.planned = { builds: [], areas: [], pads: [] });
-    const paveR = CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, r = paveR + CFG.SHED_GAP + SHED.D / 2, chip = this.sim.chipper.reach();
+    if (this.sim.flat) return (this.planned = { builds: [], areas: [], pads: [], chipper: null });
+    const S = CHIP_SHAPE;
     const P = planYards({
       seed: CFG.YARD_SEED, density: CFG.YARD_DENSITY, lotMax: CFG.YARD_LOT_MAX, lotMin: CFG.YARD_LOT_MIN, extent: CFG.YARD_EXTENT,
-      street: CFG.YARD_STREET, fence: CFG.YARD_FENCE, blend: CFG.TERRAIN_BLEND, paver: CFG.PAVER_SIZE, paveR,
-      treeLot: { x0: Math.min(-paveR, chip.x0), x1: Math.max(paveR, chip.x1), z0: -(r + SHED.D / 2) },
+      street: CFG.YARD_STREET, fence: CFG.YARD_FENCE, blend: CFG.TERRAIN_BLEND, paver: CFG.PAVER_SIZE,
+      tree: {
+        clear: CFG.TREE_DIAMETER / 2 + CFG.YARD_TREE_CLEAR, paveMax: CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, pit: CFG.TREE_DIAMETER / 2 + CFG.PAVER_PIT,
+        chip: { x0: S.INFEED[0] - 0.2, x1: S.GRIP[0] + 0.2, hz: S.WHEELS[0][2] + S.WHEEL_R, gap: CFG.CHIP_GAP },
+      },
     });
-    const shed = { kind: 'shed', p: [0, 0, -r], q: [0, 0, 0, 1] };
-    P.builds.unshift(shed);
-    P.pads.unshift({ x: 0, z: -r, r: Math.hypot(SHED.W, SHED.D) / 2 + 0.3, blend: CFG.TERRAIN_BLEND });
+    const t = P.lots.find((l) => l.tree);
+    this.treeLot = t ? { w: +(t.x1 - t.x0).toFixed(2), d: +(t.z1 - t.z0).toFixed(2) } : null;    // for the console: arb.sim.builds.treeLot
     return (this.planned = P);
   }
 

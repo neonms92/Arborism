@@ -24,7 +24,7 @@
 import * as THREE from '../../vendor/three/three.module.js';
 import { CFG } from '../config.js';
 import { segMass } from '../model/world.js';
-import { SHAPE, parkedPose, pileShape, CHIPPER_BODY_ID, WRECK } from '../model/chipper.js';
+import { SHAPE, parkedPose, pileShape, chipToWorld, CHIPPER_BODY_ID, WRECK } from '../model/chipper.js';
 import { compose } from '../model/builds.js';
 
 const THROAT = 0.3;                  // m: the feed point counts as in the mouth within this of the hopper's axis
@@ -45,12 +45,6 @@ export class Chipper {
     this.stick = { A: null, J: null }; // where the tyres under the axle (A) and the jockey wheel (J) stopped and grip
   }
 
-  /** How far along x it reaches where it is parked, and its chips land: {x0, x1} (world). */
-  reach() {
-    const pose = parkedPose(CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, CFG.CHIP_GAP), S = SHAPE;
-    return { x0: pose.p[0] + S.INFEED[0] - 0.2, x1: pose.p[0] + S.GRIP[0] + 0.2 };
-  }
-
   /** The Tab menu's "Respawn chipper": take away the old one, broken or not, and park a new one (chip piles stay). */
   respawn() {
     if (this.sim.rope.fed()) this.sim.rope.swallow('The chipper was taken away: the rope came free');
@@ -59,12 +53,15 @@ export class Chipper {
     this.sim.toast('A new chipper');
   }
 
-  /** Park it fresh for the current tree (with every new tree), its wheels on the ground. */
-  place(keep = false) {
-    const sim = this.sim, pose = parkedPose(CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, CFG.CHIP_GAP), S = SHAPE;
+  /** Park it fresh (with every new tree, at the spot the yard plan gives; a respawn uses the same spot), its wheels on the ground. */
+  place(keep = false, spot = this.spot) {
+    const sim = this.sim, S = SHAPE;
+    this.spot = spot;
+    // where the yard plan parked it (model/yards.js), or on flat ground (no yards) just off the old paved circle
+    const pose = spot ? { p: [spot.x, S.BODY_Y, spot.z], q: [0, Math.sin(spot.yaw / 2), 0, Math.cos(spot.yaw / 2)] } : parkedPose(CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, CFG.CHIP_GAP);
     // the highest ground under a wheel or the jockey wheel, so none starts in the ground; it settles from there
     let y = -Infinity;
-    for (const w of [...S.WHEELS, S.JOCKEY]) y = Math.max(y, sim.groundY(pose.p[0] + w[0], pose.p[2] + w[2]));
+    for (const w of [...S.WHEELS, S.JOCKEY]) { const g = chipToWorld(pose.p, pose.q, w); y = Math.max(y, sim.groundY(g[0], g[2])); }
     pose.p[1] += y;
     sim.emit(keep ? { t: 'chipper', p: pose.p, q: pose.q, keep: 1 } : { t: 'chipper', p: pose.p, q: pose.q });
   }

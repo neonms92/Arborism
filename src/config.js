@@ -58,7 +58,7 @@ export const CFG = {
 
   // --- concrete pavers round the tree (laid again, undamaged, with every new tree) ---
   PAVER_SIZE: 0.6,         // m, a paver is PAVER_SIZE x PAVER_SIZE / 2 (two to a basket-weave cell)
-  PAVER_RADIUS: 0.5,       // paved circle round the trunk, as a fraction of TREE_HEIGHT (whole pavers only)
+  PAVER_RADIUS: 0.5,       // largest paving round the trunk (its radius), as a fraction of TREE_HEIGHT; the lot may allow less
   PAVER_PIT: 0.3,          // m of open soil left between the trunk and the nearest paver (at least)
   PAVER_CRACK_E: 800,      // J of impact energy on one paver that cracks it; each hit adds (its energy / this) damage
   PAVER_GRAVEL: 30,        // damage at which a paver is drawn as gravel (the counter goes on past it)
@@ -138,7 +138,7 @@ export const CFG = {
   GRAB_HEIGHT: 0.3,        // m, hands above the body centre
   // --- wood chipper (sim/chipper.js): a towable chipper on two wheels and a jockey wheel ---
   CHIP_MASS: 600,          // kg (applies when it is put back by a new tree)
-  CHIP_GAP: 3,             // m between the edge of the paving and the chipper, where it is parked
+  CHIP_GAP: 3,             // m between the tree's paving (or the trunk) and the chipper, where it is parked
   CHIP_PULL: 15000,        // N, most the feed rollers pull with (on wood and on rope); they slip past it
   CHIP_FEED_V: 0.6,        // m/s the feed rollers draw wood and rope in
   CHIP_ROLL: 0.02,         // rolling resistance of its wheels, as a fraction of the weight on them
@@ -149,7 +149,6 @@ export const CFG = {
   CHIP_CAPACITY: 150,      // kg: the heaviest contiguous piece the rollers take; heavier wood seizes them until it is sawn
   CHIP_SWELL: 2.5,         // m3 of loose chips per m3 of wood chipped
   // --- breakable structures (sim/builds.js): the shed; rigid until hit hard enough, then loose boards ---
-  SHED_GAP: 3,             // m between the edge of the paving and the shed, where it is put up
   SHED_BREAK_F: 25000,     // N of contact force from wood in one tick that breaks a module (the shed) apart
   FENCE_BREAK_F: 10000,    // N of contact force from wood in one tick that breaks one fence section apart
   HOUSE_BREAK_F: 40000,    // N of contact force from wood in one tick that breaks one room of a house apart
@@ -162,6 +161,7 @@ export const CFG = {
   YARD_EXTENT: 45,         // m from the tree that lots reach (0 = only the tree's own lot)
   YARD_STREET: 9,          // m, street between blocks of lots
   YARD_FENCE: 0.5,         // chance a lot is fenced round its sides and back
+  YARD_TREE_CLEAR: 4,      // m beyond the trunk kept clear of houses, sheds and the chipper (players spawn 4 m from the tree)
   SHED_DENSITY: 450,       // kg/m3 of the shed's and fences' boards
 };
 

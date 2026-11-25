@@ -6,9 +6,10 @@
 // The neighbourhood is blocks of lots along x, separated by streets. A block
 // is two rows of lots back to back, each row facing its own street; both rows
 // of a block share their lot lines, so a lot line is one fence, not two. The
-// tree stands in the back half of a lot (the tree's yard), wider and deeper
-// than the rest so the paved circle, the shed and the parked chipper fit in
-// it. Each lot may have:
+// tree stands in the back half of a lot (the tree's yard), a lot like the
+// others, which also gets paving round the trunk (a circle or a square, as
+// big as fits) and the parked chipper. Everything goes only where it fits:
+// inside the lot and clear of what is already there. Each lot may have:
 //   a house (rooms glued on a foundation, model/builds.js) facing the street, with a porch of pavers
 //     at its door, a paver sidewalk out to the street, or both;
 //   a patio of pavers behind the house; a shed in a back corner;
@@ -19,7 +20,8 @@
 // follow the slopes).
 //
 // plan = {lots: [{x0, x1, z0, z1, face, tree}], builds: [{kind, p:[x, 0, z], q, ...}],
-//         areas: [paver areas, model/pavers.js], pads: [{x, z, r, blend, yAt?}]}
+//         areas: [paver areas, model/pavers.js], pads: [{x, z, r, blend, yAt?}],
+//         chipper: {x, z, yaw} | null (where it is parked), treePave: radius of the tree's paving (or undefined)}
 
 import { HOUSE, SHED, FENCE, houseFoot } from './builds.js';
 
@@ -37,23 +39,26 @@ const r4 = (v) => +v.toFixed(4);
 
 /**
  * The plan for these settings.
- * o = {seed, density, lotMax, lotMin, extent, street, fence, blend, paver (cell), paveR (the tree's paved circle),
- *      treeLot: {x0, x1, z0} (the least the tree's lot must cover: the tree's circle, the shed, the chipper),
- *      treeOnly (only the tree's lot)}
+ * o = {seed, density, lotMax, lotMin, extent, street, fence, blend, paver (cell),
+ *      tree: {clear (m round the trunk kept free of houses and sheds), paveMax (largest paving round it), pit,
+ *             chip: {x0, x1, hz, gap} (the chipper's length along its own x from its origin, half width, and its
+ *             gap from the paving)}}
  */
 export function planYards(o) {
   const R = rng(o.seed * 7919 + 17), d = Math.min(1, Math.max(0, o.density));
   const lotW = o.lotMax + (o.lotMin - o.lotMax) * d, lotD = lotW * 1.4, E = o.extent, ST = o.street;
-  const plan = { lots: [], builds: [], areas: [], pads: [] };
+  const plan = { lots: [], builds: [], areas: [], pads: [], chipper: null };
   const jit = (v, f = 0.15) => v * (1 + (R() * 2 - 1) * f);
 
-  // the tree's lot: its back far enough behind the tree for the shed, its front leaving room for a house
-  // (in front of the paving: a 2 m gap, a house up to about 9 m deep and a front yard)
-  const T = o.treeLot, tW = Math.max(lotW, 2 * Math.max(-T.x0, T.x1) + 2), tz0 = T.z0 - 1.5, tz1 = o.paveR + 15;
+  // The tree's lot is a lot like the others (the same width and depth for the density), placed so that the tree
+  // stands somewhere in its back half, at least `clear` from its side lines.
+  const tW = jit(lotW), tD = jit(lotD), cl = Math.min(o.tree.clear + 1, tW / 2 - 0.5);
+  const tu = (R() - 0.5) * 2 * Math.max(0, tW / 2 - cl), tw = tD * (0.2 + 0.25 * R());
+  const tx0 = -tu - tW / 2, tz0 = -tw, tz1 = tD - tw;
 
-  // lot lines along x for a block: the tree's block starts from the tree's lot, others from a random offset
+  // lot lines along x for a block: the tree's block grows from the tree's lot, others from a random offset
   const cuts = (tree) => {
-    const xs = tree ? [-tW / 2, tW / 2] : [(R() - 0.5) * lotW];
+    const xs = tree ? [tx0, tx0 + tW] : [(R() - 0.5) * lotW];
     if (!tree) xs.push(xs[0] + jit(lotW));
     while (xs[0] > -E) xs.unshift(xs[0] - jit(lotW));
     while (xs[xs.length - 1] < E) xs.push(xs[xs.length - 1] + jit(lotW));
@@ -68,17 +73,14 @@ export function planYards(o) {
   };
   const treeBack = tz0 - jit(lotD);
   block(treeBack, tz1, true);
-  if (!o.treeOnly) {
-    for (let z = tz1 + ST; z < E; ) { const D = jit(lotD) * 2; block(z, z + D, false); z += D + ST; }
-    for (let z = treeBack - ST; z > -E; ) { const D = jit(lotD) * 2; block(z - D, z, false); z -= D + ST; }
-  }
+  for (let z = tz1 + ST; z < E; ) { const D = jit(lotD) * 2; block(z, z + D, false); z += D + ST; }
+  for (let z = treeBack - ST; z > -E; ) { const D = jit(lotD) * 2; block(z - D, z, false); z -= D + ST; }
 
   const posts = new Set(), edges = new Set();
   const key = (x, z) => `${Math.round(x * 20)},${Math.round(z * 20)}`;
   for (const row of rows) {
     for (let k = 0; k + 1 < row.xs.length; k++) {
-      const x0 = row.xs[k], x1 = row.xs[k + 1], tree = row.tree && Math.abs(x0 + x1) < 1e-6;
-      if (o.treeOnly && !tree) continue;
+      const x0 = row.xs[k], x1 = row.xs[k + 1], tree = row.tree && x0 <= 0 && x1 > 0;
       if (!tree && (Math.abs((x0 + x1) / 2) > E || Math.abs((row.z0 + row.z1) / 2) > E)) continue;
       const lot = { x0, x1, z0: row.z0, z1: row.z1, face: row.face, tree };
       plan.lots.push(lot);
@@ -94,10 +96,16 @@ function lotFrame(lot) {
   const cx = (lot.x0 + lot.x1) / 2;
   // face +1: front at z1, the lot's u is +x; face -1: front at z0, turned half round (u is -x)
   const toW = (u, w) => (f > 0 ? [cx + u, lot.z0 + w] : [cx - u, lot.z1 - w]);
+  const toL = (x, z) => (f > 0 ? [x - cx, z - lot.z0] : [cx - x, lot.z1 - z]);
   const yaw = f > 0 ? 0 : Math.PI;            // +z of a house or shed (its front) toward the street
-  return { W, D, toW, yaw };
+  return { W, D, toW, toL, yaw };
 }
 
+/**
+ * What goes on one lot. Everything is placed in the lot's frame, and only where it fits: inside the lot and
+ * clear of what is already there (`taken`, rectangles in the lot frame). The tree's lot starts with the trunk
+ * taken, then gets paving round it and the chipper; after that every lot is filled by the same rules.
+ */
 function fillLot(plan, lot, R, d, o, posts, edges, key) {
   const F = lotFrame(lot), { W, D, toW, yaw } = F, B = o.blend;
   const pick = (p) => R() < p;
@@ -105,55 +113,119 @@ function fillLot(plan, lot, R, d, o, posts, edges, key) {
   const rect = (u, w, aw, ad) => { const [x, z] = toW(u, w); plan.areas.push({ shape: 'rect', x: r4(x), z: r4(z), yaw, w: aw, d: ad }); };
   const c = o.paver;
   const cells = (m) => Math.max(1, Math.round(m / c)) * c;       // a length of whole basket-weave cells
+  const taken = [];                                              // [u0, u1, w0, w1]
+  const inLot = (u0, u1, w0, w1, m = 0.5) => u0 >= -W / 2 + m && u1 <= W / 2 - m && w0 >= m && w1 <= D - m;
+  const free = (u0, u1, w0, w1, m = 0.5) => inLot(u0, u1, w0, w1, m) && !taken.some((t) => u0 < t[1] && u1 > t[0] && w0 < t[3] && w1 > t[2]);
+  const take = (u0, u1, w0, w1) => taken.push([u0, u1, w0, w1]);
 
-  // ---- the house ----
+  // ---- the tree's lot: the trunk and the paving round it (the chipper is parked once the house is placed) ----
+  const T = o.tree, [tu, tw] = F.toL(0, 0), k = T.clear;
+  if (lot.tree) {
+    take(tu - k, tu + k, tw - k, tw + k);
+    // paving round the trunk, as often as a patio elsewhere: a circle or a square, as big as the lot allows
+    if (pick(0.5 + 0.4 * d)) {
+      const room = Math.min(tu + W / 2, W / 2 - tu, tw, D - tw) - 0.5, r = Math.min(T.paveMax * (0.6 + 0.4 * R()), room);
+      if (r > T.pit + c) {
+        if (pick(0.5)) plan.areas.push({ shape: 'circle', x: 0, z: 0, r: r4(r), pit: T.pit });
+        else { const s = Math.floor(2 * r / 1.42 / c) * c; plan.areas.push({ shape: 'rect', x: 0, z: 0, yaw, w: r4(s), d: r4(s), pit: T.pit }); }
+        plan.treePave = r;
+      }
+    }
+    if (plan.treePave) { const r = plan.treePave; take(tu - r, tu + r, tw - r, tw + r); }
+  }
+
+  // (after the house, so a house gets the front yard first)
+  const parkChipper = () => {
+    // the chipper: parked back to the tree, just outside the paving (or the trunk), wherever it fits
+    // (further out if it fits nowhere near; if it fits nowhere in the lot, in the street)
+    const C = T.chip, d0 = Math.max(plan.treePave || 0, k) + C.gap, a0 = R() * Math.PI * 2;
+    let best = null, dist = d0;
+    for (let i = 0; i < 36 && !best; i++) {
+      const a = a0 + (i % 12) * Math.PI / 6, cu = Math.cos(a), cw = Math.sin(a);
+      dist = d0 + 2 * Math.floor(i / 12);
+      // its footprint in the lot frame, sampled (it is turned to point away from the tree)
+      const pts = [];
+      for (let s = 0; s <= 4; s++) for (const t of [-1, 0, 1]) {
+        const l = dist + (C.x1 - C.x0) * s / 4, side = t * C.hz;
+        pts.push([tu + cu * l - cw * side, tw + cw * l + cu * side]);
+      }
+      if (pts.every(([u, w]) => free(u, u, w, w, 0.3))) best = { a, cu, cw };
+    }
+    if (!best) {
+      // no room in the lot: parked in the street in front of it, along the kerb
+      const l = (C.x1 + C.x0) / 2, [x, z] = toW(tu - l, D + o.street / 2), [xd, zd] = toW(tu - l + 1, D + o.street / 2);
+      plan.chipper = { x: r4(x), z: r4(z), yaw: r4(Math.atan2(-(zd - z), xd - x)) };
+      return;
+    }
+    {
+      const l = dist - C.x0, [x, z] = toW(tu + best.cu * l, tw + best.cw * l), [xd, zd] = toW(tu + best.cu * (l + 1), tw + best.cw * (l + 1));
+      plan.chipper = { x: r4(x), z: r4(z), yaw: r4(Math.atan2(-(zd - z), xd - x)) };
+      const l0 = dist, l1 = dist + C.x1 - C.x0, us = [tu + best.cu * l0, tu + best.cu * l1], ws = [tw + best.cw * l0, tw + best.cw * l1];
+      take(Math.min(...us) - C.hz, Math.max(...us) + C.hz, Math.min(...ws) - C.hz, Math.max(...ws) + C.hz);
+    }
+  };
+
+  // ---- the house: the biggest that fits, set back from the street ----
   const side = 1.5 + 2.5 * (1 - d) * R(), setback = 3 + 3 * (1 - d) * R();
   let house = null;
-  const backLimit = lot.tree ? (o.paveR + 2) - lot.z0 : 0;      // in the tree's lot the house stays clear of the paving
-  if (lot.tree || pick(0.5 + 0.45 * d)) {
-    const maxW = Math.min(14, W - 2 * side), room = D - setback - Math.max(backLimit, 4);
-    const nx = Math.min(3, Math.floor(maxW / 3.4)), nzMax = room >= 8.5 ? 2 : room >= 4 ? 1 : 0;
-    if (nx >= 1 && nzMax >= 1) {
-      const rw = r4(Math.min(4.5, maxW / nx) * (0.85 + 0.15 * R())), nz = nzMax === 2 && pick(0.6) ? 2 : 1, rd = r4(Math.min(4.3, (room - 0.5) / nz) * (0.85 + 0.15 * R()));
-      const st = pick(0.2 + 0.35 * d) ? 2 : 1;
-      let cut = null;
-      if (nx >= 2 && nz === 2 && pick(0.35)) cut = [pick(0.5) ? 0 : nx - 1, 1];
-      let door = Math.floor(R() * nx); if (cut && door === cut[0]) door = cut[0] === 0 ? 1 : nx - 2;
-      const h = { nx, nz, st, cut, door, rw, rd, pitch: r4(0.4 + 0.3 * R()), depth: 0.5 };
-      const hw = nx * rw, hd = nz * rd, u = (R() - 0.5) * Math.max(0, W - 2 * side - hw), w = D - setback - hd / 2;
-      house = { h, u, w, hw, hd };
-      add('house', u, w, 0, { h });
-      // the house's level ground reaches its porch
-      const [x, z] = toW(u, w);
-      plan.pads.push({ x: r4(x), z: r4(z), r: r4(Math.hypot(hw / 2, hd / 2 + 2) + 0.5), blend: B });
+  if (pick(lot.tree ? 0.85 : 0.5 + 0.45 * d)) {
+    const maxW = Math.min(14, W - 2 * side), nx0 = Math.min(3, Math.floor(maxW / 3.4)), nz0 = pick(0.6) ? 2 : 1;
+    const st = pick(0.2 + 0.35 * d) ? 2 : 1, slide = R() - 0.5, pitch = r4(0.4 + 0.3 * R()), shrink = 0.85 + 0.15 * R(), lshape = R(), cutSide = R(), doorR = R();
+    for (let nz = nz0; nz >= 1 && !house; nz--) for (let nx = nx0; nx >= 1 && !house; nx--) {
+      const rw = r4(Math.min(4.5, maxW / nx) * shrink), rd = r4(4.3 * shrink), hw = nx * rw, hd = nz * rd, w = D - setback - hd / 2;
+      for (const s of [slide, -slide, 0]) {
+        const u = s * Math.max(0, W - 2 * side - hw);
+        // the house and its porch in front
+        if (!free(u - hw / 2, u + hw / 2, w - hd / 2, w + hd / 2 + 2)) continue;
+        let cut = null;
+        if (nx >= 2 && nz === 2 && lshape < 0.35) cut = [cutSide < 0.5 ? 0 : nx - 1, 1];
+        let door = Math.floor(doorR * nx); if (cut && door === cut[0]) door = cut[0] === 0 ? 1 : nx - 2;
+        house = { h: { nx, nz, st, cut, door, rw, rd, pitch, depth: 0.5 }, u, w, hw, hd };
+        break;
+      }
+    }
+  }
+  if (house) {
+    const { h, u, w, hw, hd } = house;
+    take(u - house.hw / 2, u + house.hw / 2, w - hd / 2, D);
+  }
+  if (lot.tree) parkChipper();
+  if (house) {
+    const { h, u, w, hw, hd } = house;
+    add('house', u, w, 0, { h });
+    // the house's level ground reaches its porch
+    const [x, z] = toW(u, w);
+    plan.pads.push({ x: r4(x), z: r4(z), r: r4(Math.hypot(hw / 2, hd / 2 + 2) + 0.5), blend: B });
 
-      // porch and sidewalk from the door
-      const du = u + (door - (nx - 1) / 2) * rw - rw / 4, front = w + hd / 2, kind = R();
-      const porchD = cells(1.8), walkW = cells(1.2);
-      let walkFrom = front;
-      if (kind < 0.65) { rect(du, front + porchD / 2 + 0.05, cells(2.4), porchD); walkFrom = front + porchD + 0.06; }
-      if (kind >= 0.35) { const L = Math.floor((D - walkFrom - 0.05) / c) * c; if (L > 0.5) rect(du, walkFrom + L / 2, walkW, r4(L)); }
-      house.door = du;
+    // porch and sidewalk from the door
+    const du = u + (h.door - (h.nx - 1) / 2) * h.rw - h.rw / 4, front = w + hd / 2, kind = R();
+    const porchD = cells(1.8), walkW = cells(1.2);
+    let walkFrom = front;
+    if (kind < 0.65) { rect(du, front + porchD / 2 + 0.05, cells(2.4), porchD); walkFrom = front + porchD + 0.06; }
+    if (kind >= 0.35) { const L = Math.floor((D - walkFrom - 0.05) / c) * c; if (L > 0.5) rect(du, walkFrom + L / 2, walkW, r4(L)); }
+    house.door = du;
 
-      // a patio behind the house
-      const behind = w - hd / 2 - (lot.tree ? backLimit : 0);
-      if (!lot.tree && behind > 4.5 && pick(0.25 + 0.3 * d)) {
-        const pw = cells(Math.min(hw, 3.6)), pd = cells(Math.min(behind - 1.5, 3)), pu = u + (R() - 0.5) * (hw - pw), pwc = w - hd / 2 - pd / 2 - 0.05;
-        rect(pu, pwc, pw, pd);
+    // a patio behind the house
+    if (pick(0.25 + 0.3 * d)) {
+      const pw = cells(Math.min(hw, 3.6)), pd = cells(3), pu = u + (R() - 0.5) * (hw - pw), pwc = w - hd / 2 - pd / 2 - 0.05;
+      if (free(pu - pw / 2, pu + pw / 2, pwc - pd / 2, pwc + pd / 2 - 0.1, 1)) {
+        rect(pu, pwc, pw, pd); take(pu - pw / 2, pu + pw / 2, pwc - pd / 2, pwc + pd / 2);
         const [px, pz] = toW(pu, pwc);
         plan.pads.push({ x: r4(px), z: r4(pz), r: r4(Math.hypot(pw, pd) / 2 + 0.3), blend: B, yAt: [r4(x), r4(z)] });
       }
     }
   }
 
-  // ---- a shed in a back corner, its door toward the house (the tree's own shed is put up by sim/builds.js) ----
-  if (!lot.tree) {
-    const behind = house ? house.w - house.hd / 2 : D;
-    if (behind > SHED.D + 3 && pick(0.2 + 0.4 * d)) {
-      const s = pick(0.5) ? -1 : 1, u = s * (W / 2 - 1 - SHED.W / 2), w = 1 + SHED.D / 2;
-      add('shed', u, w, 0);
+  // ---- a shed in a back corner, its door toward the house ----
+  if (pick(lot.tree ? 0.8 : 0.2 + 0.4 * d)) {
+    const s0 = pick(0.5) ? -1 : 1, hw = SHED.W / 2, hd = SHED.D / 2;
+    for (const s of [s0, -s0]) {
+      const u = s * (W / 2 - 1 - hw), w = 1 + hd;
+      if (!free(u - hw, u + hw, w - hd, w + hd + 1, 0.9)) continue;
+      add('shed', u, w, 0); take(u - hw, u + hw, w - hd, w + hd + 1);
       const [x, z] = toW(u, w);
       plan.pads.push({ x: r4(x), z: r4(z), r: r4(Math.hypot(SHED.W, SHED.D) / 2 + 0.3), blend: B });
+      break;
     }
   }
 

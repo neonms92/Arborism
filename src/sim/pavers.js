@@ -27,10 +27,14 @@ export class Pavers {
   /** The ground collider (made again with each new terrain). */
   get ground() { return this.sim.groundCol || null; }
 
-  /** Lay fresh pavers: a circle round a tree of CFG.TREE_HEIGHT and CFG.TREE_DIAMETER, then the yards' areas. */
-  lay(areas = []) {
+  /**
+   * Lay fresh pavers: the yards' areas (the tree's own paving among them). Flat ground (the engine tests) has no
+   * yards and gets the old circle round a tree of CFG.TREE_HEIGHT and CFG.TREE_DIAMETER instead.
+   */
+  lay(areas) {
     const c = CFG.PAVER_SIZE, pit = CFG.TREE_DIAMETER / 2 + CFG.PAVER_PIT;
-    this.sim.emit({ t: 'pavers', c, areas: [{ shape: 'circle', x: 0, z: 0, r: CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, pit }, ...areas] });
+    if (this.sim.flat) areas = [{ shape: 'circle', x: 0, z: 0, r: CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, pit }];
+    this.sim.emit({ t: 'pavers', c, areas });
   }
 
   /** From sim.onContact: a contact force event between colliders h1 and h2. */
