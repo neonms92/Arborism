@@ -1436,3 +1436,24 @@ piece came to rest. Checked headless: a smashed shed (40 boards) dropped from
 host, client and a late joiner agree on all 40 frozen poses (local PeerJS
 server). Smoke 18 / 22 (FM-05, 12, 13, 20 fail as on main; engine tests have
 no builds).
+
+**D96 — Damaging the neighbours' trees costs money.** Owner (2026-11-26):
+enact a monetary penalty for damage to non-target trees. Built in
+sim/damage.js, through the same `damage` event and toasts as the structures.
+Only a yard tree that has woken into wood (D74) can be damaged; a dormant one
+has nothing to hurt. Three charges, all placeholders the owner has not
+reviewed: sawing costs `YARD_CUT_COST` ($3,000) per m² of cross-section sawn
+through, each fibre counted the first time it is severed (a second kerf
+through the same fibre is free), added up and charged once the saw has been
+out of that tree for `YARD_CUT_QUIET` (1.5 s); wood that comes off the tree for
+good (a piece no longer held to the rooted tree by any live bundle, checked
+four times a second) costs `YARD_LOSS_COST` ($3/kg, wood and leaves), with any
+sawing not yet charged folded into the same toast; and the first time half
+the tree's wood has come off it counts as felled, `YARD_FELL_COST` ($5,000)
+once. So a tree is not charged twice for one fell, and cutting up a fallen
+yard log costs nothing more. Damage from any cause counts (a job tree landing
+on an awake yard tree and breaking a limb is charged too). Toast wording
+says "a neighbour's tree". At defaults a 12 m yard tree felled costs about
+$12,000 of a $30,000 budget. Not done: twigs swept away as debris within the
+same quarter second they broke off are not charged; wood that comes off with
+no fibres tested (live-bundle snaps) is charged by its mass when it parts.
