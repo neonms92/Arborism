@@ -78,7 +78,7 @@ export class Players {
     if (lvl === INJ.SHAKEN) { if (p.inj < INJ.SHAKEN) p.inj = INJ.SHAKEN; }
     else if (lvl > p.inj) {
       p.inj = lvl;
-      if (lvl === INJ.DOWN) this.sim.awards.down();
+      if (lvl === INJ.DOWN) this.sim.awards.down(p.id);
       this.sim.toast(lvl === INJ.DOWN ? `${this.name(p.id)} is DOWN ({speed:${dv.toFixed(1)}} impact)` : `${this.name(p.id)} is hurt ({speed:${dv.toFixed(1)}} impact)`);
     }
     sawOff(this.sim, p);
@@ -105,12 +105,12 @@ export class Players {
     if (o && pressed.interact) {
       p.held = ''; pressed.interact = false; p.chLock.add('lanyard');
       const was = o.inj;
-      this.heal(o); this.sim.awards.ate();
+      this.heal(o); this.sim.awards.ate(o.id);
       this.sim.toast(`${this.name(p.id)} gave ${this.name(o.id)} a tube salad` + (was === INJ.DOWN ? `: ${this.name(o.id)} is back up` : ''));
       return '';
     }
     if (eat) {
-      p.held = ''; const was = p.inj; this.heal(p); this.sim.awards.ate();
+      p.held = ''; const was = p.inj; this.heal(p); this.sim.awards.ate(p.id);
       this.sim.toast(was > INJ.SHAKEN ? 'You ate a tube salad: good as new' : 'You ate a tube salad', p.id);
       return '';
     }
@@ -525,7 +525,7 @@ export class Players {
       // what {interact} would grab: the wood looked at, or, just missing loose wood, the nearest in the grab cone
       const gaim = p.grab || !control ? null : reach ? aim : sim.coneAim(p);
       if (pressed.interact && wood && atChip) {
-        if (loose) { ca.u.feed(wood.piece, wood.id, p.grab.p); p.grab = null; p.chLock.add('lanyard'); }
+        if (loose) { ca.u.feed(wood.piece, wood.id, p.grab.p, p.id); p.grab = null; p.chLock.add('lanyard'); }
         else this.say(p, 'Only loose wood can go in the chipper');
       } else if (pressed.interact && p.grab) { p.grab = null; p.chLock.add('lanyard'); }
       else if (pressed.interact && atRack) {

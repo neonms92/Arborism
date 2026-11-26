@@ -1668,3 +1668,21 @@ start-screen model that blinks and follows name and shirt. Built:
   second small WebGL canvas).
 - A tree / chipper upgrade changes a sticker of the same job in place, stuck
   or waiting; a discarded one comes back at the next tier.
+
+**D106 — Stickers are earned, not shared.** Owner (2026-11-26), after D105:
+"chopped" means the tree divided into sections the chipper can take, since a
+fell-happy root cutter otherwise wins in a minute; a salad handed over counts
+for whoever eats it; salad and skull are earned by each player; tree and
+chipper stickers go only to players who did at least 10 % of that work.
+- Chopped = (chipped + swept away + every loose job piece whose contiguous
+  weight, `sim.weightOf`, is at most `CHIP_CAPACITY`) / tree mass. The stump
+  is never chippable, so 99 % needs it cut low too, as the chip HUD does.
+- Work: sawing is the cross-section of job wood a player's chain cut through
+  (`b.A` per fibre in `saw.js`, live bundles included); chipping is the mass
+  of job wood chipped from a feed that player started (`feed(..., by)`; the
+  split halves of a fed piece keep its feeder). Wood that reaches the rollers
+  with nobody's feed credits nobody. The host sums it and emits `{t:'work'}`
+  every 0.5 s into `world.awards.work`, so it survives a handover.
+- `{t:'award'}` now carries `to: [player ids]`; `got` is per player, so
+  someone who passes 10 % later gets the tier reached so far. The 100 %
+  sticker still goes to everyone present. `STICKER_SHARE` = 0.1.

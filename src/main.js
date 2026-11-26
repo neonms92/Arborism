@@ -64,7 +64,7 @@ world.on((ev, info) => {
   if (ev.t === 'toast' && (ev.to < 0 || ev.to === me)) hud.toast(ev.msg);
   if (ev.t === 'rmpiece' && interp) interp.drop(ev.piece);
   if (ev.t === 'chip' && interp) for (const id of info.gone) interp.drop(id);
-  if (ev.t === 'award') { const line = book.award(ev); if (line) hud.toast(line); }   // to everyone in the game at once
+  if (ev.t === 'award' && Array.isArray(ev.to) && ev.to.includes(me)) { const line = book.award(ev); if (line) hud.toast(line); }   // the players who earned it (sim/awards.js)
 });
 
 // ---------- lobby ----------

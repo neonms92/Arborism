@@ -241,7 +241,7 @@ export class Chipper {
       // both sides stay fed; once the wood is in the rollers, only a side that still has wood inside the chipper
       // stays in them (post drops the other: it was sawn off outside)
       this.feeding.set(ev.newPiece, { seg: moved ? f.seg : -1, p: f.p, entered: f.entered, split: f.entered,
-        winch: wMoved, wseg: f.wseg, wp: f.wp });
+        winch: wMoved, wseg: f.wseg, wp: f.wp, by: f.by });
       if (moved) f.seg = -1;
       if (wMoved) f.winch = false;
       if (f.entered) f.split = true;
@@ -394,10 +394,10 @@ export class Chipper {
   }
 
   /** Hand loose wood to the feed rollers, drawn in by piece-local point pl on segment seg. */
-  feed(piece, seg, pl) {
+  feed(piece, seg, pl, by = -1) {
     // The grab rope goes from the player's hands onto the winch, still tied where they held the wood.
     // wait: no part of it in the hopper yet, so the rollers have nothing to take
-    this.feeding.set(piece, { seg, p: pl.slice(), wseg: seg, wp: pl.slice(), winch: true, wait: true });
+    this.feeding.set(piece, { seg, p: pl.slice(), wseg: seg, wp: pl.slice(), winch: true, wait: true, by });   // by: who fed it (stickers)
   }
 
   /** Is a chipper-local point past the hopper's front (its mouth) and inside the hopper or the body behind it? */
@@ -678,8 +678,9 @@ export class Chipper {
   chip(piece, f, eat) {
     const sim = this.sim, w = sim.world, r = w.rope, ids = eat.map((s) => s.id);
     if (r.state === 2 && r.anchor.seg !== undefined && ids.includes(r.anchor.seg)) this.knot(piece, true);   // the rope goes in with its wood
-    let V = 0;
-    for (const s of eat) V += (segMass(s) + s.leaf) / CFG.DENSITY;
+    let V = 0, job = 0;
+    for (const s of eat) { V += (segMass(s) + s.leaf) / CFG.DENSITY; if (!s.yd) job += segMass(s) + s.leaf; }
+    sim.awards.credit('chip', f.by, job);           // whoever fed it did that much of the chipping (stickers, D106)
     V *= CFG.CHIP_SWELL;
     const out = this.toWorld([SHAPE.DISCHARGE[0], -SHAPE.BODY_Y, SHAPE.DISCHARGE[1]], _a);
     const bin = sim.bins.catchAt(out.x, out.z);       // landing in an open bin's mouth, they go into it (sim/bin.js)
