@@ -14,6 +14,7 @@ import { NetStats, upCount, upLoss } from './net/stats.js';
 import { ClimbPredict } from './net/predict.js';
 import { randomSeed, seedNumbers } from './model/seed.js';
 import { cleanName, cleanColor, playerName } from './model/world.js';
+import { LinePoses } from './model/lines.js';
 import { Stage } from './view/stage.js';
 import { StickerBook, StickerUI } from './stickerui.js';
 
@@ -55,6 +56,9 @@ const book = new StickerBook();
 const stk = new StickerUI(book, stage);
 
 let sim = null, interp = null, me = -1, aux = null, room = '', role = '', running = false;
+// a joined player's copy of the power lines' points, as the host last sent them (aux.ln); kept for taking over (D104)
+const linePoses = new LinePoses(), lineOf = (i) => linePoses.get(i);
+world.on((ev) => { if (ev.t === 'lines' || ev.t === 'reset' || ev.t === 'load') linePoses.clear(); });
 let lastHeard = 0;                                // when anything last came from the host (a client)
 const reserved = new Set();                       // players kept for whoever comes back after a handover
 let nextPid = 1, acc = 0, last = performance.now(), inputTimer = 0, inSeq = 0, stats = null, predict = null;
@@ -195,7 +199,7 @@ function wireClient() {
     if (m.t === 'po') { stats.pong(m, now); return; }
     if (m.t === 'welcome') { if (sim || role === 'taking') return; world.load(m.world); me = m.pid; role = 'client'; aux = null; net.sendRel(net, { t: 'me', ...look() }); handover.done(); begin(); }
     else if (m.t === 'ev') for (const ev of m.evs) world.apply(ev);
-    else if (m.t === 'aux') { if (!aux || m.tick > aux.tick) aux = m; }
+    else if (m.t === 'aux') { if (!aux || m.tick > aux.tick) aux = m; linePoses.take(m.ln); }
   };
   net.onLost = () => { if (role === 'client') handover.lost(); };
 }
@@ -210,7 +214,7 @@ const handover = {
   lost() {
     if (this.busy) return;
     this.busy = true; this.tries = 0; role = 'lost';
-    this.keep = { poses: lastPoses(), aux };          // what this player saw last, for taking over
+    this.keep = { poses: lastPoses(), aux, lines: linePoses };          // what this player saw last, for taking over
     input.active = false; document.exitPointerLock?.();
     this.show('The host has left the game. Someone can carry on as the host: everyone else rejoins them.', true);
     this.timer = setTimeout(() => this.rejoin(), 1500);
@@ -307,7 +311,7 @@ function lobbyPad() {
 }
 
 // ---------- main loop ----------
-const hostSource = { pose: (id) => sim.pose(id), get flex() { return sim.structure.flex; } };
+const hostSource = { pose: (id) => sim.pose(id), get flex() { return sim.structure.flex; }, line: (i) => sim.lines.nodes(i) };
 const HELP = '{move} move / climb   {look} look   hold {interact}: spur in / move the lanyard (also grabs the rope tail)   hold {drop}: let go of the tree   {jump} jump   ' +
   '{rig}: hang the block, then tie the rope to the wood looked at, or untie at the knot   {punch}: punch the wood (press again and again to push harder)   ' +
   '{raise} plant the saw on the wood you are looking at, then {look} pivots the bar and {throttle} presses it in   ' +
@@ -368,10 +372,10 @@ function frame(now) {
     stats.routeCheck(performance.now(), () => Net.route(net.fast));
   }
 
-  let src = sim ? hostSource : interp, auxV = aux;
+  let src = sim ? hostSource : interp ? { pose: (id) => interp.pose(id), line: lineOf } : interp, auxV = aux;
   if (!sim && predict && predict.pos) {
     const P = predict.pos, pid = 60000 + me;
-    src = { pose: (id) => (id === pid ? { p: { x: P[0], y: P[1], z: P[2] }, q: interp.pose(id)?.q || { x: 0, y: 0, z: 0, w: 1 } } : interp.pose(id)) };
+    src = { pose: (id) => (id === pid ? { p: { x: P[0], y: P[1], z: P[2] }, q: interp.pose(id)?.q || { x: 0, y: 0, z: 0, w: 1 } } : interp.pose(id)), line: lineOf };
     auxV = { ...aux, pl: aux.pl.map((a) => (a.id === me ? predict.patch(a) : a)) };
   }
   view.update(dt, src, auxV, me, inp);

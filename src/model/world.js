@@ -9,6 +9,7 @@
 // builds: breakable structures (the shed), model/builds.js
 // terrain: the ground, model/terrain.js (null = flat at y = 0)
 // stands: the other trees in the yards, model/stands.js (null = none)
+// lines: the power lines, model/lines.js (null = none)
 // mark: the orange X sprayed on the job tree {c:[3] on its axis, n:[3] out to the paint}, piece-local (null = none)
 
 import { makeBundle, cutFibres, packBundle, unpackBundle, gridFor, layout, bundleBasis, CUT, isGone, setGone, presence } from './fibres.js';
@@ -18,6 +19,7 @@ import { addChips } from './chipper.js';
 import { makeTerrain } from './terrain.js';
 import { newBuild, smashBuild, freezeBuild, packBuilds, unpackBuilds } from './builds.js';
 import { cleanStickers } from './stickers.js';
+import { newLines, snapLine, wakeEnds, divideEnds } from './lines.js';
 
 export const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 export const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -91,6 +93,7 @@ export class World {
     this.builds = [];             // breakable structures: the shed (model/builds.js)
     this.terrain = null;          // the ground (model/terrain.js); null = flat at y = 0
     this.stands = null;           // the other trees in the yards (model/stands.js)
+    this.lines = null;            // the power lines along the streets and to the houses (model/lines.js)
     this.mark = null;             // the orange X on the job tree
     this.damage = 0;              // $, running cost of what the job broke (sim/damage.js)
     this.job = null;              // the job's budget and how it was worked out: {budget, h, d, lot} (sim/damage.js)
@@ -185,13 +188,14 @@ export class World {
         else for (const s of ev.segs) { const g = this.segs.get(s.id); this.prog.M += segMass(g) + g.leaf; }
         if (ev.mark) this.mark = ev.mark;
         if (ev.stand !== undefined && this.stands) this.stands.list[ev.stand].piece = ev.piece;    // one of the other trees came to life
+        if (ev.stand !== undefined && this.stands && this.stands.list[ev.stand].k === 1) wakeEnds(this.lines, ev.stand, ev.segs);   // a pole: its lines are on its wood now
         this._dirty();
         break;
       case 'stands':                // the other trees in the yards, all dormant
-        this.stands = ev.list.length ? { g: ev.g, list: ev.list.map(([x, y, z, seed, h, d]) => ({ x, y, z, seed, h, d, piece: 0 })) } : null;
+        this.stands = ev.list.length ? { g: ev.g, list: ev.list.map(([x, y, z, seed, h, d, k]) => ({ x, y, z, seed, h, d, piece: 0, ...(k ? { k } : {}) })) } : null;
         break;
       case 'reset':                 // all wood gone (a new tree follows)
-        this.segs.clear(); this.pieces.clear(); this.rope = { state: 0 }; this.damage = 0; this.wages = 0; this.spent = 0; this.job = null; this.stands = null; this.mark = null;
+        this.segs.clear(); this.pieces.clear(); this.rope = { state: 0 }; this.damage = 0; this.wages = 0; this.spent = 0; this.job = null; this.stands = null; this.mark = null; this.lines = null;
         this.prog = newProg();
         this._dirty();
         break;
@@ -255,6 +259,9 @@ export class World {
       case 'smash': smashBuild(this.builds, ev); break;           // a module came apart (sim/builds.js)
       case 'freeze': freezeBuild(this.builds, ev); break;         // its debris came to rest long enough ago: scenery now
       case 'rope': this.rope = ev.rope; break;
+      case 'lines': this.lines = newLines(ev.list); break;    // the power lines, put up whole with a new tree
+      case 'snap': snapLine(this.lines, ev); break;            // a power line parted (k: link) or came away at an end (end)
+      case 'zap': break;                                       // someone touched a live line (drawn as a flash)
       case 'damage': this.damage += ev.cost; break;   // the price of something broken (sim/damage.js)
       case 'budget': this.job = ev.job; this.wages = 0; this.spent = 0; break;   // a new job: what it pays to start with (sim/damage.js)
       case 'wages': this.wages += ev.cost; break;     // the crew's pay since the last of these
@@ -298,6 +305,7 @@ export class World {
     const L = segLen(s), zc = at * L, p = lerp3(s.a, s.b, at), r = segRadius(s, at), old = s.f, n = old.n;
     const root = { id: newId, parent: -1, piece: s.piece, a: p, b: s.b, r0: r, r1: s.r1, leaf: s.leaf, f: makeBundle(old.N) };
     if (s.yd) root.yd = 1;
+    if (s.pl) root.pl = 1;
     for (const k of this.kids(s.id)) this.segs.get(k).parent = root.id;
     this.segs.set(root.id, root);
     const P = makeBundle(old.N), D = root.f;
@@ -320,6 +328,7 @@ export class World {
       const node = this.rope[nm];
       if (node && node.seg === s.id && segParam(s, node.p) > at) node.seg = root.id;
     }
+    divideEnds(this.lines, s, at, root.id);
     s.b = p; s.r1 = r; s.leaf = 0;
     this._dirty();
     return root;
@@ -363,6 +372,7 @@ export class World {
     const cont = ev.cont >= 0 ? this.segs.get(ev.cont) : null;
     const h = { id: ev.newSeg, parent: cont ? cont.id : s.id, piece: s.piece, a: s.b.slice(), b: s.a.slice(), r0: s.r1, r1: s.r0, leaf: 0, f: makeBundle(N) };
     if (s.yd) h.yd = 1;
+    if (s.pl) h.pl = 1;
     const H = h.f;
     for (let i = 0; i < H.n; i++) setGone(H, i);
     const off = (bb, i) => [bb.u[0] * lay.X[i] + bb.v[0] * lay.Y[i], bb.u[1] * lay.X[i] + bb.v[1] * lay.Y[i], bb.u[2] * lay.X[i] + bb.v[2] * lay.Y[i]];
@@ -414,7 +424,7 @@ export class World {
     return {
       segs: [...this.segs.values()].map((s) => ({ ...s, f: packBundle(s.f) })), pieces: [...this.pieces.values()],
       rope: this.rope, players: [...this.players.values()], paving: packPaving(this.paving), chipper: this.chipper, builds: packBuilds(this.builds),
-      terrain: this.terrain ? this.terrain.spec : null, damage: this.damage, job: this.job, wages: this.wages, spent: this.spent, stands: this.stands, mark: this.mark, seed: this.seed || '',
+      terrain: this.terrain ? this.terrain.spec : null, damage: this.damage, job: this.job, wages: this.wages, spent: this.spent, stands: this.stands, mark: this.mark, seed: this.seed || '', lines: this.lines,
       bins: this.bins, prog: this.prog, awards: this.awards,
     };
   }
@@ -430,7 +440,7 @@ export class World {
     if (this.chipper && !this.chipper.units) this.chipper = { piles: this.chipper.piles || [], units: [{ p: this.chipper.p, q: this.chipper.q, wreck: this.chipper.wreck || null }] };
     this.builds = unpackBuilds(o.builds);
     this.damage = o.damage || 0; this.job = o.job || null; this.wages = o.wages || 0; this.spent = o.spent || 0;
-    this.stands = o.stands || null; this.mark = o.mark || null; this.seed = o.seed || '';
+    this.stands = o.stands || null; this.mark = o.mark || null; this.seed = o.seed || ''; this.lines = o.lines || null;
     this.bins = o.bins || []; this.prog = o.prog || newProg(); this.awards = { ...newAwards(), ...(o.awards || {}) };
     this._dirty();
     for (const fn of this.listeners) fn({ t: 'load' }, {});

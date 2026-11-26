@@ -995,6 +995,35 @@ what the engine tests use. The word is not remembered between visits.
 
 ---
 
+### 6.10 Power lines (D110)
+
+Wooden utility poles (`POLE_HEIGHT` 10 m, `POLE_DIAMETER` 0.3 m) stand
+`POLE_SPACING` (35 m) apart along every street, 0.7 m inside the asphalt
+edge (`model/yards.js planPoles`; a pole within 5 m of the chipper is left
+out). They are yard trees of kind 1 (`model/stands.js`): dormant until
+someone saws into one, then a straight fibre trunk like any other wood,
+segments marked `pl` so nobody can grab, spur or lanyard them. A line runs
+from the top of each pole to the next, and a drop from just under the top
+of the nearest pole (within `DROP_MAX`) to the front wall of each house.
+
+The model (`model/lines.js`) holds only the ends and which links have
+snapped; the host (`sim/lines.js`) simulates each line as a chain of points
+`LINE_LINK` apart (XPBD, links pull but never push, `LINE_EA` stiffness,
+`LINE_KG_M` mass, `LINE_SLACK` extra length). Points collide with the
+ground and with wood as cylinders; the line pushes back on loose wood, so
+a sawn pole hangs on its lines. A link whose tension passes `LINE_BREAK_F`
+(30 kN, more than a whole hanging pole) snaps; an end on a house comes away
+when its room breaks or moves; sawing through a line cuts it. Points travel
+in aux `ln` (cm) while they move, so clients and a new host after handover
+have them; a machine with none draws a line hanging at rest.
+
+Every line is live. Touching one hurts a player and throws them back
+(`SHOCK_KNOCK`, `SHOCK_LIFT`); a player already hurt goes down; a climber
+comes off the tree. A snap makes a big white flash with a light and a halo
+that keeps its size on screen; a touch makes a smaller one; downed ends on
+the ground spark. Damage: `LINE_COST` per line the first time it breaks,
+`POLE_FELL_COST` for a felled pole.
+
 ## 7. Controls
 
 Vertical look is **inverted** (`INVERT_Y`): pushing the mouse or stick

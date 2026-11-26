@@ -280,6 +280,21 @@ export const CFG = {
   YARD_LOSS_COST: 3,       // $ per kg of wood and leaves that comes off a yard tree for good
   YARD_FELL_COST: 5000,    // $ more, once, when half a yard tree's wood has come off (it counts as felled)
   SHED_DENSITY: 450,       // kg/m3 of the shed's and fences' boards
+  // --- power lines (model/lines.js, sim/lines.js): wooden poles along the streets, a line from pole to pole and a drop to each house ---
+  POLE_HEIGHT: 10,         // m of pole above the ground
+  POLE_DIAMETER: 0.3,      // m at the ground (it tapers to two thirds of that at the top)
+  POLE_SPACING: 35,        // m between poles along a street (each about 10% either way)
+  DROP_MAX: 32,            // m: a house further than this from every pole on its street gets no drop
+  LINE_SLACK: 0.002,       // extra length of a line over the straight distance between its ends (0.002 on 35 m: about 0.9 m of sag)
+  LINE_LINK: 2.5,          // m between the points a line is simulated as
+  LINE_EA: 4e6,            // N: stretch stiffness of a line (force for 100% stretch)
+  LINE_KG_M: 0.4,          // kg per m of line
+  LINE_BREAK_F: 30000,     // N of tension that snaps a line (one hanging pole pulls about half of this)
+  LINE_COST: 4000,         // $ for each line brought down (snapped, or torn off a house or pole)
+  POLE_FELL_COST: 6000,    // $ more, once, when half a utility pole's wood has come off it (sawing into one costs as a yard tree does)
+  SHOCK_KNOCK: 5,          // m/s a shock throws you away from the line
+  SHOCK_LIFT: 2.5,         // m/s up as well
+  SHOCK_AGAIN: 1.5,        // s after a shock before the same player can be shocked again
 };
 
 // The values above as shipped, before the Tab menu loads saved settings over them (the test runner starts from these).

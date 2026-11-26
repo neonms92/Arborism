@@ -34,7 +34,7 @@ export class Damage {
       let M = 0;
       for (const s of w.segsOf(ev.piece)) M += segMass(s) + s.leaf;
       this.yard.set(ev.piece, ev.stand);
-      this.trees.set(ev.stand, { M, gone: 0, felled: false, cut: 0, quiet: 0 });
+      this.trees.set(ev.stand, { M, gone: 0, felled: false, cut: 0, quiet: 0, pole: w.stands && w.stands.list[ev.stand].k === 1 });
     } else if (ev.t === 'split' && info && this.yard.has(info.oldPiece)) {
       this.yard.set(ev.newPiece, this.yard.get(info.oldPiece));
       if (this.lost.has(info.oldPiece)) this.lost.add(ev.newPiece);
@@ -70,6 +70,10 @@ export class Damage {
       for (const [i, a] of add) if (w.paving.dmg[i] - a <= 1e-9) n++;
       if (n) this.charge(n * CFG.PAVER_COST, n === 1 ? 'A paver cracked' : `${n} pavers cracked`);
     } else if (ev.t === 'chipwreck') this.charge(CFG.CHIPPER_COST, 'The chipper truck was wrecked');
+    else if (ev.t === 'snap') {             // a power line came down: charged once a line, however many places it parts
+      const l = w.lines && w.lines.list[ev.i];      // (the event is applied: this is its first break if it is the only one)
+      if (l && l.brk.length + l.off[0] + l.off[1] === 1) this.charge(CFG.LINE_COST, 'A power line came down');
+    }
   }
 
   /** A new job: its budget from the tree's size and the lot's width (lot: nominal lot width, m, or 0 on flat test ground). */
@@ -98,7 +102,7 @@ export class Damage {
     const w = this.sim.world;
     for (const tr of this.trees.values()) {
       if (!(tr.cut > 0) || (tr.quiet += dt) < CFG.YARD_CUT_QUIET) continue;
-      this.charge(tr.cut * CFG.YARD_CUT_COST, "Sawed into a neighbour's tree");
+      this.charge(tr.cut * CFG.YARD_CUT_COST, tr.pole ? 'Sawed into a utility pole' : "Sawed into a neighbour's tree");
       tr.cut = 0;
     }
     if ((this.tCheck += dt) < 0.25) return;
@@ -117,9 +121,13 @@ export class Damage {
       const tr = this.trees.get(i); if (!tr) continue;
       tr.gone += m;
       // the sawing that took it off goes on the same bill
-      let cost = m * CFG.YARD_LOSS_COST + tr.cut * CFG.YARD_CUT_COST, what = "A limb came off a neighbour's tree";
+      let cost = m * CFG.YARD_LOSS_COST + tr.cut * CFG.YARD_CUT_COST, what = tr.pole ? 'Wood came off a utility pole' : "A limb came off a neighbour's tree";
       tr.cut = 0;
-      if (!tr.felled && tr.gone >= 0.5 * tr.M) { tr.felled = true; cost += CFG.YARD_FELL_COST; what = "A neighbour's tree was felled"; this.sim.awards.wrongTree(i); }
+      if (!tr.felled && tr.gone >= 0.5 * tr.M) {
+        tr.felled = true;
+        if (tr.pole) { cost += CFG.POLE_FELL_COST; what = 'A utility pole was felled'; }
+        else { cost += CFG.YARD_FELL_COST; what = "A neighbour's tree was felled"; this.sim.awards.wrongTree(i); }
+      }
       this.charge(cost, `${what} ({mass:${Math.round(m)}})`);
     }
   }

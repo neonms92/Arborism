@@ -12,6 +12,7 @@ const PAINT = { H: 0.5, W: 0.42, LINE: 0.07, RGB: [1.0, 0.38, 0.0] };   // the X
 const ico = new THREE.IcosahedronGeometry(1, 0).attributes.position;
 // Width of every fibre box in a segment: one width all along, from the radius at its middle (a box cannot taper).
 // The bark is fitted around this (woodInto), so the two must agree.
+const BARK_RGB = [0.42, 0.31, 0.22], POLE_RGB = [0.33, 0.27, 0.22];
 export const fibreWidth = (s) => (s.r0 + s.r1) / s.f.N * 0.82;
 
 /** Is piece-local point c on segment s's axis (within a third of its radius)? */
@@ -72,7 +73,8 @@ export function woodInto(segs, mark = null) {
       }
     }
     const shade = 0.85 + ((s.id * 37) % 10) / 60;
-    for (let i = start; i < pos.length / 3; i++) col.push(0.42 * shade, 0.31 * shade, 0.22 * shade);
+    const bc = s.pl ? POLE_RGB : BARK_RGB;           // a utility pole: weathered, creosoted wood
+    for (let i = start; i < pos.length / 3; i++) col.push(bc[0] * shade, bc[1] * shade, bc[2] * shade);
     if (mark && !painted && onSeg(s, mark.c)) {
       painted = true;
       // out from the axis at angle ang (in the bundle's u, v) and z along it: the bark face there, a hair outside it

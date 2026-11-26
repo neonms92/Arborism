@@ -20,6 +20,7 @@ import { Bins } from './bin.js';
 import { Builds } from './builds.js';
 import { Ground } from './ground.js';
 import { Awards } from './awards.js';
+import { Lines } from './lines.js';
 import { CHIPPER_BODY_ID } from '../model/chipper.js';
 import { terrainSpec, groundY, groundN } from '../model/terrain.js';
 
@@ -88,6 +89,7 @@ export class Sim {
     this.builds = new Builds(this);    // the shed; its bodies are made by the 'builds' event (grow)
     this.stands = new Stands(this);    // the other trees in the yards while dormant; made by the 'stands' event (grow)
     this.awards = new Awards(this);   // stickers for the crew (D105)
+    this.lines = new Lines(this);     // the power lines; made by the 'lines' event (grow)
     this.onLoads = null;              // optional fn(dt), called each tick where point loads go in (test harness)
 
     if (opts.tree !== false) this.grow();
@@ -98,7 +100,10 @@ export class Sim {
     this.emit({ t: 'terrain', spec: this.flat ? null : terrainSpec(CFG, plan.pads, plan.streets), seed: this.flat ? '' : String(CFG.WORLD_SEED || '') });   // seed: the world's word, shown in the Tab menu
     this.pavers.lay(plan.areas); this.chipper.place(false, plan.chipper); this.builds.place();
     if (!this.flat) this.bins.place(); else this.emit({ t: 'bins', list: [] });   // (none in the engine tests)
-    if (plan.trees.length) this.emit({ t: 'stands', ...this.standList(plan.trees) });
+    // the other trees, then the utility poles (stands of kind 1), and the lines between them and to the houses
+    const poles = plan.poles || [];
+    if (plan.trees.length || poles.length) this.emit({ t: 'stands', ...this.standList(plan.trees, poles) });
+    this.lines.place(plan, plan.trees.length);
     const segs = generateTree(CFG.TREE_SEED, () => this.world.newId());
     // the job tree is marked with an orange X, sprayed on the side facing its street (not on flat ground: the engine tests)
     this.emit({ t: 'tree', piece: this.world.newId(), segs, mark: this.flat ? undefined : markOn(segs, CFG.MARK_HEIGHT, plan.front) });
@@ -110,14 +115,14 @@ export class Sim {
   }
 
   /** The 'stands' event for the planned trees: each stands on the lowest ground round its trunk, so it never floats. */
-  standList(trees) {
+  standList(trees, poles = []) {
     const g = treeShape({ pitch: CFG.YARD_TREES_PITCH });
     delete g.h; delete g.d;
-    const list = trees.map(([x, z, seed, h, d]) => {
-      let y = Infinity;
-      for (let k = 0; k < 8; k++) y = Math.min(y, this.groundY(x + Math.cos(k * Math.PI / 4) * d / 2, z + Math.sin(k * Math.PI / 4) * d / 2));
-      return [x, +(y - 0.05).toFixed(4), z, seed, h, d];
-    });
+    const low = (x, z, d) => { let y = Infinity; for (let k = 0; k < 8; k++) y = Math.min(y, this.groundY(x + Math.cos(k * Math.PI / 4) * d / 2, z + Math.sin(k * Math.PI / 4) * d / 2)); return y - 0.05; };
+    const list = trees.map(([x, z, seed, h, d]) => [x, +low(x, z, d).toFixed(4), z, seed, h, d]);
+    // a pole stands POLE_HEIGHT above the ground at its middle
+    const d = CFG.POLE_DIAMETER;
+    for (const [x, z] of poles) { const y = low(x, z, d); list.push([x, +y.toFixed(4), z, 0, +(CFG.POLE_HEIGHT + this.groundY(x, z) - y).toFixed(4), d, 1]); }
     return { g, list };
   }
 
@@ -178,6 +183,7 @@ export class Sim {
     this.stands.onEvent(ev, info);
     this.damage.onEvent(ev, info);
     this.awards.onEvent(ev, info);
+    this.lines.onEvent(ev, info);
     if (ev.t === 'tree') {
       const body = this.rapier.createRigidBody(RAPIER.RigidBodyDesc.fixed());
       this.bodies.set(ev.piece, body);
@@ -404,7 +410,9 @@ export class Sim {
     this.contactRaw.clear();
 
     this.rope.step(dt);          // rope first: the saw and the fibres both need this tick's rope state
+    this.lines.step(dt);         // power lines: their pull is a load on standing poles, and a force on loose wood
     this.players.pre(dt);
+    this.lines.shocks(dt);       // (after the players move: a shock sets their speed)
     this.chipper.pre(dt);
     this.bins.pre(dt);
     if (this.onLoads) this.onLoads(dt);
@@ -521,6 +529,6 @@ export class Sim {
 
   aux() {
     // sky: [days, s per day, cloud cover] so a client can run its clock smoothly between packets
-    return { t: 'aux', tick: this.tick, sky: [+this.days.toFixed(6), CFG.DAY_LENGTH, +this.cloud.toFixed(3)], pl: this.players.aux(), rope: this.rope.aux(), chip: this.chipper.aux(), ...this.structure.aux() };
+    return { t: 'aux', tick: this.tick, sky: [+this.days.toFixed(6), CFG.DAY_LENGTH, +this.cloud.toFixed(3)], pl: this.players.aux(), rope: this.rope.aux(), chip: this.chipper.aux(), ln: this.lines.aux(), ...this.structure.aux() };
   }
 }

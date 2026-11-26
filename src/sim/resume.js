@@ -3,7 +3,7 @@
 //
 // What comes back: the ground, the job tree and every loose piece where it was (at rest), the wood still
 // hanging by fibres (its fibres as the last aux showed them), the chippers, bins and intact structures,
-// the other yard trees, players (climbers on the wood they were on), rope length and wraps, the clock.
+// the other yard trees, the power lines (as last seen), players (climbers on the wood they were on), rope length and wraps, the clock.
 // Stickers handed out so far are in the world (world.awards), so none is handed out twice.
 // What does not: speeds (everything starts still), the state of a chipper mid-feed, debris of broken
 // structures (drawn, no longer solid), someone holding the rope or wood (they let go).
@@ -33,6 +33,7 @@ export function resume(sim, st) {
   if (w.bins && w.bins.length) on({ t: 'bins', list: w.bins.map((b) => [b.p, b.q]) });
   if (w.builds && w.builds.length) on({ t: 'builds' });
   if (w.stands) on({ t: 'stands' });
+  if (w.lines) { on({ t: 'lines' }); sim.lines.restore(st.lines && st.lines.m); }   // the power lines where this player last saw them
 
   // wood: rooted pieces as the tree was made, loose ones as bodies of their own
   const R = sim.R;
