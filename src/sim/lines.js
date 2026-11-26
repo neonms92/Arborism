@@ -125,9 +125,9 @@ export class Lines {
       const S = this.st[i]; if (!S) return;
       const A = L.off[0] ? null : this.endNow(L.a), B = L.off[1] ? null : this.endNow(L.b);
       if (check) {           // an end whose wood is gone, or whose room broke: the line comes away there
-        if (!L.off[0] && !A) { sim.emit({ t: 'snap', i, end: 0, p: [S.x[0], S.x[1], S.x[2]].map((v) => +v.toFixed(3)) }); return; }
+        if (!L.off[0] && !A) { sim.emit({ t: 'snap', i, end: 0, p: [S.x[0], S.x[1], S.x[2]].map((v) => +v.toFixed(3)) }); this.blamed(S); return; }
         const j = 3 * L.n;
-        if (!L.off[1] && !B) { sim.emit({ t: 'snap', i, end: 1, p: [S.x[j], S.x[j + 1], S.x[j + 2]].map((v) => +v.toFixed(3)) }); return; }
+        if (!L.off[1] && !B) { sim.emit({ t: 'snap', i, end: 1, p: [S.x[j], S.x[j + 1], S.x[j + 2]].map((v) => +v.toFixed(3)) }); this.blamed(S); return; }
       }
       if (!S.awake) {
         for (const [P, q] of [[A, S.pin[0]], [B, S.pin[1]]]) if (P && q && Math.abs(P[0] - q[0]) + Math.abs(P[1] - q[1]) + Math.abs(P[2] - q[2]) > 1e-3) this.wake(S);
@@ -137,6 +137,8 @@ export class Lines {
       const own = new Set();
       for (const e of [L.a, L.b]) if (e.seg !== undefined) { const s = w.segs.get(e.seg); if (s) own.add(s.piece); }
       const near = bods.filter((o) => !own.has(o.id) && Lines.near(S.box, o.c, o.r + 0.3));
+      // whose wood is on the line, or holds an end that has come loose: theirs if it snaps soon (a sticker, D111)
+      for (const id of [...near.map((o) => o.id), ...own]) { const by = sim.awards.by.get(id); if (by !== undefined && by >= 0) S.blame = { id: by, t: sim.tick }; }
       this.solve(L, S, A, B, near, dt);
       this.push(L, S, near, dt);
       // the ends pull on what holds them
@@ -161,6 +163,7 @@ export class Lines {
       if (tmax > CFG.LINE_BREAK_F) {
         const x = S.x, p = [0, 1, 2].map((c) => +((x[3 * kmax + c] + x[3 * kmax + 3 + c]) / 2).toFixed(3));
         sim.emit({ t: 'snap', i, k: kmax, p });
+        this.blamed(S);
       }
     });
   }
@@ -347,11 +350,17 @@ export class Lines {
     });
     return out;
   }
+  /** Line S snapped by itself: the player whose wood was on it lately gets the ghost bolt. */
+  blamed(S) {
+    const b = S.blame;
+    if (b && this.sim.tick - b.t <= CFG.STICKER_LINE_T / CFG.TICK) this.sim.awards.line(b.id);
+  }
   /** A saw went through link k of line i (player p held it): it parts, and p takes the shock. */
   cut(i, k, p) {
     const S = this.st[i]; if (!S) return;
     const x = S.x, at = [0, 1, 2].map((c) => +((x[3 * k + c] + x[3 * k + 3 + c]) / 2).toFixed(3));
     this.sim.emit({ t: 'snap', i, k, p: at });
+    if (p) this.sim.awards.line(p.id);
     if (p && !this.shockT.has(p.id) && p.inj < INJ.DOWN) { this.shockT.set(p.id, CFG.SHOCK_AGAIN); this.sim.players.shock(p, at); }
   }
 

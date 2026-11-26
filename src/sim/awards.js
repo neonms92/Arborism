@@ -126,6 +126,8 @@ export class Awards {
   }
   /** Something of kind ('house', 'shed', 'fence', 'wreck') broke, hit by collider h. */
   broke(kind, h) { const id = this.culprit(h); if (id >= 0) this.give(kind, 0, [id]); }
+  /** A power line snapped: a ghost bolt for whoever sawed it (id), else whoever's wood was on it lately (lines.js). */
+  line(id) { if (id !== undefined && id >= 0) this.give('power', 0, [id]); }
   /** Player by sawed through victim's lanyard. */
   lanyard(by, victim) { if (by === victim) this.give('cutself', 0, [by]); else this.give('cutother', 0, [by], true); }
 
