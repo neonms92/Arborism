@@ -10,7 +10,7 @@
 import { CFG } from '../config.js';
 
 /** kind -> number of tiers. tree: brown / yellow / green; chip: bronze / silver / gold. */
-export const KINDS = { tree: 3, chip: 3, bin: 1, skull: 1, salad: 1 };
+export const KINDS = { tree: 3, chip: 3, bin: 1, skull: 1, salad: 1, house: 1, shed: 1, fence: 1, wreck: 1, cutself: 1, cutother: 1 };
 
 const num = (v, lo, hi) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi, Math.round(v * 1000) / 1000)) : null);
 

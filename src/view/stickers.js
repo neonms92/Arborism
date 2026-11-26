@@ -67,7 +67,30 @@ function salad() {
     '<rect x="37" y="34" width="5" height="44" rx="2" fill="#fff" opacity=".3"/></g>');
 }
 
-const ART = { tree, chip, bin, skull, salad };
+// broken things: the thing in grey on a white disc, under a red circle and slash (D107)
+const ICON = {
+  house: '<path d="M26 52 L50 30 L74 52 Z" fill="#7a4a3a"/><rect x="31" y="51" width="38" height="25" fill="#cfc6b4"/><rect x="45" y="60" width="10" height="16" fill="#6b5a48"/><rect x="34" y="56" width="8" height="7" fill="#8fb4d6"/><rect x="58" y="56" width="8" height="7" fill="#8fb4d6"/>',
+  shed: '<path d="M27 47 L73 39 L73 44 L27 52 Z" fill="#6e4b33"/><rect x="30" y="48" width="40" height="28" fill="#b98a5a"/><path d="M50 52 V76 M36 52 V76 M64 52 V76" stroke="#8a613c" stroke-width="2"/><rect x="40" y="56" width="20" height="20" fill="#8a613c"/><path d="M40 56 L60 76 M60 56 L40 76" stroke="#b98a5a" stroke-width="2"/>',
+  fence: '<g fill="#e9e2d0" stroke="#9b9078" stroke-width="1.5"><path d="M28 74 V40 L32 34 L36 40 V74 Z"/><path d="M41 74 V38 L45 32 L49 38 V74 Z"/><path d="M54 74 V38 L58 32 L62 38 V74 Z"/><path d="M67 74 V40 L71 34 L75 40 V74 Z"/></g><rect x="24" y="46" width="54" height="5" fill="#cfc6b4"/><rect x="24" y="62" width="54" height="5" fill="#cfc6b4"/>',
+  wreck: '<g fill="#e07a2a" stroke="#7a3a10" stroke-width="1.5" stroke-linejoin="round"><path d="M22 48 L36 53 L36 63 L22 66 Z"/><rect x="35" y="47" width="24" height="20" rx="3"/><path d="M50 47 L52 33 Q54 26 63 26 L73 28 L71 34 L63 33 Q60 33 59 37 L58 47 Z"/></g><circle cx="46" cy="70" r="7" fill="#333"/><circle cx="46" cy="70" r="3" fill="#999"/>',
+};
+function no(kind) {
+  return wrap(cut('<circle cx="50" cy="50" r="44" fill="#fff"/>', 8) + ICON[kind] +
+    '<circle cx="50" cy="50" r="38" fill="none" stroke="#d62b25" stroke-width="8"/><path d="M23 23 L77 77" stroke="#d62b25" stroke-width="8"/>');
+}
+// a lanyard: an orange rope loop round a bit of trunk, cut through with sparks at the cut, and a word on a banner
+function lanyard(word, bg) {
+  return wrap(cut(`<circle cx="50" cy="50" r="44" fill="${bg}"/>`, 8) +
+    '<rect x="42" y="12" width="16" height="64" rx="4" fill="#8a5a2e"/><path d="M45 14 V74 M53 14 V74" stroke="#6b431d" stroke-width="1.5"/>' +
+    '<path d="M60 40 C80 40 86 50 80 56 M66 60 C50 64 26 62 20 54 C14 46 26 38 40 38" fill="none" stroke="#ff9a1f" stroke-width="6" stroke-linecap="round"/>' +
+    '<path d="M80 56 l4 3 M80 56 l5 -1 M66 60 l-3 4 M66 60 l-4 -2" stroke="#ff9a1f" stroke-width="2.5" stroke-linecap="round"/>' +
+    '<g fill="#ffe14a"><path d="M73 55 l3 -7 l1 6 l6 -3 l-4 6 z"/></g>' +
+    `<rect x="14" y="66" width="72" height="20" rx="5" fill="#fff" stroke="#222" stroke-width="2.5" transform="rotate(-6 50 76)"/>` +
+    `<text x="50" y="82" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-weight="900" font-size="15" fill="#222" transform="rotate(-6 50 76)">${word}</text>`);
+}
+
+const ART = { tree, chip, bin, skull, salad, house: () => no('house'), shed: () => no('shed'), fence: () => no('fence'), wreck: () => no('wreck'),
+  cutself: () => lanyard('OOPS!', '#f2c230'), cutother: () => lanyard('SORRY!', '#8e5bd0') };
 
 /** The SVG text of sticker kind k at tier t. */
 export function stickerSVG(k, t = 0) { return (ART[k] || bin)(t); }
@@ -89,7 +112,13 @@ export function stickerInfo(k, t = 0) {
         `The crew has chipped 90% of the job tree, and you fed at least ${share()} of it. Gold at 99%.`,
         `The crew has chipped 99% of the job tree, and you fed at least ${share()} of it.`][t],
     };
-    case 'bin': return { name: '100%', desc: '99% of the job tree went through the chipper and into the bins.' };
+    case 'bin': return { name: '100%', desc: `99% of the job tree went through the chipper and into the bins, and you put at least ${share()} of those chips there.` };
+    case 'house': return { name: 'No houses', desc: 'Wood you sent, or a chipper running away from you, broke part of a house this job.' };
+    case 'shed': return { name: 'No sheds', desc: 'Wood you sent, or a chipper running away from you, broke a shed this job.' };
+    case 'fence': return { name: 'No fences', desc: 'Wood you sent, or a chipper running away from you, broke a fence this job.' };
+    case 'wreck': return { name: 'No chippers', desc: 'Wood you sent wrecked a chipper this job.' };
+    case 'cutself': return { name: 'Oops!', desc: 'You sawed through your own lanyard this job.' };
+    case 'cutother': return { name: 'Sorry!', desc: 'You sawed through someone else\'s lanyard this job.' };
     case 'skull': return { name: 'Skull', desc: 'You went down this job.' };
     case 'salad': return { name: 'Salad', desc: `You ate ${CFG.STICKER_SALADS} tube salads this job.` };
   }

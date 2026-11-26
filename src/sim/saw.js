@@ -94,6 +94,7 @@ export function sawStep(sim, p, inp, dt, can, aim) {
       prog.set(key, v);
       if (v < 1) continue;
       prog.delete(key);
+      sim.awards.sawed(p.id, b.seg);
       if (!sim.world.segs.get(b.seg)?.yd) sim.awards.credit('chop', p.id, b.A);   // this player's share of the sawing (stickers, D106)
       const g = b.live ? 'L' + b.live : b.seg;
       let e = done.get(g); if (!e) done.set(g, e = { b, i: [], z: [] });

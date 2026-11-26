@@ -188,6 +188,7 @@ export class Players {
     p.col.setSensor(false);
   }
   cutLanyard(p, by) {
+    this.sim.awards.lanyard(by.id, p.id);
     this.sim.toast(by === p ? 'You cut your own lanyard' : `${this.name(by.id)} cut ${this.name(p.id)}'s lanyard`);
     this.toGround(p);
   }
@@ -236,10 +237,12 @@ export class Players {
   grabStart(p, aim) {
     const sim = this.sim, s = sim.world.segs.get(aim.seg);
     p.grab = { seg: s.id, p: sim.segToLocal(s, aim.point), L0: Math.max(0.2, this.hands(p, _a).distanceTo(aim.point)), prev: 0 };
+    sim.awards.touch(s.piece, p.id);
   }
   /** Take hold of the chipper's grip (local point pl on it). */
   grabChipper(p, ca) {
     p.grab = { chip: 1, k: ca.u.k, p: ca.local, L0: Math.max(0.2, this.hands(p, _a).distanceTo(ca.point)), prev: 0 };
+    this.sim.awards.touchChipper(ca.u.k, p.id);
   }
   /** Take hold of chip bin k's handle bar (bin-local point on it). */
   grabBin(p, bn) {
@@ -334,6 +337,7 @@ export class Players {
     const sim = this.sim, s = sim.world.segs.get(aim.seg);
     const F = Math.min(CFG.PUNCH_MAX, (p.punch ? p.punch.F : 0) + CFG.PUNCH_FORCE);
     p.punch = { seg: s.id, p: sim.segToLocal(s, aim.point), d: sim.eye(p).d, F };
+    sim.awards.touch(s.piece, p.id);
   }
   punchStep(p, dt) {
     const pu = p.punch; if (!pu) return;
@@ -506,7 +510,7 @@ export class Players {
       const pile = control ? sim.chipper.aimPile(p) : -1, room = p.chips < CFG.CHIP_CARRY - 1e-5;
       const bn = control ? sim.bins.aim(p) : null, bOpen = bn && sim.bins.open(bn.k);
       if (pressed.interact) {
-        if (bn && bOpen) { sim.emit({ t: 'chips', dump: +p.chips.toFixed(5) }); p.chips = 0; }
+        if (bn && bOpen) { sim.emit({ t: 'chips', dump: +p.chips.toFixed(5) }); sim.awards.credit('bin', p.id, p.chips); p.chips = 0; }
         else if (bn) sim.bins.toggle(bn.k);
         else if (pile >= 0 && room) sim.chipper.take(p, pile); else sim.chipper.drop(p);
         p.chLock.add('lanyard');
@@ -525,7 +529,7 @@ export class Players {
       // what {interact} would grab: the wood looked at, or, just missing loose wood, the nearest in the grab cone
       const gaim = p.grab || !control ? null : reach ? aim : sim.coneAim(p);
       if (pressed.interact && wood && atChip) {
-        if (loose) { ca.u.feed(wood.piece, wood.id, p.grab.p, p.id); p.grab = null; p.chLock.add('lanyard'); }
+        if (loose) { ca.u.feed(wood.piece, wood.id, p.grab.p, p.id); sim.awards.touch(wood.piece, p.id); sim.awards.touchChipper(ca.u.k, p.id); p.grab = null; p.chLock.add('lanyard'); }
         else this.say(p, 'Only loose wood can go in the chipper');
       } else if (pressed.interact && p.grab) { p.grab = null; p.chLock.add('lanyard'); }
       else if (pressed.interact && atRack) {

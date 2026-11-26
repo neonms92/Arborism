@@ -1686,3 +1686,20 @@ chipper stickers go only to players who did at least 10 % of that work.
 - `{t:'award'}` now carries `to: [player ids]`; `got` is per player, so
   someone who passes 10 % later gets the tier reached so far. The 100 %
   sticker still goes to everyone present. `STICKER_SHARE` = 0.1.
+
+**D107 — Breaking and lanyard stickers; 100% is earned.** Owner (2026-11-26):
+once per player per job, a sticker with a red circle-slash for breaking a
+house, shed, fence or chipper "by way of wood or runaway chipper", and one
+each for sawing through your own lanyard and someone else's. The 100%
+sticker goes only to players who put at least `STICKER_SHARE` of the chips
+in bins (chips from feeds they started that land in a bin, or tipped in by
+hand).
+- Blame (my choice): a loose piece belongs to the player who last sawed it
+  free (the segment where it parted, else whoever had the piece it came off,
+  else whoever sawed job wood last), or who last grabbed, punched or fed it.
+  A chipper belongs to whoever last towed it or started a feed into it (a
+  feed's winch and rope are what drag it off). A module broken by debris or
+  the ground, or by wood nobody touched, gives nobody a sticker.
+- House = any room or foundation module; one sticker for the first module
+  broken. This blame lives on the host only, so a player who takes over
+  starts it afresh (stickers already given stay given: `world.awards.got`).
