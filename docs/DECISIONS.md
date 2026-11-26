@@ -1743,3 +1743,16 @@ not feel line loads (only woken ones); houses and players do not collide
 with lines (a player touching one is shocked instead); the flash shows only
 within the draw distance; `LINE_COST` 4000 and `POLE_FELL_COST` 6000 are
 placeholders.
+
+**D111 — Sorry, Electricity! and two rotate arrows.** Owner (2026-11-26):
+a Sorry, Electricity! sticker with a ghostly lightning bolt on power lines,
+and the sticker dialog's rotate hints cut to two smaller arrows. Done:
+`power`, once per player per job, in the ghost style (face moved up to the
+bolt's wide part). It goes to the player who saws through a line, or, when
+a line snaps by itself (pulled past `LINE_BREAK_F`, or an end's wood gone),
+to the player whose wood was last on the line or holding a loose end within
+`STICKER_LINE_T` (10 s); blame is `awards.by` as for the other ghosts. The
+dialog keeps only the left / right turn arrows under the head (thinner,
+shorter); tipping is by drag or the up / down keys. Unreviewed: the 10 s
+window, and that a pole sawn down with its lines on counts (the pole is the
+sawyer's wood).

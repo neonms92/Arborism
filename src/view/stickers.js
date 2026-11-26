@@ -74,15 +74,18 @@ const GHOST = {
   shed: '<path d="M26 44 L74 36 L74 42 L26 50 Z"/><rect x="30" y="45" width="40" height="25"/>',
   fence: '<path d="M26 70 V40 L31 33 L36 40 V70 Z M41 70 V37 L46 30 L51 37 V70 Z M56 70 V37 L61 30 L66 37 V70 Z"/><rect x="22" y="44" width="52" height="6"/><rect x="22" y="58" width="52" height="6"/>',
   wrongtree: '<circle cx="50" cy="36" r="15"/><circle cx="37" cy="44" r="11"/><circle cx="63" cy="44" r="11"/><rect x="34" y="44" width="32" height="26"/>',
+  power: '<path d="M60 14 L22 54 L45 54 L35 80 L80 37 L57 37 L67 14 Z"/>',
   wreck: '<path d="M20 46 L34 51 L34 63 L20 66 Z"/><rect x="33" y="45" width="26" height="25" rx="3"/><path d="M50 45 L52 31 Q54 24 63 24 L73 26 L71 32 L63 31 Q60 31 59 35 L58 45 Z"/>',
 };
+const FACE = { power: -13 };   // the face higher up, where the thing is widest
 function ghost(kind) {
+  const fy = FACE[kind] || 0;
   const tail = '<path d="M30 68 C30 80 42 76 46 84 C50 92 62 86 62 94 C70 86 58 80 64 74 C68 70 70 69 70 66 Z"/>';
   return wrap(cut('<circle cx="50" cy="50" r="44" fill="#3a3f72"/>', 8) +
     '<circle cx="24" cy="26" r="1.6" fill="#fff" opacity=".7"/><circle cx="78" cy="22" r="1.2" fill="#fff" opacity=".6"/><circle cx="82" cy="70" r="1.4" fill="#fff" opacity=".5"/>' +
     `<g fill="#eef4ff" opacity=".9" stroke="#c8d6ff" stroke-width="1.5" stroke-linejoin="round">${GHOST[kind]}${tail}</g>` +
     '<path d="M36 74 Q30 82 38 88 M66 70 Q76 76 70 86" stroke="#c8d6ff" stroke-width="2" fill="none" stroke-linecap="round" opacity=".8"/>' +
-    '<ellipse cx="43" cy="58" rx="3.2" ry="4.2" fill="#2a2d55"/><ellipse cx="57" cy="58" rx="3.2" ry="4.2" fill="#2a2d55"/><path d="M46 65 Q50 62 54 65" stroke="#2a2d55" stroke-width="2" fill="none" stroke-linecap="round"/>');
+    `<g transform="translate(0 ${fy})"><ellipse cx="43" cy="58" rx="3.2" ry="4.2" fill="#2a2d55"/><ellipse cx="57" cy="58" rx="3.2" ry="4.2" fill="#2a2d55"/><path d="M46 65 Q50 62 54 65" stroke="#2a2d55" stroke-width="2" fill="none" stroke-linecap="round"/></g>`);
 }
 // rigging: a block hanging from the stem, the rope down to a sawn-off log, a dashed kerf
 function rigcut() {
@@ -131,7 +134,7 @@ function broke() {
     '<text x="50" y="91" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-weight="900" font-size="11" fill="#fff">$0</text>');
 }
 
-const ART = { tree, chip, bin, skull, salad, wrongtree: () => ghost('wrongtree'), broke, house: () => ghost('house'), shed: () => ghost('shed'), fence: () => ghost('fence'), wreck: () => ghost('wreck'),
+const ART = { tree, chip, bin, skull, salad, wrongtree: () => ghost('wrongtree'), broke, house: () => ghost('house'), shed: () => ghost('shed'), fence: () => ghost('fence'), wreck: () => ghost('wreck'), power: () => ghost('power'),
   cutself: () => lanyard('OOPS!', '#f2c230'), cutother: () => lanyard('SORRY!', '#8e5bd0'), rigcut, lower,
   perch: () => perch('#e0663a', 'GOING DOWN!'), perchother: () => perch('#8e5bd0', 'LOOK OUT!') };
 
@@ -161,6 +164,7 @@ export function stickerInfo(k, t = 0) {
     case 'house': return { name: 'Sorry, House!', desc: 'Wood you sent, or a chipper running away from you, broke part of a house this job.' };
     case 'shed': return { name: 'Sorry, Shed!', desc: 'Wood you sent, or a chipper running away from you, broke a shed this job.' };
     case 'fence': return { name: 'Sorry, Fence!', desc: 'Wood you sent, or a chipper running away from you, broke a fence this job.' };
+    case 'power': return { name: 'Sorry, Electricity!', desc: 'You sawed through a power line, or your wood brought one down, this job.' };
     case 'wreck': return { name: 'Sorry, Chipper!', desc: 'Wood you sent wrecked a chipper this job.' };
     case 'rigcut': return { name: 'Rigged', desc: 'On your spurs, you sawed free wood that was tied to the rigging rope.' };
     case 'lower': return { name: 'Soft landing', desc: `On the rope, you let a piece of ${CFG.STICKER_LOWER_KG} kg or more down onto the ground, and nothing broke for ${CFG.STICKER_LOWER_T} seconds after.` };

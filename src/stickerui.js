@@ -32,7 +32,7 @@ body.touchui #stkBtn .k { display: none; }
 #stk .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
 #stk .stage .arrows { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 #stk .arrows .hit { pointer-events: all; cursor: pointer; }
-#stk .arrows path.a { fill: none; stroke: #ffe9a8; stroke-width: 3.2; stroke-linecap: round; opacity: .85; animation: stkNudge 2.2s ease-in-out infinite; }
+#stk .arrows path.a { fill: none; stroke: #ffe9a8; stroke-width: 2.2; stroke-linecap: round; opacity: .85; animation: stkNudge 2.2s ease-in-out infinite; }
 #stk .arrows path.h { fill: #ffe9a8; opacity: .85; }
 @keyframes stkNudge { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
 #stk .hint { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 12.5px; color: #ffe9a8; opacity: .85; text-shadow: 0 1px 2px #000; pointer-events: none; }
@@ -160,17 +160,13 @@ export class StickerUI {
     requestAnimationFrame(loop);
   }
 
-  /** Curved arrows round the head: left / right turn it, up / down tip it. Each is a button too. */
+  /** Two small curved arrows under the head, left and right: a clue that it turns (drag tips it too). Each is a button. */
   drawArrows() {
     const svg = this.box.querySelector('.arrows');
     const arc = (d, head, dy, dp, hit) => `<g class="hit" data-dy="${dy}" data-dp="${dp}"><path class="hitbox" d="${hit}" fill="transparent"/><path class="a" d="${d}"/><path class="h" d="${head}"/></g>`;
     svg.innerHTML =
-      // round the bottom: an ellipse's lower arcs, pointing left and right
-      arc('M46 84 Q28 83 18 72', 'M14 66 L24 70 L15 76 Z', 0.6, 0, 'M8 62 H48 V94 H8 Z') +
-      arc('M54 84 Q72 83 82 72', 'M86 66 L76 70 L85 76 Z', -0.6, 0, 'M52 62 H92 V94 H52 Z') +
-      // up the right side: tip the top toward you, or away
-      arc('M90 52 Q94 38 90 26', 'M88 18 L86 28 L94 27 Z', 0, -0.25, 'M80 14 H99 V46 H80 Z') +
-      arc('M10 26 Q6 40 10 52', 'M12 60 L6 51 L14 50 Z', 0, 0.25, 'M1 40 H20 V66 H1 Z');
+      arc('M44 89 Q34 88.5 28 83', 'M24.5 79.5 L30.5 81 L26.5 85.5 Z', 0.6, 0, 'M18 72 H48 V97 H18 Z') +
+      arc('M56 89 Q66 88.5 72 83', 'M75.5 79.5 L69.5 81 L73.5 85.5 Z', -0.6, 0, 'M52 72 H82 V97 H52 Z');
     for (const h of svg.querySelectorAll('.hit')) h.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); this.stage.nudge(+h.dataset.dy, +h.dataset.dp); });
   }
 
