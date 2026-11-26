@@ -1367,7 +1367,22 @@ into the ground while it is on its roof (the chute is drawn, not a collider).
 Not changed: stood on its hopper end (nose down) it still stays
 there, as before; a cage over the hopper would block feeding.
 
-**D92 — Chip bins, and how far the job has got.** Owner (2026-11-26): a 96
+**D92 — Streets are flat asphalt.** Owner (2026-11-26): the street between
+blocks was grass and followed the hills; make it road coloured and flat. The
+yard plan now lists its streets (`plan.streets`, strips along x the whole
+width of the ground, one per street a row of lots faces) and they travel in
+the terrain spec. The terrain makes each street level across, and along it
+the natural ground averaged over `STREET_SMOOTH` (30 m) either way, two
+passes, so hills and ledges become grades of about 2 % at most rather than a
+dead-level road with deep cuts. Streets blend into the ground over
+`STREET_BLEND` (3 m) and are applied after the pads, so a street stays
+smooth where a house pad's blend reaches it. The view draws the street as
+speckled asphalt with a dashed yellow centre line (vertex colours on the
+ground grid, so the line is one 0.5 m grid row). Unreviewed: the 30 m and
+3 m, the colours, the centre line, no kerbs or sidewalks along it, and the
+street being as grippy as grass.
+
+**D93 — Chip bins, and how far the job has got.** Owner (2026-11-26): a 96
 gallon bin by the chipper; chips landing on it go in, players can tip chips
 in by hand; no capacity, a bottomless disposal; indestructible; "Buy a new
 chip bin" in the settings menu; a floppy lid that collects nothing while shut,

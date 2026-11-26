@@ -785,7 +785,7 @@ never sleeps (Rapier would stop it rolling slowly off its roof).
 - **Reset.** A new tree re-lays the pavers fresh and re-parks the chipper
   (`chipper` event): default pose, brakes on, nothing feeding, no chips.
 
-### 6.5a Chip bins and job progress (D92)
+### 6.5a Chip bins and job progress (D93)
 
 `model/bin.js` (shape), `sim/bin.js` (host), `view/bin.js`. `world.bins` is the
 list of bins as put down ('bins' with a new tree: one by the chipper; 'bin':
@@ -932,6 +932,10 @@ what the engine tests use. The word is not remembered between visits.
   lot lines. Lot width goes from `YARD_LOT_MAX` at density 0 to
   `YARD_LOT_MIN` at density 1 (±15 %), depth about 1.4 × width. Lots reach
   `YARD_EXTENT` from the tree (0: only the tree's lot).
+- **Streets** (D92) run along x across the whole ground, one in front of
+  each row of lots. They are flat asphalt: level across, a gentle grade along
+  (the ground averaged over `STREET_SMOOTH` either way), blended into the
+  hills over `STREET_BLEND`, drawn dark grey with a dashed centre line.
 - **The tree's lot** is a lot like the others, the same size for the
   density, placed so the tree stands in its back half. It starts with the
   trunk's clear ground taken (`YARD_TREE_CLEAR` beyond the trunk), then
