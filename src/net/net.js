@@ -28,10 +28,23 @@ export class Net {
     this.onHostData = () => {}; this.onLost = () => {};
   }
 
-  host(room) {
+  /** The signaling id of a room. alt: the second id a handed-over game uses while the old one is still held (D104). */
+  static peerId(room, alt) { return CFG.PEER_PREFIX + room + (alt ? '-2' : ''); }
+
+  /** Drop the peer and every connection (before hosting or joining again). */
+  close() {
+    for (const c of this.clients.values()) { try { c.rel?.close(); c.fast?.close(); } catch { /* gone */ } }
+    this.clients.clear();
+    try { this.rel?.close(); this.fast?.close(); } catch { /* gone */ }
+    this.rel = this.fast = null;
+    if (this.peer && !this.peer.destroyed) this.peer.destroy();
+    this.peer = null;
+  }
+
+  host(room, alt) {
     this.isHost = true;
     return new Promise((resolve, reject) => {
-      const peer = this.peer = new Peer(CFG.PEER_PREFIX + room, peerOptions());
+      const peer = this.peer = new Peer(Net.peerId(room, alt), peerOptions());
       let opened = false;
       peer.on('open', () => { opened = true; resolve(); });
       // before the room is registered any error is fatal; afterwards only log (peers stay connected without signaling)
@@ -41,6 +54,7 @@ export class Net {
         const key = conn.peer;
         let c = this.clients.get(key); if (!c) this.clients.set(key, c = { rel: null, fast: null, pid: -1, ready: false });
         c[conn.label === 'rel' ? 'rel' : 'fast'] = conn;
+        if (conn.label === 'rel') c.meta = conn.metadata || null;     // {pid}: a player coming back after a handover
         conn.on('open', () => { if (conn.label === 'rel') this.onJoin(key, c); });
         conn.on('data', (d) => this.onClientData(key, c, d));
         const gone = () => { if (this.clients.get(key) === c) { this.clients.delete(key); this.onLeave(key, c); } };
@@ -49,16 +63,17 @@ export class Net {
     });
   }
 
-  join(room) {
+  /** meta: sent with the connection (a player coming back after a handover says who they were). */
+  join(room, alt, meta, timeoutMs = 20000) {
     this.isHost = false;
     return new Promise((resolve, reject) => {
       const peer = this.peer = new Peer(undefined, peerOptions());
-      const fail = (e) => reject(e);
-      const timer = setTimeout(() => reject(new Error('timed out - the host may be unreachable from your network')), 20000);
+      const fail = (e) => { clearTimeout(timer); reject(e); };
+      const timer = setTimeout(() => reject(new Error('timed out - the host may be unreachable from your network')), timeoutMs);
       peer.on('error', fail);
       peer.on('open', () => {
-        const id = CFG.PEER_PREFIX + room;
-        this.rel = peer.connect(id, { label: 'rel', reliable: true, serialization: 'raw' });
+        const id = Net.peerId(room, alt);
+        this.rel = peer.connect(id, { label: 'rel', reliable: true, serialization: 'raw', metadata: meta || null });
         this.fast = peer.connect(id, { label: 'fast', reliable: false, serialization: 'raw' });
         this.rel.on('open', () => { clearTimeout(timer); resolve(); });
         this.rel.on('data', (d) => this.onHostData(d));

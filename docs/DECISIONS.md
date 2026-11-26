@@ -1613,3 +1613,33 @@ added each way: climbing started on the next frame (6 frames before) and
 stopped 7 cm past where the stick was let go (33 cm before); holding up at
 the top of a limbless stem the drawn climber never passed the host's.
 
+**D104 — "Continue as host" when the host has gone.** Owner (2026-11-26),
+after climb prediction (D103). A client that hears nothing from the host for
+`HOST_TIMEOUT` (6 s; a hidden host tab still answers pings, so a paused game
+is not "gone") or whose connection closes gets a screen: "Continue as host".
+Meanwhile it keeps trying to rejoin the room (15 tries), so whoever takes
+over first is found by everyone else. Taking over builds a Sim from this
+player's copy of the world (`sim/resume.js`): the job tree, loose pieces at
+the last transforms seen (at rest), chippers (wrecks too) and chip piles,
+bins, intact structure modules, dormant yard trees, every player (climbers
+back on their spurs, end stop kept), rope rest length and wraps, the clock.
+A piece still hanging by fibres gets its joint back from the model and the
+last aux (`structure.restoreJoint`): broken fibres from aux, cut ones from
+the bundle; the pose it is in on the first step is taken as its rest
+(`j.settle`: plastic set = current stretch), since the old host's set and
+fold are not known. This is the only change inside the live solver, and it
+runs once per restored joint. Not restored: speeds, a chipper mid-feed,
+loose debris of broken structures (still drawn, no longer solid), anyone
+holding the rope or wood (they let go). `world.nextId` is set past every
+id the world mentions.
+The new host registers the same room code; if the signaling server still
+holds it (the old host's network died rather than its tab closing) it
+registers `<code>-2`, and joining by code tries both. Returning players
+send their old player number with the connection (`metadata.pid`) and get
+their own player back; players who do not come back within a minute are
+removed. If two players press the button, the second finds the room taken
+and joins the first. Checked headless with 3 tabs and a local PeerJS
+server: host tab closed, A took over in the same room, B came back as
+itself, A kept climbing, a limb on a live hinge still hung (3 mm sag),
+damage and pieces unchanged.
+

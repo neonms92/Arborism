@@ -48,6 +48,8 @@ const leaveGuard = new LeaveGuard((open) => { input.active = !open; });
 const net = new Net();
 
 let sim = null, interp = null, me = -1, aux = null, room = '', role = '', running = false;
+let lastHeard = 0;                                // when anything last came from the host (a client)
+const reserved = new Set();                       // players kept for whoever comes back after a handover
 let nextPid = 1, acc = 0, last = performance.now(), inputTimer = 0, inSeq = 0, stats = null, predict = null;
 
 world.on((ev, info) => {
@@ -104,13 +106,15 @@ async function startHost(online) {
 function wireHost() {
   net.onJoin = (key, c) => {
     flushEvents();                               // existing clients get everything up to now
-    c.pid = nextPid++;
-    sim.players.add(c.pid, '');                  // name and colour follow in their 'me' message
+    // after a handover (D104) a player who was here before gets their own climber back
+    const back = c.meta && Number.isInteger(c.meta.pid) && reserved.has(c.meta.pid) ? c.meta.pid : -1;
+    if (back > 0) { c.pid = back; reserved.delete(back); c.named = true; }
+    else { c.pid = nextPid++; sim.players.add(c.pid, ''); }   // name and colour follow in their 'me' message
     flushEvents();                               // ...including the new player
     net.sendRel(c, { t: 'welcome', pid: c.pid, tick: sim.tick, world: world.serialize() });
     c.ready = true;
   };
-  net.onLeave = (key, c) => { if (c.pid > 0) { const n = playerName(world, c.pid); sim.players.remove(c.pid); hud.toast(`${n} left`); } };
+  net.onLeave = (key, c) => { if (c.pid > 0 && ![...net.clients.values()].some((o) => o !== c && o.pid === c.pid)) { const n = playerName(world, c.pid); sim.players.remove(c.pid); hud.toast(`${n} left`); } };
   net.onClientData = (key, c, d) => {
     if (typeof d !== 'string' || c.pid < 0) return;
     let m; try { m = JSON.parse(d); } catch { return; }
@@ -142,9 +146,25 @@ async function startJoin(code) {
   room = code.toUpperCase().trim();
   if (room.length < 3) { msg('Enter the host\'s room code'); return; }
   running = true; msg('Connecting to ' + room + '...');
+  wireClient();
+  try { await joinEither(20000); msg('Connected, waiting for the world...'); }
+  catch (e) {
+    running = false;
+    msg('Could not join: ' + (e.type === 'peer-unavailable' ? 'no such room' : (e.type || e.message)));
+  }
+}
+
+/** Join the room, or the id a handed-over game moved to while the old one was still held (D104). */
+async function joinEither(ms, meta, still = () => true) {
+  try { await net.join(room, false, meta, ms); }
+  catch (e) { if (!still()) throw e; net.close(); wireClient(); await net.join(room, true, meta, ms); }
+}
+
+function wireClient() {
   interp = new Interp(); stats = new NetStats(); predict = new ClimbPredict(world);
+  lastHeard = performance.now();
   net.onHostData = (d) => {
-    const now = performance.now();
+    const now = performance.now(); lastHeard = now;
     stats.packet(typeof d === 'string' ? d.length : d.byteLength, now);
     if (typeof d !== 'string') {
       const buf = d instanceof ArrayBuffer ? d : d.buffer, dv = new DataView(buf);
@@ -155,16 +175,76 @@ async function startJoin(code) {
     }
     const m = JSON.parse(d);
     if (m.t === 'po') { stats.pong(m, now); return; }
-    if (m.t === 'welcome') { world.load(m.world); me = m.pid; role = 'client'; net.sendRel(net, { t: 'me', ...look() }); begin(); }
+    if (m.t === 'welcome') { if (sim || role === 'taking') return; world.load(m.world); me = m.pid; role = 'client'; aux = null; net.sendRel(net, { t: 'me', ...look() }); handover.done(); begin(); }
     else if (m.t === 'ev') for (const ev of m.evs) world.apply(ev);
     else if (m.t === 'aux') { if (!aux || m.tick > aux.tick) aux = m; }
   };
-  net.onLost = () => hud.toast('Lost connection to the host');
-  try { await net.join(room); msg('Connected, waiting for the world...'); }
-  catch (e) {
-    running = false;
-    msg('Could not join: ' + (e.type === 'peer-unavailable' ? 'no such room' : (e.type || e.message)));
-  }
+  net.onLost = () => { if (role === 'client') handover.lost(); };
+}
+
+// ---------- the host has gone (D104) ----------
+// Every player is offered "Continue as host"; meanwhile they keep trying to rejoin, so whoever takes over
+// first is found by the rest. The one who takes over builds the simulation from their copy of the world
+// (sim/resume.js) and registers the same room code, or its "-2" id while the signaling server still holds
+// the old one.
+const handover = {
+  busy: false, tries: 0, timer: 0, gen: 0,
+  lost() {
+    if (this.busy) return;
+    this.busy = true; this.tries = 0; role = 'lost';
+    this.keep = { poses: lastPoses(), aux };          // what this player saw last, for taking over
+    input.active = false; document.exitPointerLock?.();
+    this.show('The host has left the game. Someone can carry on as the host: everyone else rejoins them.', true);
+    this.timer = setTimeout(() => this.rejoin(), 1500);
+  },
+  show(text, canTake) {
+    $('handover').style.display = 'flex'; $('hmsg').textContent = text; $('bTake').style.display = canTake ? '' : 'none';
+  },
+  done() { clearTimeout(this.timer); this.busy = false; $('handover').style.display = 'none'; },
+  async rejoin() {
+    if (!this.busy || role !== 'lost') return;
+    if (++this.tries > 15) { this.show('Nobody took over. Back to the main menu to start or join a game.', true); $('bMenu').style.display = ''; return; }
+    $('hmsg').textContent = `The host has left. Looking for whoever carries on (try ${this.tries})...`;
+    const gen = this.gen, still = () => role === 'lost' && gen === this.gen;   // taking over cancels a try in flight
+    net.close(); wireClient();
+    try { await joinEither(10000, { pid: me }, still); }
+    catch { if (still()) this.timer = setTimeout(() => this.rejoin(), 2000); }
+  },
+  async take() {
+    if (role !== 'lost') return;
+    clearTimeout(this.timer); role = 'taking'; this.gen++;
+    this.show('Rebuilding the world here...', false);
+    net.close();
+    const { Sim } = await import('./sim/sim.js'), { resume } = await import('./sim/resume.js');
+    const s = await Sim.create(world, { tree: false, terrain: !!world.terrain });
+    resume(s, this.keep);
+    sim = s; interp = null; predict = null;
+    nextPid = Math.max(me, ...world.players.keys()) + 1;
+    reserved.clear(); for (const id of world.players.keys()) if (id !== me) reserved.add(id);
+    // whoever has not come back in a minute is gone
+    setTimeout(() => { for (const id of [...reserved]) { reserved.delete(id); sim.players.remove(id); } }, 60000);
+    wireHost();
+    try { await net.host(room); }
+    catch (e) {
+      try { net.close(); await net.host(room, true); }
+      catch (e2) {
+        // someone else took over first: be their player instead
+        sim = null; role = 'lost'; this.gen++; this.show('Someone else is taking over. Joining them...', false); this.rejoin(); return;
+      }
+    }
+    role = 'host'; acc = 0;
+    this.done(); begin();
+    hud.toast(`You are the host now. Room ${room}`);
+  },
+};
+$('bTake').onclick = () => handover.take();
+$('bMenu').onclick = () => location.reload();
+
+/** The newest transform of every body this client has seen (taking over starts from these, at rest). */
+function lastPoses() {
+  const out = new Map(); if (!interp) return out;
+  for (const [id, b] of interp.bodies) if (b.length) { const s = b[b.length - 1]; out.set(id, { p: { ...s.p }, q: { ...s.q } }); }
+  return out;
 }
 
 function begin() {
@@ -256,7 +336,9 @@ function frame(now) {
     if (acc > CFG.TICK * 4) acc = 0;
     flushEvents();
     aux = sim.aux();
-  } else {
+  } else if (role === 'client') {
+    // nothing at all from the host (not even an answer to a ping, which a hidden host tab still sends): gone
+    if (performance.now() - lastHeard > CFG.HOST_TIMEOUT * 1000) handover.lost();
     interp.advance();
     inputTimer += dt;
     let sent = false;
@@ -268,13 +350,13 @@ function frame(now) {
   }
 
   let src = sim ? hostSource : interp, auxV = aux;
-  if (!sim && predict.pos) {
+  if (!sim && predict && predict.pos) {
     const P = predict.pos, pid = 60000 + me;
     src = { pose: (id) => (id === pid ? { p: { x: P[0], y: P[1], z: P[2] }, q: interp.pose(id)?.q || { x: 0, y: 0, z: 0, w: 1 } } : interp.pose(id)) };
     auxV = { ...aux, pl: aux.pl.map((a) => (a.id === me ? predict.patch(a) : a)) };
   }
   view.update(dt, src, auxV, me, inp);
-  let info = role === 'solo' ? 'solo' : role === 'host' ? `HOST  room ${room}  (${net.clients.size} joined)` : `joined ${room}${CFG.NET_STATS ? `  ${stats.short()}` : ''}`;
+  let info = role === 'solo' ? 'solo' : role === 'host' ? `HOST  room ${room}  (${[...net.clients.values()].filter((c) => c.ready).length} joined)` : `joined ${room}${CFG.NET_STATS ? `  ${stats.short()}` : ''}`;
   if (role === 'host') for (const c of net.clients.values()) if (c.st) info += `  P${c.pid} ${c.st.r} ms ${Math.round(Math.max(c.st.l, upLoss(c)) * 100)}%${c.st.via === 'relay' ? ' RELAY' : ''}`;
   hud.net(role === 'client' && CFG.NET_STATS ? stats.lines(performance.now()) : null);
   hud.update(dt, aux, me, info, input.device);

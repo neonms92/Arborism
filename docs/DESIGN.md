@@ -221,6 +221,14 @@ means "interact has been pressed 17 times since join"); the host acts on the
 difference from the last value it saw. A lost packet therefore never loses a
 press and never duplicates one.
 
+### 2.5a Host handover (D104)
+
+The host is still the only simulation, but when it goes a player can take
+over: `sim/resume.js` rebuilds a Sim from that player's world, last
+transforms and last aux, and the room code moves with it (or to
+`CODE-2`). Returning players reclaim their player by number. Speeds and a
+few in-flight states are lost; see DECISIONS D104.
+
 ### 2.6 Network statistics (D86)
 
 A joined client shows a box top right (Tab menu → View: "Network box when

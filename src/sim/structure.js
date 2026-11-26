@@ -188,6 +188,30 @@ export class Structure {
   /** Called by the saw after it severs fibres. */
   afterCut(s) { if (s.f.ncut === s.f.n) this.separate(s, false); }
 
+  /**
+   * Host handover (D104): a new host rebuilds the joint holding loose piece `piece` by its root segment from
+   * the model and the last aux ({seg, stub, f}: f -128 = a broken fibre). Its geometry is what separate()
+   * made it from: the face at the root segment's base. The state the old host kept (set, fold, gaps) is
+   * not known, so the first step takes the pose the wood is in as its rest (j.settle).
+   */
+  restoreJoint(piece, rootSeg, parentSeg, forces) {
+    const w = this.sim.world, r = w.segs.get(rootSeg), ps = w.segs.get(parentSeg);
+    if (!r || !ps || !w.pieces.has(ps.piece)) return false;
+    const f = r.f, n = f.n, ax = segAxis(r), { u, v } = bundleBasis(ax);
+    const j = {
+      parent: ps.piece, parentSeg, rootSeg, O: r.a.slice(), n: ax, u, v, R: r.r0, N: f.N, count: n,
+      st: Uint8Array.from({ length: n }, (_, i) => (forces && forces[i] === -128 ? BROKEN : f.state[i] === CUT ? CONTACT : ELASTIC)),
+      gap: Float32Array.from({ length: n }, (_, i) => (f.state[i] === CUT ? gapOf(f, i) : 0)),
+      p: new Float32Array(n), force: new Float32Array(n), angle: 0, age: 2, settle: true,
+      Lg: Math.max(0.15, segLen(r)),
+    };
+    this.live.set(piece, j);
+    let set = this.noHit.get(parentSeg); if (!set) this.noHit.set(parentSeg, set = new Set());
+    set.add(piece);
+    this.rootOf.set(rootSeg, ps.piece);
+    return true;
+  }
+
   /** The wood beyond this bundle becomes its own body; live = still held by the bundle's fibres. */
   separate(s, live) {
     const sim = this.sim, w = sim.world, f = s.f;
@@ -325,6 +349,7 @@ export class Structure {
       SX[i] = dx - del * nv[0]; SY[i] = dy - del * nv[1]; SZ[i] = dz - del * nv[2];   // sideways slip
       RX[i] = dOx + x * ub.x + y * vb.x; RY[i] = dOy + x * ub.y + y * vb.y; RZ[i] = dOz + x * ub.z + y * vb.z;   // lever from O
       DEL[i] = del;
+      if (j.settle) { if (j.st[i] === ELASTIC) j.p[i] = del; else if (del + j.gap[i] < 0) j.gap[i] = -del; }   // restoreJoint: as it is now is at rest
       if (j.st[i] !== ELASTIC) continue;
       const fold = bend * (ply / 2 + (grp.of[i] >= 0 ? Math.max(0, SF[i] - GC[grp.of[i]]) : 0));
       if (del - j.p[i] > stretch - fold || del + fold > stretch || (j.surge && j.surge[i])
@@ -346,6 +371,7 @@ export class Structure {
         if ((j.force[k] || 0) > 0) { j.st[k] = BROKEN; snapped[nSnap++] = k; }
       }
     }
+    j.settle = false;
     for (let i = 0; i < n; i++) {
       const del = DEL[i];
       if (j.st[i] === ELASTIC) {
