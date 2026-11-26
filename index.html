@@ -45,6 +45,10 @@
   #menu button.go { margin: 8px 0 4px; background: #e8a23a; font-weight: 700; }
   #menu button { margin: 18px 0 30px; font: inherit; padding: 8px 12px; border-radius: 6px; border: 0; cursor: pointer; }
   #lobby { position: fixed; z-index: 15; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(20,28,18,.92); }
+  #handover { position: fixed; z-index: 14; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(20,28,18,.75); }
+  #handover .box { width: min(92vw, 460px); text-align: center; }
+  #handover button { font: inherit; font-size: 20px; padding: 12px 16px; margin: 6px; border-radius: 8px; border: 0; background: #e8a23a; color: #201400; font-weight: 700; cursor: pointer; }
+  #handover button.alt { background: #4a5d42; color: #fff; font-size: 16px; }
   #lobby .box { width: min(92vw, 460px); text-align: center; }
   #lobby h1 { font-size: 40px; margin: 0 0 4px; letter-spacing: 2px; }
   #lobby p { opacity: .8; margin: 6px 0 18px; }
@@ -75,6 +79,8 @@
 <div id="rope" class="hud"></div>
 <div id="keys" class="hud"></div>
 <div id="menu"></div>
+<div id="handover"><div class="box"><h2>Host gone</h2><p id="hmsg"></p>
+  <button id="bTake">Continue as host</button> <button id="bMenu" class="alt" style="display:none">Main menu</button></div></div>
 <div id="lobby"><div class="box">
   <h1>ARBORISM</h1>
   <p>co-op tree work &middot; physics prototype</p>
