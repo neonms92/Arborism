@@ -24,7 +24,8 @@
 //         areas: [paver areas, model/pavers.js], pads: [{x, z, r, blend, yAt?}],
 //         streets: [{z0, z1}] (strips along x, the whole width of the ground, flattened by the terrain),
 //         chipper: {x, z, yaw} | null (where it is parked), treePave: radius of the tree's paving (or undefined),
-//         trees: [[x, z, seed, height, diameter]] (the other trees), front: [x, z] (the tree's lot faces its street this way)}
+//         trees: [[x, z, seed, height, diameter]] (the other trees), front: [x, z] (the tree's lot faces its street this way),
+//         poles: [[x, z]], spans: [[pole, pole]], drops: [[pole, house's index in builds]] (power lines, only with o.poles)}
 
 import { HOUSE, SHED, FENCE, houseFoot } from './builds.js';
 
@@ -98,7 +99,38 @@ export function planYards(o) {
     }
   }
   plan.streets.sort((a, b) => a.z0 - b.z0);
+  if (o.poles) planPoles(plan, o);
   return plan;
+}
+
+/**
+ * Utility poles along every street, on its -z kerb just inside the asphalt, POLE_SPACING apart (each gap within
+ * 10%) across the whole ground, and a line from each to the next (spans). Each house gets a drop from the nearest
+ * pole within dropMax of its front (drops: [pole, index of the house in plan.builds]). A pole that would stand on
+ * the parked chipper is left out (the line then spans the gap). Its own random stream, so the rest of the plan
+ * is the same with or without poles.
+ */
+function planPoles(plan, o) {
+  const P = o.poles, R = rng(o.seed * 104729 + 3), half = P.size / 2 - 3, ch = plan.chipper;
+  plan.poles = []; plan.spans = []; plan.drops = [];
+  for (const st of plan.streets) {
+    const z = st.z0 + 0.7;
+    let prev = -1;
+    for (let x = -half + R() * P.spacing * 0.5; x <= half; x += P.spacing * (0.9 + 0.2 * R())) {
+      if (ch && Math.hypot(ch.x - x, ch.z - z) < 5) continue;
+      const i = plan.poles.length; plan.poles.push([r4(x), r4(z)]);
+      if (prev >= 0) plan.spans.push([prev, i]);
+      prev = i;
+    }
+  }
+  plan.builds.forEach((b, bi) => {
+    if (b.kind !== 'house') return;
+    const [, y, , w] = b.q, a = 2 * Math.atan2(y, w), fd = b.h.nz * b.h.rd / 2;
+    const fx = b.p[0] + Math.sin(a) * fd, fz = b.p[2] + Math.cos(a) * fd;
+    let best = -1, bd = P.dropMax;
+    plan.poles.forEach(([x, z], i) => { const d = Math.hypot(x - fx, z - fz); if (d < bd) { bd = d; best = i; } });
+    if (best >= 0) plan.drops.push([best, bi]);
+  });
 }
 
 /** Lot-local frame: u across the lot (along x), w from its back (w = 0) to its front (w = depth), toward the street. */

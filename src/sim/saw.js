@@ -107,17 +107,19 @@ export function sawStep(sim, p, inp, dt, can, aim) {
   // ropes and lanyards do not stop a chain: a moment of contact under throttle and they part
   const a0 = _c0.copy(sw.A).addScaledVector(sw.b, -half), a1 = _c1.copy(sw.A).addScaledVector(sw.b, half);
   let touching = null;
-  if (inp.rt > 0.3) for (const [p0, p1, who] of ropeSpans(sim)) if (segDist(a0, a1, p0, p1).d < CFG.ROPE_RADIUS + 0.02) { touching = who; break; }
+  if (inp.rt > 0.3) for (const [p0, p1, who] of ropeSpans(sim, sw.A)) if (segDist(a0, a1, p0, p1).d < CFG.ROPE_RADIUS + 0.02) { touching = who; break; }
   sw.ropeT = touching ? sw.ropeT + dt : 0;
   if (touching && sw.ropeT > CFG.ROPE_CUT_TIME) {
     sw.ropeT = 0;
-    if (touching === 'rope') sim.rope.cut(); else sim.players.cutLanyard(touching, p);
+    if (touching === 'rope') sim.rope.cut(); else if (touching.line !== undefined) sim.lines.cut(touching.line, touching.k, p); else sim.players.cutLanyard(touching, p);
   }
 }
 
-/** Every straight run of rope in the world: [from, to, 'rope' | the climber whose lanyard it is]. */
-function ropeSpans(sim) {
+/** Every straight run of rope in the world, and of power line near the bar at `at`: [from, to, 'rope' | the climber
+ *  whose lanyard it is | {line, k} (a live line: sawing through it shocks the sawyer)]. */
+function ropeSpans(sim, at) {
   const out = sim.rope.spans().map(([a, b]) => [a, b, 'rope']);
+  if (at && sim.lines) out.push(...sim.lines.spans(at, CFG.BAR_LEN + 0.5));
   for (const q of sim.players.list.values()) {
     if (q.mode !== MODE.CLIMB) continue;
     const s = sim.world.segs.get(q.cl.seg); if (!s) continue;

@@ -60,7 +60,7 @@ export class Stands {
     const sim = this.sim, { o, d } = sim.eye(p);
     const hit = sim.rapier.castRay(new sim.R.Ray(o, d), max, true, undefined, undefined, undefined, p.body);
     const i = hit && this.colStand.get(hit.collider.handle);
-    return i === undefined || i === null ? null : { i, dist: hit.timeOfImpact };
+    return i === undefined || i === null ? null : { i, dist: hit.timeOfImpact, pole: this.sim.world.stands.list[i].k === 1 };
   }
 
   /** Grow stand i's wood for real (it stays where it was drawn). */

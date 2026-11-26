@@ -1729,3 +1729,17 @@ wood off). "Bankrupt" once per job to everyone in the game when the cash
 first goes below zero (nobody who joins later gets it). The 100% sticker is
 tier 1, gold, if the cash is above zero at the moment it is handed out; it
 is not taken back.
+
+**D110 — Power lines.** Owner (2026-11-26): lines down the street and to
+the houses, a set strength, poles chainsawable but not climbable, strong
+enough to hold one dangling pole, touching a downed line shocks, knocks
+back and injures (down if already hurt), a bright white flash visible from
+far off when one breaks. Judgment calls: every line is live, not only a
+downed one (a line is a line); `LINE_BREAK_F` 30 kN because a whole 425 kg
+pole hanging free pulls about 18 kN and a sawn pole leaning on its lines
+3–10 kN, while a tonne of log dropped on one snaps it; lines are point
+chains on the host with points in aux, not rigid bodies; dormant poles do
+not feel line loads (only woken ones); houses and players do not collide
+with lines (a player touching one is shocked instead); the flash shows only
+within the draw distance; `LINE_COST` 4000 and `POLE_FELL_COST` 6000 are
+placeholders.

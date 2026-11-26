@@ -27,6 +27,7 @@ import { BuildsView } from './builds.js';
 import { SHAPE } from '../model/chipper.js';
 import { woodInto, fibreWidth } from './wood.js';
 import { StandsView } from './stands.js';
+import { LinesView } from './lines.js';
 import { WeedsView } from './weeds.js';
 import { Avatar, PLAYER_COLORS, HEAD_Y } from './avatar.js';
 
@@ -100,6 +101,7 @@ export class View {
     this.binView = new BinView(this.scene, world);           // the chip bins
     this.buildsView = new BuildsView(this.scene, world);     // the shed, whole or in pieces
     this.weedsView = new WeedsView(this.scene, world);       // long grass at the foot of fences, buildings and trunks
+    this.linesView = new LinesView(this.scene, world);       // power lines, and the flash when one snaps
 
     this.barkMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, side: THREE.DoubleSide });
     this.leafMat = new THREE.MeshLambertMaterial({ color: 0x3f7d3a, flatShading: true, transparent: true });
@@ -156,6 +158,7 @@ export class View {
     this.binView.onEvent(ev);
     this.buildsView.onEvent(ev);
     this.standsView.onEvent(ev);
+    this.linesView.onEvent(ev);
     this.weedsView.onEvent(ev);
     switch (ev.t) {
       case 'reset':
@@ -427,6 +430,7 @@ export class View {
     this.binView.update(src);
     this.poseWinch(aux);
     this.buildsView.update(src);
+    this.linesView.update(dt, src);
     this.weedsView.update(this.camera);
     const seen = new Set();
     let mePos = null, meA = null;
