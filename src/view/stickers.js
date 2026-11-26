@@ -41,12 +41,13 @@ function chip(t) {
     cut(medal, 8) + `<circle cx="50" cy="50" r="34" fill="none" stroke="${hi}" stroke-width="2" opacity=".7"/>` + machine + chips);
 }
 
-function bin() {
+function bin(t = 0) {
+  const [hi, mid, lo] = t ? ['#fff3a8', '#f2c230', '#b8860b'] : ['#5aa0f0', '#2f7fe0', '#1c5fb5'];
   const burst = [];
   for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2, r = i % 2 ? 36 : 46; burst.push(`${(50 + Math.cos(a) * r).toFixed(1)},${(50 + Math.sin(a) * r).toFixed(1)}`); }
-  return wrap(cut(`<polygon points="${burst.join(' ')}" fill="#2f7fe0"/>`) +
-    '<circle cx="50" cy="50" r="31" fill="#1c5fb5"/>' +
-    '<text x="50" y="59" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-weight="900" font-size="27" fill="#fff" letter-spacing="-1">100%</text>');
+  return wrap(cut(`<polygon points="${burst.join(' ')}" fill="${mid}"/>`) +
+    `<circle cx="50" cy="50" r="31" fill="${lo}"/><circle cx="50" cy="50" r="31" fill="none" stroke="${hi}" stroke-width="2" opacity=".7"/>` +
+    `<text x="50" y="59" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-weight="900" font-size="27" fill="${t ? '#4a2e00' : '#fff'}" letter-spacing="-1">100%</text>`);
 }
 
 function skull() {
@@ -72,6 +73,7 @@ const GHOST = {
   house: '<path d="M24 50 L50 26 L76 50 Z"/><rect x="30" y="48" width="40" height="22"/>',
   shed: '<path d="M26 44 L74 36 L74 42 L26 50 Z"/><rect x="30" y="45" width="40" height="25"/>',
   fence: '<path d="M26 70 V40 L31 33 L36 40 V70 Z M41 70 V37 L46 30 L51 37 V70 Z M56 70 V37 L61 30 L66 37 V70 Z"/><rect x="22" y="44" width="52" height="6"/><rect x="22" y="58" width="52" height="6"/>',
+  wrongtree: '<circle cx="50" cy="36" r="15"/><circle cx="37" cy="44" r="11"/><circle cx="63" cy="44" r="11"/><rect x="34" y="44" width="32" height="26"/>',
   wreck: '<path d="M20 46 L34 51 L34 63 L20 66 Z"/><rect x="33" y="45" width="26" height="25" rx="3"/><path d="M50 45 L52 31 Q54 24 63 24 L73 26 L71 32 L63 31 Q60 31 59 35 L58 45 Z"/>',
 };
 function ghost(kind) {
@@ -120,7 +122,16 @@ function lanyard(word, bg) {
     `<text x="50" y="82" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-weight="900" font-size="15" fill="#222" transform="rotate(-6 50 76)">${word}</text>`);
 }
 
-const ART = { tree, chip, bin, skull, salad, house: () => ghost('house'), shed: () => ghost('shed'), fence: () => ghost('fence'), wreck: () => ghost('wreck'),
+// bankrupt: an empty wallet, open, a moth flying out
+function broke() {
+  return wrap(cut('<circle cx="50" cy="50" r="44" fill="#c4302b"/>', 8) +
+    '<rect x="22" y="44" width="56" height="34" rx="6" fill="#6b431d"/><path d="M22 50 Q50 36 78 50" fill="#8a5a2e"/><rect x="60" y="56" width="18" height="12" rx="3" fill="#8a5a2e"/><circle cx="66" cy="62" r="2.5" fill="#e6c08a"/>' +
+    '<g fill="#e8dcc0" stroke="#8a7a5a" stroke-width="1"><path d="M50 32 C42 20 34 22 38 30 C34 34 42 38 50 32 Z"/><path d="M50 32 C58 20 66 22 62 30 C66 34 58 38 50 32 Z"/></g><path d="M50 26 V36" stroke="#5a4a30" stroke-width="2"/>' +
+    '<path d="M42 40 q4 -3 8 0 M50 40 q4 -3 8 0" stroke="#fff" stroke-width="1.5" fill="none" opacity=".7"/>' +
+    '<text x="50" y="91" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-weight="900" font-size="11" fill="#fff">$0</text>');
+}
+
+const ART = { tree, chip, bin, skull, salad, wrongtree: () => ghost('wrongtree'), broke, house: () => ghost('house'), shed: () => ghost('shed'), fence: () => ghost('fence'), wreck: () => ghost('wreck'),
   cutself: () => lanyard('OOPS!', '#f2c230'), cutother: () => lanyard('SORRY!', '#8e5bd0'), rigcut, lower,
   perch: () => perch('#e0663a', 'GOING DOWN!'), perchother: () => perch('#8e5bd0', 'LOOK OUT!') };
 
@@ -144,7 +155,9 @@ export function stickerInfo(k, t = 0) {
         `The crew has chipped 90% of the job tree, and you fed at least ${share()} of it. Gold at 99%.`,
         `The crew has chipped 99% of the job tree, and you fed at least ${share()} of it.`][t],
     };
-    case 'bin': return { name: '100%', desc: `99% of the job tree went through the chipper and into the bins, and you put at least ${share()} of those chips there.` };
+    case 'wrongtree': return { name: 'Sorry, Tree!', desc: 'You sawed down a neighbour\'s tree. Wrong tree!' };
+    case 'broke': return { name: 'Bankrupt', desc: 'The job\'s cash went below zero.' };
+    case 'bin': return { name: t ? 'Gold 100%' : '100%', desc: `99% of the job tree went through the chipper and into the bins, and you put at least ${share()} of those chips there.` + (t ? ' And the job still had money left.' : '') };
     case 'house': return { name: 'Sorry, House!', desc: 'Wood you sent, or a chipper running away from you, broke part of a house this job.' };
     case 'shed': return { name: 'Sorry, Shed!', desc: 'Wood you sent, or a chipper running away from you, broke a shed this job.' };
     case 'fence': return { name: 'Sorry, Fence!', desc: 'Wood you sent, or a chipper running away from you, broke a fence this job.' };

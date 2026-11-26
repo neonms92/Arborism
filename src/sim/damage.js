@@ -119,7 +119,7 @@ export class Damage {
       // the sawing that took it off goes on the same bill
       let cost = m * CFG.YARD_LOSS_COST + tr.cut * CFG.YARD_CUT_COST, what = "A limb came off a neighbour's tree";
       tr.cut = 0;
-      if (!tr.felled && tr.gone >= 0.5 * tr.M) { tr.felled = true; cost += CFG.YARD_FELL_COST; what = "A neighbour's tree was felled"; }
+      if (!tr.felled && tr.gone >= 0.5 * tr.M) { tr.felled = true; cost += CFG.YARD_FELL_COST; what = "A neighbour's tree was felled"; this.sim.awards.wrongTree(i); }
       this.charge(cost, `${what} ({mass:${Math.round(m)}})`);
     }
   }

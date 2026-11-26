@@ -1721,3 +1721,11 @@ the thing with a wispy tail, named "Sorry, House!" and so on.
   piece. "Damaging anything" = `world.damage` rising (the money bill: yards,
   structures, pavers, neighbour trees). Tunables `STICKER_LOWER_KG`,
   `STICKER_LOWER_T`.
+
+**D109 — Wrong tree, bankrupt, gold 100%.** Owner (2026-11-26). "Sorry,
+Tree!" (a ghost tree), once per player per job, for the player who last
+sawed a neighbour's tree when `sim/damage.js` counts it felled (half its
+wood off). "Bankrupt" once per job to everyone in the game when the cash
+first goes below zero (nobody who joins later gets it). The 100% sticker is
+tier 1, gold, if the cash is above zero at the moment it is handed out; it
+is not taken back.

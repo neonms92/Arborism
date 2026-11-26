@@ -8,7 +8,7 @@
 //          at T2, green at T3. Only to players who did STICKER_SHARE of the sawing (cross-section cut).
 //   chip   share of the job tree chipped (as the HUD shows it): bronze, silver, gold at the same marks. Only to
 //          players who fed STICKER_SHARE of the wood chipped.
-//   bin    the "100%": share chipped times the share of the chips that went into bins, at STICKER_BIN. Only to
+//   bin    the "100%" (gold, tier 1, if the cash is above zero when it is reached): share chipped times the share of the chips that went into bins, at STICKER_BIN. Only to
 //          players who put STICKER_SHARE of the chips in bins (fed from their feeds, or tipped in by hand).
 //   skull  the player who went DOWN (once per job each)
 //   salad  the player who has eaten STICKER_SALADS tube salads this job (one handed over counts for whoever ate it)
@@ -16,6 +16,8 @@
 //          the player's who last sawed it free, grabbed, punched or fed it; a chipper is the player's who last
 //          towed it or started a feed into it (the feed is what drags it off).
 //   cutself, cutother   the player who sawed through their own lanyard, or someone else's
+//   wrongtree  the player who last sawed a neighbour's tree when it counted as felled (sim/damage.js)
+//   broke    everyone in the game when the cash first goes below zero (once a job, not to anyone who joins later)
 //   rigcut   on spurs, sawed free wood that has the rigging rope tied to it (D108)
 //   lower    holding the rope tail, let down a piece of STICKER_LOWER_KG or more onto the ground, and nothing was
 //            damaged (no 'damage' cost) for STICKER_LOWER_T seconds after
@@ -36,6 +38,7 @@ export class Awards {
     this.sawn = new Map();        // seg id -> player id who last sawed fibres of it
     this.lastSaw = -1;            // whoever sawed job wood last
     this.lastSawT = -1e9;         // ... at this tick
+    this.yardSaw = new Map();     // yard tree (stand index) -> player who last sawed it
     this.lowered = new Set();     // pieces already let down (one try each)
     this.landing = null;          // {id, piece, until, dmg}: a heavy piece let down, waiting to see that nothing broke
   }
@@ -43,12 +46,19 @@ export class Awards {
   /** A new job (a tree has just grown): nothing handed out yet. */
   begin() {
     this.owed = { chop: {}, chip: {}, bin: {} }; this.any = false;
-    this.by.clear(); this.chipBy.clear(); this.sawn.clear(); this.lastSaw = -1; this.lowered.clear(); this.landing = null;
+    this.by.clear(); this.chipBy.clear(); this.sawn.clear(); this.lastSaw = -1; this.lowered.clear(); this.landing = null; this.yardSaw.clear();
     this.sim.emit({ t: 'job', id: Math.random().toString(36).slice(2, 10) });
   }
 
   /** Player id's saw went through a fibre of segment seg. */
-  sawed(id, seg) { this.sawn.set(seg, id); if (!this.sim.world.segs.get(seg)?.yd) { this.lastSaw = id; this.lastSawT = this.sim.tick; } }
+  sawed(id, seg) {
+    this.sawn.set(seg, id);
+    const s = this.sim.world.segs.get(seg); if (!s) return;
+    if (!s.yd) { this.lastSaw = id; this.lastSawT = this.sim.tick; return; }
+    const i = this.sim.damage.yard.get(s.piece); if (i !== undefined) this.yardSaw.set(i, id);
+  }
+  /** A neighbour's tree (stand index i) lost half its wood: a ghost tree for whoever sawed it. */
+  wrongTree(i) { const id = this.yardSaw.get(i); if (id !== undefined) this.give('wrongtree', 0, [id]); }
   /** Player id took hold of, punched or fed this piece: it is theirs now. */
   touch(piece, id) { if (piece !== undefined && !this.sim.world.pieces.get(piece)?.fixed) this.by.set(piece, id); }
   /** Player id towed chipper k or started a feed into it. */
@@ -165,7 +175,10 @@ export class Awards {
     const chipped = P.M > (P.lost || 0) ? Math.min(1, P.chipped / (P.M - (P.lost || 0))) : 0;
     const c = tierOf(chipped);
     if (c >= 0) this.give('chip', c, this.workers('chip'));
-    if (P.made > 0 && chipped * Math.min(1, P.gone / P.made) >= CFG.STICKER_BIN) this.give('bin', 0, this.workers('bin'));
+    // the 100%: gold if the job still has money left when it is reached (it stays gold whatever happens after)
+    if (P.made > 0 && chipped * Math.min(1, P.gone / P.made) >= CFG.STICKER_BIN) this.give('bin', w.cash() > 0 ? 1 : 0, this.workers('bin'));
+    // bankrupt: everyone here when the cash first goes below zero, once a job
+    if (!A.got.broke && w.cash() !== null && w.cash() < 0) this.give('broke', 0, [...sim.players.list.keys()]);
   }
 
   /** Share of the job tree chipped, swept away as debris, or lying in loose sections the chipper could take whole. */
