@@ -1456,3 +1456,26 @@ from 2.5 m beside it if nowhere is clear), a downed player cannot eat a salad
 they hold (someone else has to), the rack sits inside the roll cage and has no
 collider, one salad in hand at a time, the salad drawn low right in first
 person.
+
+**D96 — Wood in the ground is lifted at a fixed speed, not sprung out.**
+Owner (2026-11-26): the push out of the ground (D88) is too aggressive.
+Instead, wood found inside the ground should get a fixed upward velocity for
+a set time, starting at the chipper rollers' speed for 0.2 s at a time, as
+needed. So the spring and its three tunables are gone. When a body has a
+segment inside the ground, its upward velocity is raised to at least
+`GROUND_LIFT_V` (0.6 m/s, `CHIP_FEED_V`) for `GROUND_LIFT_TIME` (0.2 s). If it
+is still in when that time ends, another lift starts. Its spin and sideways
+velocity are left alone. A first try raised only the sunk point to 0.6 m/s,
+correcting for the body's spin. On a pivoting branch that drove the body up at
+2.9 m/s and spun it at 18 rad/s, so the whole body is lifted instead. The
+sunk segment still stops colliding with the ground until its axis is back
+above it (D88).
+
+Headless, with a 25 kg branch put down with its butt 0.3 m under:
+- It is out within 3 s and drags as on open ground.
+- Its upward speed peaked at 0.44 to 0.86 m/s; the spring gave 0.57 to 0.6.
+- Its overall speed peaked at 1.4 to 1.7 m/s as it fell flat; the spring
+  gave about 0.6.
+
+Felling whole trees on two seeds, the 11.6 t tree got two lifts in 40 s and
+came to rest.
