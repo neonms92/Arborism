@@ -33,7 +33,7 @@ export const ROWS = [
   ['GRAB_MAX', 'Pulling: force that tears what you hold out of your hands (N)', 50, 10000, 10, 1, true],
   ['GRAB_K', 'Grabbed wood: stiffness of the hold (N/m)', 500, 100000, 500, 1, true],
   ['View'],
-  ['NET_STATS', 'Network box when joined (ping, loss, delay)'],
+  ['NET_STATS', 'Network and debug info on the HUD (fps, ping, loss, wage math; network box when joined)'],
   ['NET_QUEUE_MAX', 'Most data queued for a player before stale updates are skipped (kB; caps network lag)', 4, 512, 4, 1, true],
   ['NET_LAG_MAX', 'Most delay a slow link may queue before stale updates are skipped (ms)', 50, 2000, 10, 0.001, true],
   ['INTERP_DELAY', 'Render delay when joined (ms; lower answers sooner, too low stutters)', 0, 300, 5, 0.001],
