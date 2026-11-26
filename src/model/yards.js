@@ -6,9 +6,12 @@
 // The neighbourhood is blocks of lots along x, separated by streets. A block
 // is two rows of lots back to back, each row facing its own street; both rows
 // of a block share their lot lines, so a lot line is one fence, not two. The
-// tree stands in the back half of a lot (the tree's yard), a lot like the
-// others, which also gets paving round the trunk (a circle or a square, as
-// big as fits) and the parked chipper. Everything goes only where it fits:
+// tree stands anywhere in a lot (the tree's yard), a lot like the others: its
+// trunk only has to be inside the lot, up to the height of a pole, so it may be
+// right by a fence, the street or the house. The lot also gets paving round the
+// trunk (a circle or a square, as big as fits) and the parked chipper. (Branches
+// that would grow into anything are pruned when the trees are planted,
+// model/prune.js.) Everything goes only where it fits:
 // inside the lot and clear of what is already there. Each lot may have:
 //   a house (rooms glued on a foundation, model/builds.js) facing the street, with a porch of pavers
 //     at its door, a paver sidewalk out to the street, or both;
@@ -44,7 +47,9 @@ const r4 = (v) => +v.toFixed(4);
 /**
  * The plan for these settings.
  * o = {seed, density, lotMax, lotMin, extent, street, fence, blend, paver (cell),
- *      tree: {clear (m round the trunk kept free of houses and sheds), paveMax (largest paving round it), pit,
+ *      tree: {foot: [[x, z]...] (points on the trunk's axis from its base up to the height of a pole, the base at
+ *             [0, 0]), r (its radius at the base), edge (m from the trunk to the lot's lines), clear (m beyond the
+ *             trunk kept free of houses, sheds and the chipper), paveMax (largest paving round it), pit,
  *             chip: {x0, x1, hz, gap} (the chipper's length along its own x from its origin, half width, and its
  *             gap from the paving)}}
  */
@@ -55,9 +60,11 @@ export function planYards(o) {
   const jit = (v, f = 0.15) => v * (1 + (R() * 2 - 1) * f);
 
   // The tree's lot is a lot like the others (the same width and depth for the density), placed so that the tree
-  // stands somewhere in its back half, at least `clear` from its side lines.
-  const tW = jit(lotW), tD = jit(lotD), cl = Math.min(o.tree.clear + 1, tW / 2 - 0.5);
-  const tu = (R() - 0.5) * 2 * Math.max(0, tW / 2 - cl), tw = tD * (0.2 + 0.25 * R());
+  // stands anywhere in it: its trunk (as it leans, up to the height of a pole) `edge` inside its lines.
+  const tW = jit(lotW), tD = jit(lotD), T = o.tree, foot = T.foot || [[0, 0]], m = T.r + T.edge;
+  const fx = foot.map((p) => p[0]), fz = foot.map((p) => p[1]);
+  const span = (lo, hi) => (hi > lo ? lo + (hi - lo) * R() : (lo + hi) / 2);
+  const tu = span(-tW / 2 + m - Math.min(...fx), tW / 2 - m - Math.max(...fx)), tw = span(m - Math.min(...fz), tD - m - Math.max(...fz));
   const tx0 = -tu - tW / 2, tz0 = -tw, tz1 = tD - tw;
 
   // lot lines along x for a block: the tree's block grows from the tree's lot, others from a random offset
@@ -106,7 +113,7 @@ export function planYards(o) {
 /**
  * Utility poles along every street, on its -z kerb just inside the asphalt, POLE_SPACING apart (each gap within
  * 10%) across the whole ground, and a line from each to the next (spans). Each house gets a drop from the nearest
- * pole within dropMax of its front (drops: [pole, index of the house in plan.builds]). A pole that would stand on
+ * pole within dropMax of its front whose line to it passes no trunk (drops: [pole, index of the house in plan.builds]). A pole that would stand on
  * the parked chipper is left out (the line then spans the gap). Its own random stream, so the rest of the plan
  * is the same with or without poles.
  */
@@ -123,12 +130,20 @@ function planPoles(plan, o) {
       prev = i;
     }
   }
+  // a drop never passes through a trunk (seen from above): the job tree's as it leans, the others' allowing for a
+  // lean of 0.15 over the height of a drop (their branches are pruned where a line passes, model/prune.js)
+  const trunks = (o.tree && o.tree.foot || []).map(([x, z]) => [x, z, o.tree.r + 0.3]);
+  for (const [x, z, , h, dia] of plan.trees) trunks.push([x, z, dia / 2 + 0.15 * Math.min(h, 8) + 0.3]);
+  const blocked = (ax, az, bx, bz) => trunks.some(([x, z, r]) => {
+    const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1, t = Math.min(1, Math.max(0, ((x - ax) * dx + (z - az) * dz) / L2));
+    return Math.hypot(ax + dx * t - x, az + dz * t - z) < r;
+  });
   plan.builds.forEach((b, bi) => {
     if (b.kind !== 'house') return;
     const [, y, , w] = b.q, a = 2 * Math.atan2(y, w), fd = b.h.nz * b.h.rd / 2;
     const fx = b.p[0] + Math.sin(a) * fd, fz = b.p[2] + Math.cos(a) * fd;
     let best = -1, bd = P.dropMax;
-    plan.poles.forEach(([x, z], i) => { const d = Math.hypot(x - fx, z - fz); if (d < bd) { bd = d; best = i; } });
+    plan.poles.forEach(([x, z], i) => { const d = Math.hypot(x - fx, z - fz); if (d < bd && !blocked(x, z, fx, fz)) { bd = d; best = i; } });
     if (best >= 0) plan.drops.push([best, bi]);
   });
 }
@@ -161,21 +176,25 @@ function fillLot(plan, lot, R, d, o, posts, edges, key) {
   const free = (u0, u1, w0, w1, m = 0.5) => inLot(u0, u1, w0, w1, m) && !taken.some((t) => u0 < t[1] && u1 > t[0] && w0 < t[3] && w1 > t[2]);
   const take = (u0, u1, w0, w1) => taken.push([u0, u1, w0, w1]);
 
-  // ---- the tree's lot: the trunk and the paving round it (the chipper is parked once the house is placed) ----
-  const T = o.tree, [tu, tw] = F.toL(0, 0), k = T.clear;
+  // ---- the tree's lot: the trunk (the paving round it once the house is placed, then the chipper) ----
+  const T = o.tree, [tu, tw] = F.toL(0, 0), k = T.r + T.clear;
   if (lot.tree) {
-    take(tu - k, tu + k, tw - k, tw + k);
-    // paving round the trunk, as often as a patio elsewhere: a circle or a square, as big as the lot allows
-    if (pick(0.5 + 0.4 * d)) {
-      const room = Math.min(tu + W / 2, W / 2 - tu, tw, D - tw) - 0.5, r = Math.min(T.paveMax * (0.6 + 0.4 * R()), room);
-      if (r > T.pit + c) {
-        if (pick(0.5)) plan.areas.push({ shape: 'circle', x: 0, z: 0, r: r4(r), pit: T.pit });
-        else { const s = Math.floor(2 * r / 1.42 / c) * c; plan.areas.push({ shape: 'rect', x: 0, z: 0, yaw, w: r4(s), d: r4(s), pit: T.pit }); }
-        plan.treePave = r;
-      }
-    }
-    if (plan.treePave) { const r = plan.treePave; take(tu - r, tu + r, tw - r, tw + r); }
+    // the trunk as it leans (its points in the lot frame), and `clear` beyond it
+    const pts = (T.foot || [[0, 0]]).map(([x, z]) => F.toL(x, z)), us = pts.map((p) => p[0]), ws = pts.map((p) => p[1]);
+    take(Math.min(...us) - k, Math.max(...us) + k, Math.min(...ws) - k, Math.max(...ws) + k);
   }
+  // paving round the trunk, as often as a patio elsewhere: a circle or a square, as big as there is room for
+  const pave = () => {
+    if (!pick(0.5 + 0.4 * d)) return;
+    // room: the biggest square round the trunk inside the lot and clear of what is there (but the trunk itself)
+    let room = Math.min(tu + W / 2, W / 2 - tu, tw, D - tw) - 0.5;
+    for (const t of taken.slice(1)) room = Math.min(room, Math.max(t[0] - tu, tu - t[1], t[2] - tw, tw - t[3]) - 0.3);
+    const r = Math.min(T.paveMax * (0.6 + 0.4 * R()), room);
+    if (r <= T.pit + c) return;
+    if (pick(0.5)) plan.areas.push({ shape: 'circle', x: 0, z: 0, r: r4(r), pit: T.pit });
+    else { const s = Math.floor(2 * r / 1.42 / c) * c; plan.areas.push({ shape: 'rect', x: 0, z: 0, yaw, w: r4(s), d: r4(s), pit: T.pit }); }
+    plan.treePave = r; take(tu - r, tu + r, tw - r, tw + r);
+  };
 
   // (after the house, so a house gets the front yard first)
   const parkChipper = () => {
@@ -228,11 +247,8 @@ function fillLot(plan, lot, R, d, o, posts, edges, key) {
       }
     }
   }
-  if (house) {
-    const { h, u, w, hw, hd } = house;
-    take(u - house.hw / 2, u + house.hw / 2, w - hd / 2, D);
-  }
-  if (lot.tree) parkChipper();
+  if (house) take(house.u - house.hw / 2, house.u + house.hw / 2, house.w - house.hd / 2, house.w + house.hd / 2 + 2);   // with its porch
+  if (lot.tree) { pave(); parkChipper(); }
   if (house) {
     const { h, u, w, hw, hd } = house;
     add('house', u, w, 0, { h });
@@ -245,7 +261,11 @@ function fillLot(plan, lot, R, d, o, posts, edges, key) {
     const porchD = cells(1.8), walkW = cells(1.2);
     let walkFrom = front;
     if (kind < 0.65) { rect(du, front + porchD / 2 + 0.05, cells(2.4), porchD); walkFrom = front + porchD + 0.06; }
-    if (kind >= 0.35) { const L = Math.floor((D - walkFrom - 0.05) / c) * c; if (L > 0.5) rect(du, walkFrom + L / 2, walkW, r4(L)); }
+    if (kind >= 0.35) {
+      // (only where nothing stands in the way: the tree may be in the front yard)
+      const L = Math.floor((D - walkFrom - 0.05) / c) * c;
+      if (L > 0.5 && free(du - walkW / 2, du + walkW / 2, walkFrom + 0.01, walkFrom + L, 0)) { rect(du, walkFrom + L / 2, walkW, r4(L)); take(du - walkW / 2, du + walkW / 2, walkFrom, walkFrom + L); }
+    }
     house.door = du;
 
     // a patio behind the house

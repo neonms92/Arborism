@@ -25,6 +25,8 @@ import { CFG } from '../config.js';
 import { groundRange } from '../model/terrain.js';
 import { compose, regroup, partMass, breakForce, qrot, modProxies, SHED, FENCE } from '../model/builds.js';
 import { planYards, footprint } from '../model/yards.js';
+import { generateTree } from '../model/treegen.js';
+import { trunkOf } from '../model/stands.js';
 import { SHAPE as CHIP_SHAPE, cageArc } from '../model/chipper.js';
 
 const CONTACT_EVENT_F = 300;      // N: contact force below which Rapier does not report a pair on a module (too small to matter)
@@ -59,13 +61,28 @@ export class Builds {
       poles: { spacing: Math.max(5, CFG.POLE_SPACING), size: CFG.TERRAIN_SIZE, dropMax: CFG.DROP_MAX },
       trees: { n: CFG.YARD_TREES, hmin: CFG.YARD_TREES_HMIN, hmax: CFG.YARD_TREES_HMAX, thick: CFG.YARD_TREES_THICK },
       tree: {
-        clear: CFG.TREE_DIAMETER / 2 + CFG.YARD_TREE_CLEAR, paveMax: CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, pit: CFG.TREE_DIAMETER / 2 + CFG.PAVER_PIT,
+        foot: this.trunkFoot(), r: CFG.TREE_DIAMETER / 2, edge: CFG.YARD_TREE_EDGE, clear: CFG.YARD_TREE_CLEAR, paveMax: CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, pit: CFG.TREE_DIAMETER / 2 + CFG.PAVER_PIT,
         chip: { x0: S.INFEED[0] - 0.2, x1: S.GRIP[0] + 0.2, hz: Math.max(S.WHEELS[0][2] + S.WHEEL_R, ...cageArc().map(([, z]) => Math.abs(z))), gap: CFG.CHIP_GAP },
       },
     });
     const t = P.lots.find((l) => l.tree);
     this.treeLot = t ? { w: +(t.x1 - t.x0).toFixed(2), d: +(t.z1 - t.z0).toFixed(2) } : null;    // for the console: arb.sim.builds.treeLot
     return (this.planned = P);
+  }
+
+  /**
+   * The job tree's trunk seen from above, for the yard plan: points on its axis (base at [0, 0]) every half metre
+   * from its base up to the height of a pole, so the plan keeps all of it in the lot and clear of houses and
+   * lines however it leans. (The same tree sim.grow grows, from TREE_SEED and the menu's shape.)
+   */
+  trunkFoot() {
+    let n = 0;
+    const tr = trunkOf(generateTree(CFG.TREE_SEED, () => ++n)), top = Math.max(CFG.POLE_HEIGHT, 2), out = [];
+    for (const g of tr) for (let t = 0; t <= 1; t += 0.25) {
+      const y = g.a[1] + (g.b[1] - g.a[1]) * t;
+      if (y <= top) out.push([+(g.a[0] + (g.b[0] - g.a[0]) * t).toFixed(3), +(g.a[2] + (g.b[2] - g.a[2]) * t).toFixed(3)]);
+    }
+    return out;
   }
 
   /**

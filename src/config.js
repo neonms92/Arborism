@@ -251,7 +251,8 @@ export const CFG = {
   STREET_SMOOTH: 30,       // m: a street's grade is the ground averaged this far either way along it (bigger = flatter)
   STREET_BLEND: 3,         // m beside a street over which it blends into the ground
   YARD_FENCE: 0.5,         // chance a lot is fenced round its sides and back
-  YARD_TREE_CLEAR: 4,      // m beyond the trunk kept clear of houses, sheds and the chipper (players spawn 4 m from the tree)
+  YARD_TREE_CLEAR: 0.6,    // m beyond the trunk (as it leans, up to POLE_HEIGHT) kept clear of houses, sheds and the chipper (D113)
+  YARD_TREE_EDGE: 0.3,     // m from the trunk (as it leans, up to POLE_HEIGHT) to its lot's lines: the job tree stands anywhere inside that
   // --- other trees in the yards (model/stands.js): drawn, with only a trunk to bump into, until someone saws or climbs one ---
   YARD_TREES: 1.5,         // trees per lot, on average (as many as fit)
   YARD_TREES_HMIN: 8,      // m, shortest
