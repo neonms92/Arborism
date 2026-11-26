@@ -26,10 +26,14 @@ export class BinView {
     // the body, a little narrower at the base, as a bin is
     const h = B.BODY.h, geo = new THREE.BoxGeometry(h[0] * 2, h[1] * 2, h[2] * 2), a = geo.attributes.position;
     for (let i = 0; i < a.count; i++) if (a.getY(i) < 0) { a.setX(i, a.getX(i) * 0.88); a.setZ(i, a.getZ(i) * 0.9); }
+    // no top face: the black rim band below fills the mouth, a little lower, so the two never share a plane
+    // (they did, and z-fought); BoxGeometry's faces go +x, -x, +y, -y, +z, -z, six indices each
+    const ix = [...geo.index.array]; ix.splice(12, 6); geo.setIndex(ix);
     geo.computeVertexNormals();
     const body = new THREE.Mesh(geo, M.body); body.position.set(...B.BODY.c); parts.push(body);
     // a dark band round the rim, so its mouth reads when the lid is up
-    const rim = new THREE.Mesh(new THREE.BoxGeometry(h[0] * 2 + 0.02, 0.04, h[2] * 2 + 0.02), M.dark); rim.position.set(0, h[1] - 0.02, 0); parts.push(rim);
+    // and seen from above, the dark mouth: its top 5 mm under the body's open top, its sides 1 cm out from the body's
+    const rim = new THREE.Mesh(new THREE.BoxGeometry(h[0] * 2 + 0.02, 0.04, h[2] * 2 + 0.02), M.dark); rim.position.set(0, h[1] - 0.025, 0); parts.push(rim);
     for (const w of B.WHEELS) { const m = new THREE.Mesh(new THREE.CylinderGeometry(B.WHEEL_R, B.WHEEL_R, 0.06, 12).rotateX(Math.PI / 2), M.dark); m.position.set(...w); parts.push(m); }
     const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.54, 6).rotateX(Math.PI / 2), M.grey); axle.position.set(B.WHEELS[0][0], B.WHEELS[0][1], 0); parts.push(axle);
     const bar = new THREE.Mesh(new THREE.CylinderGeometry(B.HANDLE_H[0], B.HANDLE_H[0], B.HANDLE_H[2] * 2, 8).rotateX(Math.PI / 2), M.dark); bar.position.set(...B.HANDLE); parts.push(bar);
