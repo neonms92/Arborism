@@ -8,7 +8,7 @@
 //          at T2, green at T3. Only to players who did STICKER_SHARE of the sawing (cross-section cut).
 //   chip   share of the job tree chipped (as the HUD shows it): bronze, silver, gold at the same marks. Only to
 //          players who fed STICKER_SHARE of the wood chipped.
-//   bin    the "100%": share chipped times the share of the chips that went into bins, at STICKER_BIN. Only to
+//   bin    the "100%" (gold, tier 1, if the cash is above zero when it is reached): share chipped times the share of the chips that went into bins, at STICKER_BIN. Only to
 //          players who put STICKER_SHARE of the chips in bins (fed from their feeds, or tipped in by hand).
 //   skull  the player who went DOWN (once per job each)
 //   salad  the player who has eaten STICKER_SALADS tube salads this job (one handed over counts for whoever ate it)
@@ -16,9 +16,16 @@
 //          the player's who last sawed it free, grabbed, punched or fed it; a chipper is the player's who last
 //          towed it or started a feed into it (the feed is what drags it off).
 //   cutself, cutother   the player who sawed through their own lanyard, or someone else's
-// All but the tree and chipper tiers come once per player per job.
+//   wrongtree  the player who last sawed a neighbour's tree when it counted as felled (sim/damage.js)
+//   broke    everyone in the game when the cash first goes below zero (once a job, not to anyone who joins later)
+//   rigcut   on spurs, sawed free wood that has the rigging rope tied to it (D108)
+//   lower    holding the rope tail, let down a piece of STICKER_LOWER_KG or more onto the ground, and nothing was
+//            damaged (no 'damage' cost) for STICKER_LOWER_T seconds after
+//   perch    sawed free the wood you are lanyarded to; perchother: wood someone else is lanyarded to
+// All but the tree and chipper tiers come once per player per job; cutother and perchother carry once: 1, and a
+// player's browser keeps them only the first time ever (stickerui.js).
 
-import { CFG } from '../config.js';
+import { CFG, MODE } from '../config.js';
 import { segMass } from '../model/world.js';
 import { tierOf } from '../model/stickers.js';
 
@@ -30,17 +37,28 @@ export class Awards {
     this.chipBy = new Map();      // chipper k -> player id
     this.sawn = new Map();        // seg id -> player id who last sawed fibres of it
     this.lastSaw = -1;            // whoever sawed job wood last
+    this.lastSawT = -1e9;         // ... at this tick
+    this.yardSaw = new Map();     // yard tree (stand index) -> player who last sawed it
+    this.lowered = new Set();     // pieces already let down (one try each)
+    this.landing = null;          // {id, piece, until, dmg}: a heavy piece let down, waiting to see that nothing broke
   }
 
   /** A new job (a tree has just grown): nothing handed out yet. */
   begin() {
     this.owed = { chop: {}, chip: {}, bin: {} }; this.any = false;
-    this.by.clear(); this.chipBy.clear(); this.sawn.clear(); this.lastSaw = -1;
+    this.by.clear(); this.chipBy.clear(); this.sawn.clear(); this.lastSaw = -1; this.lowered.clear(); this.landing = null; this.yardSaw.clear();
     this.sim.emit({ t: 'job', id: Math.random().toString(36).slice(2, 10) });
   }
 
   /** Player id's saw went through a fibre of segment seg. */
-  sawed(id, seg) { this.sawn.set(seg, id); if (!this.sim.world.segs.get(seg)?.yd) this.lastSaw = id; }
+  sawed(id, seg) {
+    this.sawn.set(seg, id);
+    const s = this.sim.world.segs.get(seg); if (!s) return;
+    if (!s.yd) { this.lastSaw = id; this.lastSawT = this.sim.tick; return; }
+    const i = this.sim.damage.yard.get(s.piece); if (i !== undefined) this.yardSaw.set(i, id);
+  }
+  /** A neighbour's tree (stand index i) lost half its wood: a ghost tree for whoever sawed it. */
+  wrongTree(i) { const id = this.yardSaw.get(i); if (id !== undefined) this.give('wrongtree', 0, [id]); }
   /** Player id took hold of, punched or fed this piece: it is theirs now. */
   touch(piece, id) { if (piece !== undefined && !this.sim.world.pieces.get(piece)?.fixed) this.by.set(piece, id); }
   /** Player id towed chipper k or started a feed into it. */
@@ -50,6 +68,51 @@ export class Awards {
     if (ev.t !== 'split' || !info.moved) return;
     const id = this.sawn.get(info.cutSeg) ?? this.by.get(info.oldPiece) ?? this.lastSaw;
     if (id >= 0) this.by.set(ev.newPiece, id);
+    this.cutDown(ev, info);
+  }
+  /** Wood came free (players.onSplit has not moved anyone's lanyard yet): stickers for who sawed it. */
+  cutDown(ev, info) {
+    const sim = this.sim, w = sim.world, moved = new Set(info.moved);
+    // the sawyer: whoever sawed where it parted, else whoever sawed job wood in the last 3 s
+    let cutter = this.sawn.get(info.cutSeg);
+    if (cutter === undefined && sim.tick - this.lastSawT < 3 / CFG.TICK) cutter = this.lastSaw;
+    const p = cutter === undefined ? null : sim.players.list.get(cutter);
+    if (!p) return;
+    const r = w.rope;
+    if (p.mode === MODE.CLIMB && r.state === 2 && r.anchor.seg !== undefined && moved.has(r.anchor.seg)) this.give('rigcut', 0, [p.id]);
+    for (const q of sim.players.list.values()) {
+      if (!q.cl || q.mode !== MODE.CLIMB) continue;
+      // the lanyard's segment as it will be after this split (the same remap players.onSplit makes)
+      const on = moved.has(q.cl.seg) || (q.cl.seg === ev.seg && ev.at > 0 && q.cl.t > ev.at);
+      if (!on) continue;
+      if (q === p) this.give('perch', 0, [p.id]); else this.give('perchother', 0, [p.id], true);
+    }
+  }
+  /** Every few ticks: a heavy piece on the rope let down onto the ground by whoever holds the tail. */
+  lowering() {
+    const sim = this.sim, w = sim.world, r = w.rope;
+    if (this.landing) {
+      const L = this.landing;
+      if (w.damage > L.dmg) this.landing = null;                     // something broke: no sticker
+      else if (sim.tick >= L.until) { this.give('lower', 0, [L.id]); this.landing = null; }
+      return;
+    }
+    const holder = sim.rope.holder;
+    if (r.state !== 2 || r.anchor.seg === undefined || holder < 0) return;
+    const s = w.segs.get(r.anchor.seg); if (!s) return;
+    const piece = s.piece;
+    if (w.pieces.get(piece)?.fixed || this.lowered.has(piece)) return;
+    let m = 0; for (const g of w.segsOf(piece)) m += segMass(g) + g.leaf;
+    if (m < CFG.STICKER_LOWER_KG) return;
+    let down = false;
+    for (const g of w.segsOf(piece)) {
+      const c = sim.segCol.get(g.id); if (!c) continue;
+      sim.rapier.contactPair(sim.groundCol, c, (man) => { if (man.numContacts() > 0) down = true; });
+      if (down) break;
+    }
+    if (!down) return;
+    this.lowered.add(piece);
+    this.landing = { id: holder, piece, until: sim.tick + Math.round(CFG.STICKER_LOWER_T / CFG.TICK), dmg: w.damage };
   }
   /** Who is to blame for collider h hitting something: the player behind that wood or chipper, or -1. */
   culprit(h) {
@@ -64,7 +127,7 @@ export class Awards {
   /** Something of kind ('house', 'shed', 'fence', 'wreck') broke, hit by collider h. */
   broke(kind, h) { const id = this.culprit(h); if (id >= 0) this.give(kind, 0, [id]); }
   /** Player by sawed through victim's lanyard. */
-  lanyard(by, victim) { this.give(by === victim ? 'cutself' : 'cutother', 0, [by]); }
+  lanyard(by, victim) { if (by === victim) this.give('cutself', 0, [by]); else this.give('cutother', 0, [by], true); }
 
   /** Player id did n of kind ('chop': m² of job wood sawn through; 'chip': kg of job wood they fed chipped;
    *  'bin': m³ of chips into bins, from their feeds or by hand). */
@@ -73,11 +136,12 @@ export class Awards {
     this.owed[kind][id] = (this.owed[kind][id] || 0) + n; this.any = true;
   }
 
-  give(k, tier, ids) {
+  /** once: the player's browser keeps it only the first time ever. */
+  give(k, tier, ids, once = false) {
     const A = this.sim.world.awards, got = A.got[k] || {};
     if (!A.job) return;
     const to = ids.filter((id) => (got[id] ?? -1) < tier);
-    if (to.length) this.sim.emit({ t: 'award', k, tier, to, job: A.job });
+    if (to.length) this.sim.emit({ t: 'award', k, tier, to, job: A.job, ...(once ? { once: 1 } : {}) });
   }
 
   /** A player went DOWN. */
@@ -111,7 +175,10 @@ export class Awards {
     const chipped = P.M > (P.lost || 0) ? Math.min(1, P.chipped / (P.M - (P.lost || 0))) : 0;
     const c = tierOf(chipped);
     if (c >= 0) this.give('chip', c, this.workers('chip'));
-    if (P.made > 0 && chipped * Math.min(1, P.gone / P.made) >= CFG.STICKER_BIN) this.give('bin', 0, this.workers('bin'));
+    // the 100%: gold if the job still has money left when it is reached (it stays gold whatever happens after)
+    if (P.made > 0 && chipped * Math.min(1, P.gone / P.made) >= CFG.STICKER_BIN) this.give('bin', w.cash() > 0 ? 1 : 0, this.workers('bin'));
+    // bankrupt: everyone here when the cash first goes below zero, once a job
+    if (!A.got.broke && w.cash() !== null && w.cash() < 0) this.give('broke', 0, [...sim.players.list.keys()]);
   }
 
   /** Share of the job tree chipped, swept away as debris, or lying in loose sections the chipper could take whole. */

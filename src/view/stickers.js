@@ -41,12 +41,13 @@ function chip(t) {
     cut(medal, 8) + `<circle cx="50" cy="50" r="34" fill="none" stroke="${hi}" stroke-width="2" opacity=".7"/>` + machine + chips);
 }
 
-function bin() {
+function bin(t = 0) {
+  const [hi, mid, lo] = t ? ['#fff3a8', '#f2c230', '#b8860b'] : ['#5aa0f0', '#2f7fe0', '#1c5fb5'];
   const burst = [];
   for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2, r = i % 2 ? 36 : 46; burst.push(`${(50 + Math.cos(a) * r).toFixed(1)},${(50 + Math.sin(a) * r).toFixed(1)}`); }
-  return wrap(cut(`<polygon points="${burst.join(' ')}" fill="#2f7fe0"/>`) +
-    '<circle cx="50" cy="50" r="31" fill="#1c5fb5"/>' +
-    '<text x="50" y="59" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-weight="900" font-size="27" fill="#fff" letter-spacing="-1">100%</text>');
+  return wrap(cut(`<polygon points="${burst.join(' ')}" fill="${mid}"/>`) +
+    `<circle cx="50" cy="50" r="31" fill="${lo}"/><circle cx="50" cy="50" r="31" fill="none" stroke="${hi}" stroke-width="2" opacity=".7"/>` +
+    `<text x="50" y="59" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-weight="900" font-size="27" fill="${t ? '#4a2e00' : '#fff'}" letter-spacing="-1">100%</text>`);
 }
 
 function skull() {
@@ -67,16 +68,48 @@ function salad() {
     '<rect x="37" y="34" width="5" height="44" rx="2" fill="#fff" opacity=".3"/></g>');
 }
 
-// broken things: the thing in grey on a white disc, under a red circle and slash (D107)
-const ICON = {
-  house: '<path d="M26 52 L50 30 L74 52 Z" fill="#7a4a3a"/><rect x="31" y="51" width="38" height="25" fill="#cfc6b4"/><rect x="45" y="60" width="10" height="16" fill="#6b5a48"/><rect x="34" y="56" width="8" height="7" fill="#8fb4d6"/><rect x="58" y="56" width="8" height="7" fill="#8fb4d6"/>',
-  shed: '<path d="M27 47 L73 39 L73 44 L27 52 Z" fill="#6e4b33"/><rect x="30" y="48" width="40" height="28" fill="#b98a5a"/><path d="M50 52 V76 M36 52 V76 M64 52 V76" stroke="#8a613c" stroke-width="2"/><rect x="40" y="56" width="20" height="20" fill="#8a613c"/><path d="M40 56 L60 76 M60 56 L40 76" stroke="#b98a5a" stroke-width="2"/>',
-  fence: '<g fill="#e9e2d0" stroke="#9b9078" stroke-width="1.5"><path d="M28 74 V40 L32 34 L36 40 V74 Z"/><path d="M41 74 V38 L45 32 L49 38 V74 Z"/><path d="M54 74 V38 L58 32 L62 38 V74 Z"/><path d="M67 74 V40 L71 34 L75 40 V74 Z"/></g><rect x="24" y="46" width="54" height="5" fill="#cfc6b4"/><rect x="24" y="62" width="54" height="5" fill="#cfc6b4"/>',
-  wreck: '<g fill="#e07a2a" stroke="#7a3a10" stroke-width="1.5" stroke-linejoin="round"><path d="M22 48 L36 53 L36 63 L22 66 Z"/><rect x="35" y="47" width="24" height="20" rx="3"/><path d="M50 47 L52 33 Q54 26 63 26 L73 28 L71 34 L63 33 Q60 33 59 37 L58 47 Z"/></g><circle cx="46" cy="70" r="7" fill="#333"/><circle cx="46" cy="70" r="3" fill="#999"/>',
+// broken things: the ghost of the thing, pale and floating, with a wispy tail and a little face (D107, D108)
+const GHOST = {
+  house: '<path d="M24 50 L50 26 L76 50 Z"/><rect x="30" y="48" width="40" height="22"/>',
+  shed: '<path d="M26 44 L74 36 L74 42 L26 50 Z"/><rect x="30" y="45" width="40" height="25"/>',
+  fence: '<path d="M26 70 V40 L31 33 L36 40 V70 Z M41 70 V37 L46 30 L51 37 V70 Z M56 70 V37 L61 30 L66 37 V70 Z"/><rect x="22" y="44" width="52" height="6"/><rect x="22" y="58" width="52" height="6"/>',
+  wrongtree: '<circle cx="50" cy="36" r="15"/><circle cx="37" cy="44" r="11"/><circle cx="63" cy="44" r="11"/><rect x="34" y="44" width="32" height="26"/>',
+  wreck: '<path d="M20 46 L34 51 L34 63 L20 66 Z"/><rect x="33" y="45" width="26" height="25" rx="3"/><path d="M50 45 L52 31 Q54 24 63 24 L73 26 L71 32 L63 31 Q60 31 59 35 L58 45 Z"/>',
 };
-function no(kind) {
-  return wrap(cut('<circle cx="50" cy="50" r="44" fill="#fff"/>', 8) + ICON[kind] +
-    '<circle cx="50" cy="50" r="38" fill="none" stroke="#d62b25" stroke-width="8"/><path d="M23 23 L77 77" stroke="#d62b25" stroke-width="8"/>');
+function ghost(kind) {
+  const tail = '<path d="M30 68 C30 80 42 76 46 84 C50 92 62 86 62 94 C70 86 58 80 64 74 C68 70 70 69 70 66 Z"/>';
+  return wrap(cut('<circle cx="50" cy="50" r="44" fill="#3a3f72"/>', 8) +
+    '<circle cx="24" cy="26" r="1.6" fill="#fff" opacity=".7"/><circle cx="78" cy="22" r="1.2" fill="#fff" opacity=".6"/><circle cx="82" cy="70" r="1.4" fill="#fff" opacity=".5"/>' +
+    `<g fill="#eef4ff" opacity=".9" stroke="#c8d6ff" stroke-width="1.5" stroke-linejoin="round">${GHOST[kind]}${tail}</g>` +
+    '<path d="M36 74 Q30 82 38 88 M66 70 Q76 76 70 86" stroke="#c8d6ff" stroke-width="2" fill="none" stroke-linecap="round" opacity=".8"/>' +
+    '<ellipse cx="43" cy="58" rx="3.2" ry="4.2" fill="#2a2d55"/><ellipse cx="57" cy="58" rx="3.2" ry="4.2" fill="#2a2d55"/><path d="M46 65 Q50 62 54 65" stroke="#2a2d55" stroke-width="2" fill="none" stroke-linecap="round"/>');
+}
+// rigging: a block hanging from the stem, the rope down to a sawn-off log, a dashed kerf
+function rigcut() {
+  return wrap(cut('<circle cx="50" cy="50" r="44" fill="#2f8f6a"/>', 8) +
+    '<rect x="16" y="14" width="14" height="74" rx="3" fill="#8a5a2e"/>' +
+    '<path d="M30 22 H44" stroke="#ccc" stroke-width="4"/><circle cx="50" cy="24" r="8" fill="#d8d8d8" stroke="#555" stroke-width="2.5"/><circle cx="50" cy="24" r="2.5" fill="#555"/>' +
+    '<path d="M58 24 V54 M42 24 V82" stroke="#ff9a1f" stroke-width="3.5"/>' +
+    '<rect x="44" y="52" width="38" height="12" rx="5" fill="#a06a36" transform="rotate(-12 63 58)"/><ellipse cx="44" cy="62" rx="3" ry="6" fill="#e6c08a" transform="rotate(-12 63 58)"/>' +
+    '<path d="M30 60 L44 60" stroke="#fff" stroke-width="2.5" stroke-dasharray="3 2"/>');
+}
+// a heavy log set down softly on the rope: the log on the ground, the rope up out of view, a feather
+function lower() {
+  return wrap(cut('<circle cx="50" cy="50" r="44" fill="#3a7fb5"/>', 8) +
+    '<defs><clipPath id="lowc"><circle cx="50" cy="50" r="44"/></clipPath></defs><path clip-path="url(#lowc)" d="M4 74 Q50 68 96 74 L96 100 L4 100 Z" fill="#5c8a3a"/>' +
+    '<path d="M62 12 V58" stroke="#ff9a1f" stroke-width="3.5"/>' +
+    '<rect x="22" y="56" width="58" height="16" rx="7" fill="#9a6532"/><ellipse cx="22" cy="64" rx="4" ry="8" fill="#e6c08a"/><path d="M30 60 H70 M34 67 H74" stroke="#6b431d" stroke-width="1.5"/>' +
+    '<path d="M28 34 C34 20 46 16 50 18 C46 26 38 34 28 34 Z" fill="#fff"/><path d="M28 34 L48 19" stroke="#bbb" stroke-width="1.2"/>' +
+    '<text x="50" y="49" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-weight="900" font-size="12" fill="#fff">600 kg</text>');
+}
+// the wood you are lanyarded to going down: a stem piece with an orange loop on it, tipping off a sawn stump
+function perch(bg, word) {
+  return wrap(cut(`<circle cx="50" cy="50" r="44" fill="${bg}"/>`, 8) +
+    '<rect x="40" y="62" width="18" height="26" fill="#8a5a2e"/><ellipse cx="49" cy="62" rx="9" ry="3" fill="#e6c08a"/>' +
+    '<g transform="rotate(28 52 56)"><rect x="42" y="12" width="18" height="42" rx="3" fill="#a06a36"/><ellipse cx="51" cy="35" rx="14" ry="5" fill="none" stroke="#ff9a1f" stroke-width="3.5"/></g>' +
+    '<path d="M70 20 q6 4 4 10 M76 34 q6 3 5 9" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/>' +
+    `<rect x="12" y="70" width="76" height="18" rx="5" fill="#fff" stroke="#222" stroke-width="2.5" transform="rotate(-5 50 79)"/>` +
+    `<text x="50" y="84" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-weight="900" font-size="${word.length > 10 ? 10 : 12.5}" fill="#222" transform="rotate(-5 50 79)">${word}</text>`);
 }
 // a lanyard: an orange rope loop round a bit of trunk, cut through with sparks at the cut, and a word on a banner
 function lanyard(word, bg) {
@@ -89,8 +122,18 @@ function lanyard(word, bg) {
     `<text x="50" y="82" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-weight="900" font-size="15" fill="#222" transform="rotate(-6 50 76)">${word}</text>`);
 }
 
-const ART = { tree, chip, bin, skull, salad, house: () => no('house'), shed: () => no('shed'), fence: () => no('fence'), wreck: () => no('wreck'),
-  cutself: () => lanyard('OOPS!', '#f2c230'), cutother: () => lanyard('SORRY!', '#8e5bd0') };
+// bankrupt: an empty wallet, open, a moth flying out
+function broke() {
+  return wrap(cut('<circle cx="50" cy="50" r="44" fill="#c4302b"/>', 8) +
+    '<rect x="22" y="44" width="56" height="34" rx="6" fill="#6b431d"/><path d="M22 50 Q50 36 78 50" fill="#8a5a2e"/><rect x="60" y="56" width="18" height="12" rx="3" fill="#8a5a2e"/><circle cx="66" cy="62" r="2.5" fill="#e6c08a"/>' +
+    '<g fill="#e8dcc0" stroke="#8a7a5a" stroke-width="1"><path d="M50 32 C42 20 34 22 38 30 C34 34 42 38 50 32 Z"/><path d="M50 32 C58 20 66 22 62 30 C66 34 58 38 50 32 Z"/></g><path d="M50 26 V36" stroke="#5a4a30" stroke-width="2"/>' +
+    '<path d="M42 40 q4 -3 8 0 M50 40 q4 -3 8 0" stroke="#fff" stroke-width="1.5" fill="none" opacity=".7"/>' +
+    '<text x="50" y="91" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-weight="900" font-size="11" fill="#fff">$0</text>');
+}
+
+const ART = { tree, chip, bin, skull, salad, wrongtree: () => ghost('wrongtree'), broke, house: () => ghost('house'), shed: () => ghost('shed'), fence: () => ghost('fence'), wreck: () => ghost('wreck'),
+  cutself: () => lanyard('OOPS!', '#f2c230'), cutother: () => lanyard('SORRY!', '#8e5bd0'), rigcut, lower,
+  perch: () => perch('#e0663a', 'GOING DOWN!'), perchother: () => perch('#8e5bd0', 'LOOK OUT!') };
 
 /** The SVG text of sticker kind k at tier t. */
 export function stickerSVG(k, t = 0) { return (ART[k] || bin)(t); }
@@ -112,13 +155,19 @@ export function stickerInfo(k, t = 0) {
         `The crew has chipped 90% of the job tree, and you fed at least ${share()} of it. Gold at 99%.`,
         `The crew has chipped 99% of the job tree, and you fed at least ${share()} of it.`][t],
     };
-    case 'bin': return { name: '100%', desc: `99% of the job tree went through the chipper and into the bins, and you put at least ${share()} of those chips there.` };
-    case 'house': return { name: 'No houses', desc: 'Wood you sent, or a chipper running away from you, broke part of a house this job.' };
-    case 'shed': return { name: 'No sheds', desc: 'Wood you sent, or a chipper running away from you, broke a shed this job.' };
-    case 'fence': return { name: 'No fences', desc: 'Wood you sent, or a chipper running away from you, broke a fence this job.' };
-    case 'wreck': return { name: 'No chippers', desc: 'Wood you sent wrecked a chipper this job.' };
+    case 'wrongtree': return { name: 'Sorry, Tree!', desc: 'You sawed down a neighbour\'s tree. Wrong tree!' };
+    case 'broke': return { name: 'Bankrupt', desc: 'The job\'s cash went below zero.' };
+    case 'bin': return { name: t ? 'Gold 100%' : '100%', desc: `99% of the job tree went through the chipper and into the bins, and you put at least ${share()} of those chips there.` + (t ? ' And the job still had money left.' : '') };
+    case 'house': return { name: 'Sorry, House!', desc: 'Wood you sent, or a chipper running away from you, broke part of a house this job.' };
+    case 'shed': return { name: 'Sorry, Shed!', desc: 'Wood you sent, or a chipper running away from you, broke a shed this job.' };
+    case 'fence': return { name: 'Sorry, Fence!', desc: 'Wood you sent, or a chipper running away from you, broke a fence this job.' };
+    case 'wreck': return { name: 'Sorry, Chipper!', desc: 'Wood you sent wrecked a chipper this job.' };
+    case 'rigcut': return { name: 'Rigged', desc: 'On your spurs, you sawed free wood that was tied to the rigging rope.' };
+    case 'lower': return { name: 'Soft landing', desc: `On the rope, you let a piece of ${CFG.STICKER_LOWER_KG} kg or more down onto the ground, and nothing broke for ${CFG.STICKER_LOWER_T} seconds after.` };
+    case 'perch': return { name: 'Going down!', desc: 'You sawed free the wood you were lanyarded to.' };
+    case 'perchother': return { name: 'Look out!', desc: 'You sawed free wood someone else was lanyarded to. Only the first time ever counts.' };
     case 'cutself': return { name: 'Oops!', desc: 'You sawed through your own lanyard this job.' };
-    case 'cutother': return { name: 'Sorry!', desc: 'You sawed through someone else\'s lanyard this job.' };
+    case 'cutother': return { name: 'Sorry!', desc: 'You sawed through someone else\'s lanyard. Only the first time ever counts.' };
     case 'skull': return { name: 'Skull', desc: 'You went down this job.' };
     case 'salad': return { name: 'Salad', desc: `You ate ${CFG.STICKER_SALADS} tube salads this job.` };
   }
