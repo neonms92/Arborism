@@ -8,11 +8,12 @@
 // ordinary rooted tree: a 'tree' event with `stand` set to its index. From then on it is wood like the job tree.
 //
 // world.stands = {g: shared shape {dens, blen, sl, cap, pitch}, list: [{x, y, z, seed, h, d, piece, k}]}
-// (y: the trunk's base; piece: 0 while dormant, else the rooted piece it became; k: 1 for a utility pole, a
+// (y: the trunk's base; cut: where it was pruned at planting, model/prune.js; piece: 0 while dormant, else the rooted piece it became; k: 1 for a utility pole, a
 // straight trunk with no branches whose segments are marked pl (no spurs go into it), model/lines.js)
 
 import { generateTree } from './treegen.js';
 import { gridFor } from './fibres.js';
+import { applyCuts } from './prune.js';
 
 /** The shape generateTree grows stand i from. */
 export function standShape(stands, st) { return { ...stands.g, h: st.h, d: st.d }; }
@@ -20,7 +21,7 @@ export function standShape(stands, st) { return { ...stands.g, h: st.h, d: st.d 
 /** Stand st's segments (ids from newId), at its place in the world: the same on every machine. */
 export function standSegs(stands, st, newId) {
   if (st.k === 1) return poleSegs(st, newId, stands.g.pitch);
-  return generateTree(st.seed, newId, [st.x, st.y, st.z], standShape(stands, st));
+  return applyCuts(generateTree(st.seed, newId, [st.x, st.y, st.z], standShape(stands, st)), st.cut);
 }
 
 /** A utility pole: a straight round trunk h tall, d across at its base, two thirds of that at its top. */

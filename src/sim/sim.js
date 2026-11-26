@@ -7,7 +7,8 @@ import { CFG } from '../config.js';
 import { segLen, segAxis, segMass, segParam, segRadius, lerp3 } from '../model/world.js';
 import { layout, bundleBasis, isGone } from '../model/fibres.js';
 import { generateTree, treeShape } from '../model/treegen.js';
-import { markOn } from '../model/stands.js';
+import { markOn, standSegs, trunkOf } from '../model/stands.js';
+import { obstacles, pruneCuts, applyCuts } from '../model/prune.js';
 import { Stands } from './stands.js';
 import { frameApply, frameDir, frameInverse } from '../model/flex.js';
 import { Players } from './players.js';
@@ -104,7 +105,8 @@ export class Sim {
     const poles = plan.poles || [];
     if (plan.trees.length || poles.length) this.emit({ t: 'stands', ...this.standList(plan.trees, poles) });
     this.lines.place(plan, plan.trees.length);
-    const segs = generateTree(CFG.TREE_SEED, () => this.world.newId());
+    let segs = generateTree(CFG.TREE_SEED, () => this.world.newId());
+    if (!this.flat) segs = this.prune(segs);
     // the job tree is marked with an orange X, sprayed on the side facing its street (not on flat ground: the engine tests)
     this.emit({ t: 'tree', piece: this.world.newId(), segs, mark: this.flat ? undefined : markOn(segs, CFG.MARK_HEIGHT, plan.front) });
     // the budget goes by the lots' width for the yard density (each lot is that within 15%), so it does not jump about
@@ -112,6 +114,25 @@ export class Sim {
     const d = Math.min(1, Math.max(0, CFG.YARD_DENSITY));
     this.damage.job(this.flat ? 0 : CFG.YARD_LOT_MAX + (CFG.YARD_LOT_MIN - CFG.YARD_LOT_MAX) * d);
     if (!this.flat) this.awards.begin();   // (not in the engine tests: the job id is random, and FM-21 wants the same events twice)
+  }
+
+  /**
+   * Pruning at planting (model/prune.js, D113): every branch that grows into a build, a power line, another
+   * trunk or the ground is cut off. The other trees' cuts go out in a 'prune' event; the job tree's segments
+   * (segs) come back without theirs.
+   */
+  prune(segs) {
+    const w = this.world, jt = trunkOf(segs);
+    const O = obstacles(w, jt.map((g) => ({ a: g.a, b: g.b, r: Math.max(g.r0, g.r1), own: 'job' })));
+    const cuts = [];
+    if (w.stands) w.stands.list.forEach((st, i) => {
+      if (st.k === 1) return;                                   // a pole has no branches
+      let n = 0;
+      const c = pruneCuts(standSegs(w.stands, st, () => ++n), O, i);
+      if (c.length) cuts.push([i, c]);
+    });
+    if (cuts.length) this.emit({ t: 'prune', cut: cuts });
+    return applyCuts(segs, pruneCuts(segs, O, 'job'));
   }
 
   /** The 'stands' event for the planned trees: each stands on the lowest ground round its trunk, so it never floats. */

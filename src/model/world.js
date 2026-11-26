@@ -194,6 +194,9 @@ export class World {
       case 'stands':                // the other trees in the yards, all dormant
         this.stands = ev.list.length ? { g: ev.g, list: ev.list.map(([x, y, z, seed, h, d, k]) => ({ x, y, z, seed, h, d, piece: 0, ...(k ? { k } : {}) })) } : null;
         break;
+      case 'prune':                 // branches of the other trees that grew into something, cut off (model/prune.js)
+        if (this.stands) for (const [i, cut] of ev.cut) if (this.stands.list[i]) this.stands.list[i].cut = cut;
+        break;
       case 'reset':                 // all wood gone (a new tree follows)
         this.segs.clear(); this.pieces.clear(); this.rope = { state: 0 }; this.damage = 0; this.wages = 0; this.spent = 0; this.job = null; this.stands = null; this.mark = null; this.lines = null;
         this.prog = newProg();

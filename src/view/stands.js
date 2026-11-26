@@ -20,7 +20,7 @@ export class StandsView {
   }
 
   onEvent(ev) {
-    if (ev.t === 'stands' || ev.t === 'reset' || ev.t === 'load') { this.cache.clear(); this.rebuild(); }
+    if (ev.t === 'stands' || ev.t === 'prune' || ev.t === 'reset' || ev.t === 'load') { this.cache.clear(); this.rebuild(); }
     else if (ev.t === 'tree' && ev.stand !== undefined) this.rebuild();
   }
 

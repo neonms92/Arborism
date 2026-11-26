@@ -970,10 +970,23 @@ what the engine tests use. The word is not remembered between visits.
   (the ground averaged over `STREET_SMOOTH` either way), blended into the
   hills over `STREET_BLEND`, drawn dark grey with a dashed centre line.
 - **The tree's lot** is a lot like the others, the same size for the
-  density, placed so the tree stands in its back half. It starts with the
-  trunk's clear ground taken (`YARD_TREE_CLEAR` beyond the trunk), then
-  usually gets paving round the trunk (6.4) and, once its house is placed,
-  the chipper (6.5); then it is filled like any lot.
+  density, placed so the tree stands anywhere in it (D113): its trunk, as
+  it leans, up to `POLE_HEIGHT`, only has to be `YARD_TREE_EDGE` inside the
+  lot's lines, so it can be right by a fence, the street or the house. It
+  starts with that trunk taken (plus `YARD_TREE_CLEAR`), then gets its
+  house, then usually paving round the trunk (6.4, as big as there is room
+  for, at least three cells beyond the pit) and the chipper (6.5); then it
+  is filled like any lot, other trees included. A house takes only itself,
+  its porch and its sidewalk, so trees can stand in front yards; a
+  sidewalk that would run into something is left out. A drop (6.10) comes
+  from the nearest pole whose line to the house passes no trunk.
+- **Pruning at planting** (D113, `model/prune.js`): when the trees are
+  planted, any branch (never a trunk) that would grow into a build module,
+  a power line, another tree's trunk or a pole, or the ground, is cut off
+  with everything beyond it. The job tree's segments are cut on the host
+  before its `tree` event; the other trees' cuts go out in a `prune` event
+  (`stand.cut`, indices in the generator's order) so every machine draws
+  them alike.
 - **Fitting**: everything on a lot goes only where it fits, inside the lot
   and clear of what is already there (rectangles in the lot's frame): a
   house tries smaller sizes and other positions, a shed the other corner,
