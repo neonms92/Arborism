@@ -479,7 +479,7 @@ other view switches are in the Tab menu (section 7).
 ### 4.1 Plant, pivot, press
 
 There is no "cut" object and no cutting mode with its own coordinates. The
-saw is a 0.5 m bar (`BAR_LEN`) with a planted point `A` at the middle of its
+saw is a 0.6 m bar (`BAR_LEN`) with a planted point `A` at the middle of its
 leading edge, a bar direction `b` and a feed direction `f`.
 
 - **Plant** (hold right mouse / LT while looking at wood within
