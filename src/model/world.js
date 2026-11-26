@@ -84,14 +84,15 @@ export class World {
     this.rope = { state: 0 };
     this.players = new Map();     // id -> {id, name}
     this.paving = null;           // concrete pavers round the tree (model/pavers.js)
-    this.chipper = null;          // the wood chipper and its chip piles (model/chipper.js)
+    this.chipper = null;          // the wood chippers and their chip piles: {piles, units: [{p, q, wreck}]} (model/chipper.js)
     this.builds = [];             // breakable structures: the shed (model/builds.js)
     this.terrain = null;          // the ground (model/terrain.js); null = flat at y = 0
     this.stands = null;           // the other trees in the yards (model/stands.js)
     this.mark = null;             // the orange X on the job tree
     this.damage = 0;              // $, running cost of what the job broke (sim/damage.js)
     this.job = null;              // the job's budget and how it was worked out: {budget, h, d, lot} (sim/damage.js)
-    this.wages = 0;               // $ paid out in wages so far; cash = job.budget - damage - wages
+    this.wages = 0;               // $ paid out in wages so far; cash = job.budget - damage - wages - spent
+    this.spent = 0;               // $ spent on purchases (another chipper) this job
     this.seed = '';               // the world's seed word, '' when none (model/seed.js; set by the 'terrain' event)
     this.nextId = 1;              // host allocates all ids
     this.listeners = [];
@@ -184,7 +185,7 @@ export class World {
         this.stands = ev.list.length ? { g: ev.g, list: ev.list.map(([x, y, z, seed, h, d]) => ({ x, y, z, seed, h, d, piece: 0 })) } : null;
         break;
       case 'reset':                 // all wood gone (a new tree follows)
-        this.segs.clear(); this.pieces.clear(); this.rope = { state: 0 }; this.damage = 0; this.wages = 0; this.job = null; this.stands = null; this.mark = null;
+        this.segs.clear(); this.pieces.clear(); this.rope = { state: 0 }; this.damage = 0; this.wages = 0; this.spent = 0; this.job = null; this.stands = null; this.mark = null;
         this._dirty();
         break;
       case 'cut': {                 // the saw severed fibres i[] at z[] (m from the segment base)
@@ -209,10 +210,13 @@ export class World {
         this._ropeCheck(info);
         break;
       }
-      case 'chipper':               // parked fresh, whole (keep: a respawn, which leaves the chip piles where they are)
-        this.chipper = { p: ev.p, q: ev.q, piles: ev.keep && this.chipper ? this.chipper.piles : [], wreck: null };
+      case 'chipper':               // a chipper parked fresh, whole. With every new tree the only one (and no chip piles);
+        // add: one more bought (unit k), the others and the chip piles left as they are
+        if (ev.add && this.chipper) this.chipper.units[ev.k] = { p: ev.p, q: ev.q, wreck: null };
+        else this.chipper = { piles: [], units: [{ p: ev.p, q: ev.q, wreck: null }] };
         break;
-      case 'chipwreck': if (this.chipper) this.chipper.wreck = { at: ev.at, ids: ev.ids }; break;   // it crumpled
+      case 'chipwreck': { const u = this.chipper && this.chipper.units[ev.k || 0]; if (u) u.wreck = { at: ev.at, ids: ev.ids }; break; }   // it crumpled
+      case 'buy': this.spent += ev.cost; break;       // something bought for the job (sim/chippers.js: another chipper)
       case 'chips':                 // a player took V m3 off pile i (take: [i, V]), or put V m3 down at (x, z) (drop: [x, z, V])
         if (!this.chipper) break;
         if (ev.take) { const pl = this.chipper.piles[ev.take[0]]; if (pl) pl[2] = Math.max(0, +(pl[2] - ev.take[1]).toFixed(5)); }
@@ -234,7 +238,7 @@ export class World {
       case 'smash': smashBuild(this.builds, ev); break;           // a module came apart (sim/builds.js)
       case 'rope': this.rope = ev.rope; break;
       case 'damage': this.damage += ev.cost; break;   // the price of something broken (sim/damage.js)
-      case 'budget': this.job = ev.job; this.wages = 0; break;   // a new job: what it pays to start with (sim/damage.js)
+      case 'budget': this.job = ev.job; this.wages = 0; this.spent = 0; break;   // a new job: what it pays to start with (sim/damage.js)
       case 'wages': this.wages += ev.cost; break;     // the crew's pay since the last of these
       case 'terrain': this.terrain = makeTerrain(ev.spec); this.seed = ev.seed || ''; break;   // the ground, made from its spec on every machine; seed: the world's word (model/seed.js)
       case 'pavers': this.paving = newPaving(ev.c, ev.areas, this.terrain, ev.slope); break;   // laid fresh (no damage): the tree's circle and the yards' paving
@@ -373,14 +377,14 @@ export class World {
   }
 
   /** $ left of the job's budget (null before a job is set). */
-  cash() { return this.job ? this.job.budget - this.damage - this.wages : null; }
+  cash() { return this.job ? this.job.budget - this.damage - this.wages - this.spent : null; }
 
   // ---- welcome ----
   serialize() {
     return {
       segs: [...this.segs.values()].map((s) => ({ ...s, f: packBundle(s.f) })), pieces: [...this.pieces.values()],
       rope: this.rope, players: [...this.players.values()], paving: packPaving(this.paving), chipper: this.chipper, builds: packBuilds(this.builds),
-      terrain: this.terrain ? this.terrain.spec : null, damage: this.damage, job: this.job, wages: this.wages, stands: this.stands, mark: this.mark, seed: this.seed || '',
+      terrain: this.terrain ? this.terrain.spec : null, damage: this.damage, job: this.job, wages: this.wages, spent: this.spent, stands: this.stands, mark: this.mark, seed: this.seed || '',
     };
   }
   load(o) {
@@ -392,8 +396,9 @@ export class World {
     this.terrain = makeTerrain(o.terrain || null);
     this.paving = unpackPaving(o.paving, this.terrain);
     this.chipper = o.chipper || null;
+    if (this.chipper && !this.chipper.units) this.chipper = { piles: this.chipper.piles || [], units: [{ p: this.chipper.p, q: this.chipper.q, wreck: this.chipper.wreck || null }] };
     this.builds = unpackBuilds(o.builds);
-    this.damage = o.damage || 0; this.job = o.job || null; this.wages = o.wages || 0;
+    this.damage = o.damage || 0; this.job = o.job || null; this.wages = o.wages || 0; this.spent = o.spent || 0;
     this.stands = o.stands || null; this.mark = o.mark || null; this.seed = o.seed || '';
     this._dirty();
     for (const fn of this.listeners) fn({ t: 'load' }, {});

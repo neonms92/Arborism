@@ -107,7 +107,8 @@ export const ROWS = [
   ['CHIP_SWELL', 'Chips: loose volume per volume of wood', 1, 5, 0.1, 1, true],
   ['CHIP_CARRY', 'Chips a player can carry (litres)', 1, 500, 1, 0.001, true],
   ['CHIP_BREAK_F', 'Hit that crumples it (kN, from wood or a structure)', 1, 500, 1, 1000, true],
-  ['@chipper', 'New chipper', 'Respawn the chipper (removes the old one, broken or not; chip piles stay)'],
+  ['@chipper', 'Buy a new chipper', 'Buy another chipper (CHIPPER_PRICE off the cash), parked near where the first one was; the ones you have stay'],
+  ['CHIP_MAX', 'Most chippers at once (the buy button stops there)', 1, 20, 1, 1, true],
   ['Houses, sheds and fences (breakable structures)'],
   ['HOUSE_BREAK_F', 'House: force from wood that breaks one room apart (N)', 500, 400000, 500, 1, true],
   ['SHED_BREAK_F', 'Shed: force from wood that breaks it apart (N)', 500, 200000, 500, 1, true],
@@ -123,6 +124,7 @@ export const ROWS = [
   ['FENCE_COST', 'Cost of a broken fence section ($)', 0, 5000, 25, 1, true],
   ['SHED_COST', 'Cost of a smashed shed ($)', 0, 20000, 100, 1, true],
   ['HOUSE_COST', 'Cost of a smashed room of a house ($)', 0, 200000, 500, 1, true],
+  ['CHIPPER_PRICE', 'Price of a new chipper ($, the Buy a new chipper button)', 0, 100000, 500, 1, true],
   ['CHIPPER_COST', 'Cost of a wrecked chipper truck ($)', 0, 200000, 500, 1, true],
   ['New tree (these apply when you press Grow)'],
   ['TREE_HEIGHT', 'Height (m)', 3, 30, 0.5, 1, true],
@@ -155,6 +157,7 @@ export const ROWS = [
   ['YARD_TREES_THICK', 'Other trees: trunk diameter per metre of height (cm)', 1, 10, 0.1, 0.01, true],
   ['YARD_TREES_PITCH', 'Other trees: fibre width once sawn or climbed (mm; bigger = fewer fibres, faster)', 8, 200, 1, 0.001, true],
   ['@grow', 'Grow tree', 'Clear all wood and grow a new tree'],
+  ['@respawn', 'Respawn player', 'Put yourself back where you started, unhurt'],
   ['Chainsaw'],
   ['CUT_RATE', 'Cutting rate (cm2 of wood per second)', 10, 1000, 10, 1e-4, true],
   ['BAR_LEN', 'Chainsaw bar length (cm)', 20, 150, 5, 0.01, true],
@@ -222,9 +225,9 @@ export class Menu {
         el.appendChild(d); sec = { d, title: r[0], rows: [] }; sections.push(sec); continue;
       }
       const into = sec ? sec.d : el;
-      if (r[0] === '@grow' || r[0] === '@chipper') {   // actions: kept out of the sections, beside the reset button
+      if (r[0] === '@grow' || r[0] === '@chipper' || r[0] === '@respawn') {   // actions: kept out of the sections, beside the reset button
         const b = document.createElement('button'); b.textContent = r[1]; b.title = r[2] || ''; b.className = 'go';
-        b.onclick = () => (r[0] === '@grow' ? this.onGrow() : this.onChipper && this.onChipper());
+        b.onclick = () => (r[0] === '@grow' ? this.onGrow() : r[0] === '@chipper' ? this.onChipper && this.onChipper() : this.onRespawn && this.onRespawn());
         actions.push(b); continue;
       }
       if (r[0] === '@skip') {                           // an action that belongs to its section

@@ -1,5 +1,6 @@
-// Draws the wood chipper (shape from model/chipper.js), its chip piles, and
-// chips flying out of the chute while it is chipping. No game rules.
+// Draws the wood chippers (shape from model/chipper.js; one or more, world.chipper.units),
+// their salad racks, the chip piles, and chips flying out of a chute while it is
+// chipping. No game rules.
 
 import * as THREE from 'three';
 import { SHAPE, CHIPPER_BODY_ID, pileShape, chipToWorld, WRECK, cageArc } from '../model/chipper.js';
@@ -12,7 +13,7 @@ const SPRAY = 48;
 export class ChipperView {
   constructor(scene, world) {
     this.scene = scene; this.world = world;
-    this.group = new THREE.Group(); this.group.visible = false;
+    this.group = new THREE.Group();        // the template every chipper's group is a clone of (never in the scene)
     const S = SHAPE, lam = (c, extra) => new THREE.MeshLambertMaterial({ color: c, flatShading: true, ...extra });
     const orange = lam(0xe0701c), dark = lam(0x2a2a2a), grey = lam(0x8a8d90), yellow = lam(0xf2c418);
     const box = (b, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(b.h[0] * 2, b.h[1] * 2, b.h[2] * 2), mat); m.position.set(...b.c); return m; };
@@ -46,42 +47,71 @@ export class ChipperView {
       for (const s of [-1, 1]) parts.push(tube([new THREE.Vector3(x, foot[0], s * foot[1]), new THREE.Vector3(x, foot[0], s * S.CHASSIS.h[2])]));
     }
     for (let j = 0; j <= 4; j++) { const [y, z] = arc[Math.round(j * (arc.length - 1) / 4)]; parts.push(tube([new THREE.Vector3(C.x0, y, z), new THREE.Vector3(C.x1, y, z)])); }
+    // the salad rack on the side away from the chute: a grey open box with three tube salads standing in it
+    const R = S.RACK, T = 0.012, rack = [];
+    rack.push(box({ c: [R.c[0], R.c[1] - R.h[1] + T, R.c[2]], h: [R.h[0], T, R.h[2]] }, grey));             // floor
+    rack.push(box({ c: [R.c[0], R.c[1], R.c[2] + R.h[2] - T], h: [R.h[0], R.h[1], T] }, grey));              // back, on the chassis
+    for (const sx of [-1, 1]) rack.push(box({ c: [R.c[0] + sx * (R.h[0] - T), R.c[1], R.c[2]], h: [T, R.h[1], R.h[2]] }, grey));
+    rack.push(box({ c: [R.c[0], R.c[1] - R.h[1] * 0.55, R.c[2] - R.h[2] + T], h: [R.h[0], 0.01, T] }, grey));   // the low front bar that holds them in
+    this.saladGeo = saladGeometry();
+    this.saladMat = lam(0x3fae3a);
+    for (const c of S.SALADS) { const m = new THREE.Mesh(this.saladGeo, this.saladMat); m.position.set(...c); rack.push(m); }
+    parts.push(...rack);
     for (const m of parts) { m.castShadow = true; m.receiveShadow = true; this.group.add(m); }
-    scene.add(this.group);
+    this.units = [];                // per world.chipper.units[k]: {group, spray, t, posed, wreckRoot, wreckParts}
 
     this.pileMat = lam(0xc49a5c);
     this.chipMat = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
     this.piles = [];                // [{mesh, chips, V}]
-    this.spray = new THREE.InstancedMesh(new THREE.BoxGeometry(0.05, 0.015, 0.035), this.chipMat, SPRAY);
-    this.spray.frustumCulled = false; this.spray.visible = false;
-    const c = new THREE.Color();
-    for (let i = 0; i < SPRAY; i++) this.spray.setColorAt(i, c.setHSL(0.09 + (i % 5) * 0.008, 0.5, 0.55 + (i % 3) * 0.08));
-    scene.add(this.spray);
-    this.t = 0;
+    this.sprayGeo = new THREE.BoxGeometry(0.05, 0.015, 0.035);
     // the wreck, once it has crumpled: one mesh per part
     this.wreckMats = { body: orange, dark: lam(0xb85810), wheel: dark, steel: grey, grip: yellow };
-    this.wreckRoot = new THREE.Group(); scene.add(this.wreckRoot);
-    this.wreckParts = new Map();    // part body id -> {m, rest}
   }
 
-  syncWreck() {
-    this.wreckRoot.clear(); this.wreckParts.clear();
-    const wr = this.world.chipper && this.world.chipper.wreck; if (!wr) return;
-    WRECK.forEach((pt, k) => {
+  /** The drawing of chipper k, made the first time it is needed. */
+  unit(k) {
+    let u = this.units[k];
+    if (u) return u;
+    const group = this.group.clone(); group.visible = false;
+    const spray = new THREE.InstancedMesh(this.sprayGeo, this.chipMat, SPRAY);
+    spray.frustumCulled = false; spray.visible = false;
+    const c = new THREE.Color();
+    for (let i = 0; i < SPRAY; i++) spray.setColorAt(i, c.setHSL(0.09 + (i % 5) * 0.008, 0.5, 0.55 + (i % 3) * 0.08));
+    const wreckRoot = new THREE.Group();
+    this.scene.add(group, spray, wreckRoot);
+    u = this.units[k] = { k, group, spray, t: 0, posed: false, wreckRoot, wreckParts: new Map() };   // wreckParts: part body id -> {m, rest}
+    return u;
+  }
+  /** Units beyond what the world has (after a new tree) go. */
+  trim() {
+    const n = this.world.chipper ? this.world.chipper.units.length : 0;
+    while (this.units.length > n) { const u = this.units.pop(); this.scene.remove(u.group, u.spray, u.wreckRoot); u.spray.dispose(); }
+  }
+
+  syncWreck(k) {
+    const u = this.unit(k);
+    u.wreckRoot.clear(); u.wreckParts.clear();
+    const wr = this.world.chipper && this.world.chipper.units[k] && this.world.chipper.units[k].wreck; if (!wr) return;
+    WRECK.forEach((pt, j) => {
       const geo = pt.mat === 'wheel' ? new THREE.CylinderGeometry(pt.h[0], pt.h[0], Math.max(0.04, pt.h[2] * 2), 12).rotateX(Math.PI / 2)
         : new THREE.BoxGeometry(pt.h[0] * 2, pt.h[1] * 2, pt.h[2] * 2);
       const m = new THREE.Mesh(geo, this.wreckMats[pt.mat] || this.wreckMats.body);
       m.castShadow = m.receiveShadow = true;
       const rest = compose(wr.at.p, wr.at.q, pt.c, pt.q);
       m.position.set(...rest.p); m.quaternion.set(...rest.q);
-      this.wreckRoot.add(m); this.wreckParts.set(wr.ids[k], { m, rest });
+      u.wreckRoot.add(m); u.wreckParts.set(wr.ids[j], { m, rest });
     });
   }
 
   onEvent(ev) {
-    if (ev.t === 'chipper' || ev.t === 'load') { this.group.visible = !!this.world.chipper; this.posed = false; this.syncPiles(!ev.keep); this.syncWreck(); }
+    if (ev.t === 'chipper' || ev.t === 'load') {
+      this.trim();
+      const us = this.world.chipper ? this.world.chipper.units : [];
+      us.forEach((x, k) => { if (!ev.add || k === ev.k) { this.unit(k).posed = false; this.syncWreck(k); } });
+      this.syncPiles(!ev.add);
+    }
     else if (ev.t === 'chip' || ev.t === 'chips') this.syncPiles(false);
-    else if (ev.t === 'chipwreck') this.syncWreck();
+    else if (ev.t === 'chipwreck') this.syncWreck(ev.k || 0);
   }
 
   syncPiles(all) {
@@ -126,38 +156,50 @@ export class ChipperView {
     return { mesh, chips, V: pl[2] };
   }
 
-  /** Chipper-local point to world, from where it is drawn now. */
-  toWorld(l, out = new THREE.Vector3()) {
-    const g = this.group;
+  /** Is chipper k drawn whole (not wrecked, not missing)? */
+  whole(k) { const u = this.units[k || 0]; return !!u && u.group.visible; }
+  /** Chipper k's local point to world, from where it is drawn now. */
+  toWorld(l, out = new THREE.Vector3(), k = 0) {
+    const g = this.unit(k).group;
     return out.set(l[0], l[1], l[2]).applyQuaternion(g.quaternion).add(g.position);
   }
 
   update(dt, src, aux) {
-    const ch = this.world.chipper;
-    this.group.visible = !!ch && !ch.wreck;
-    for (const [id, P] of this.wreckParts) {
+    const us = this.world.chipper ? this.world.chipper.units : [];
+    this.trim();
+    us.forEach((ch, k) => this.updateUnit(this.unit(k), ch, dt, src, aux && aux.chip && Array.isArray(aux.chip) ? aux.chip[k] : null));
+  }
+
+  updateUnit(u, ch, dt, src, ax) {
+    u.group.visible = !!ch && !ch.wreck;
+    for (const [id, P] of u.wreckParts) {
       const pose = src.pose(id);
       if (pose) { P.m.position.set(pose.p.x, pose.p.y, pose.p.z); P.m.quaternion.set(pose.q.x, pose.q.y, pose.q.z, pose.q.w); }
     }
-    if (!ch || ch.wreck) { this.spray.visible = false; return; }
-    const pose = src.pose(CHIPPER_BODY_ID);
-    if (pose) { this.group.position.set(pose.p.x, pose.p.y, pose.p.z); this.group.quaternion.set(pose.q.x, pose.q.y, pose.q.z, pose.q.w); }
-    else if (!this.posed) { this.group.position.set(...ch.p); this.group.quaternion.set(...ch.q); }
-    this.posed = !!pose;
+    if (!ch || ch.wreck) { u.spray.visible = false; return; }
+    const pose = src.pose(CHIPPER_BODY_ID + u.k);
+    if (pose) { u.group.position.set(pose.p.x, pose.p.y, pose.p.z); u.group.quaternion.set(pose.q.x, pose.q.y, pose.q.z, pose.q.w); }
+    else if (!u.posed) { u.group.position.set(...ch.p); u.group.quaternion.set(...ch.q); }
+    u.posed = !!pose;
     // chips flying from the chute to where they land
-    const on = !!(aux && aux.chip && aux.chip.on);
-    this.spray.visible = on;
+    const on = !!(ax && ax.on);
+    u.spray.visible = on;
     if (!on) return;
-    this.t += dt;
-    const A = this.toWorld(CHUTE[CHUTE.length - 1]), q = this.group.quaternion, p = this.group.position;
+    u.t += dt;
+    const A = this.toWorld(CHUTE[CHUTE.length - 1], new THREE.Vector3(), u.k), q = u.group.quaternion, p = u.group.position;
     const land = chipToWorld([p.x, p.y, p.z], [q.x, q.y, q.z, q.w], [SHAPE.DISCHARGE[0], -SHAPE.BODY_Y, SHAPE.DISCHARGE[1]]);
     const B = new THREE.Vector3(land[0], groundY(this.world.terrain, land[0], land[2]) + 0.3, land[2]), m = new THREE.Matrix4(), rq = new THREE.Quaternion(), e = new THREE.Euler(), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
     for (let i = 0; i < SPRAY; i++) {
-      const u = (this.t * 1.4 + i / SPRAY) % 1, j = (i * 0.618) % 1 - 0.5;
-      v.lerpVectors(A, B, u); v.y += Math.sin(u * Math.PI) * 0.6; v.x += j * 0.4 * u; v.z += ((i * 0.37) % 1 - 0.5) * 0.4 * u;
-      rq.setFromEuler(e.set(this.t * 9 + i, this.t * 7 + i * 2, 0));
-      this.spray.setMatrixAt(i, m.compose(v, rq, one));
+      const f = (u.t * 1.4 + i / SPRAY) % 1, j = (i * 0.618) % 1 - 0.5;
+      v.lerpVectors(A, B, f); v.y += Math.sin(f * Math.PI) * 0.6; v.x += j * 0.4 * f; v.z += ((i * 0.37) % 1 - 0.5) * 0.4 * f;
+      rq.setFromEuler(e.set(u.t * 9 + i, u.t * 7 + i * 2, 0));
+      u.spray.setMatrixAt(i, m.compose(v, rq, one));
     }
-    this.spray.instanceMatrix.needsUpdate = true;
+    u.spray.instanceMatrix.needsUpdate = true;
   }
+}
+
+/** A tube salad: a green cylinder SALAD_R round and 2 x SALAD_H long. Shared with the players' hands (view.js). */
+export function saladGeometry() {
+  return new THREE.CylinderGeometry(SHAPE.SALAD_R, SHAPE.SALAD_R, SHAPE.SALAD_H * 2, 10);
 }

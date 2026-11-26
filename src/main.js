@@ -34,7 +34,9 @@ function applySeed() {
 menu.onSeed = () => { $('seed').value = CFG.WORLD_SEED; };
 menu.showSeed();
 menu.onSkip = () => { if (sim) sim.skipTime(); else hud.toast('Only the host can change the time of day'); };
-menu.onChipper = () => { if (sim) sim.chipper.respawn(); else hud.toast('Only the host can respawn the chipper'); };
+// the Tab menu's buttons that act for this player go to the host as presses, like any other (sim/players.js)
+menu.onChipper = () => { input.state.c.buyChip++; };
+menu.onRespawn = () => { input.state.c.respawn++; };
 view = new View($('game'), world);
 const hud = new Hud(world);
 hud.view = view;                                 // the HUD shows the draw distance when the frame rate has cut it
@@ -209,10 +211,12 @@ const hostSource = { pose: (id) => sim.pose(id), get flex() { return sim.structu
 const HELP = '{move} move / climb   {look} look   hold {interact}: spur in / move the lanyard (also grabs the rope tail)   hold {drop}: let go of the tree   {jump} jump   ' +
   '{rig}: hang the block, then tie the rope to the wood looked at, or untie at the knot   {punch}: punch the wood (press again and again to push harder)   ' +
   '{raise} plant the saw on the wood you are looking at, then {look} pivots the bar and {throttle} presses it in   ' +
-  'on the rope tail: {throttle} ease, {raise} haul, {wraps} wraps   {menu} settings   {respawn} respawn';
+  'salad rack on the chipper: {interact} takes a tube salad, {eat} eats it, {interact} on another player gives it (heals, even when DOWN)   ' +
+  'on the rope tail: {throttle} ease, {raise} haul, {wraps} wraps   {menu} settings (Respawn player is in there)';
 const TOUCH_HELP = '{move} move / climb   {look} look   the big button does what the prompt says (hold it to spur in or move the lanyard)   ' +
   'hold {drop} to let go of the tree   {rig}, {punch} and {raise} appear when they can be used; with the saw planted, {look} pivots the bar and hold {throttle} to press it in   ' +
-  'on the rope tail: the slider hauls (up) and eases (down), {wraps}   {menu} settings   {respawn} respawn';
+  'at the chipper\'s salad rack the big button takes a tube salad; Eat salad eats it, and the big button gives it to a player you look at   ' +
+  'on the rope tail: the slider hauls (up) and eases (down), {wraps}   {menu} settings (Respawn player is in there)';
 let helpDevice = '';
 
 function frame(now) {

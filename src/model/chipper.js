@@ -6,12 +6,13 @@
 // blows chips out to. The body origin sits BODY_Y above the ground at rest.
 // Wood and rope go in at INFEED along +x and are chipped once past DRUM_X.
 //
-// world.chipper = {p:[3], q:[4] where it was parked, piles: [[x, z, V], ...],
-//                  wreck: null, or {at: {p, q} its pose when it crumpled, ids: [body id of each WRECK part]}}
-// (V = m3 of loose chips). A pile is a cone at the chips' angle of repose; a
+// world.chipper = {piles: [[x, z, V], ...], units: [{p:[3], q:[4] where it was parked,
+//                  wreck: null, or {at: {p, q} its pose when it crumpled, ids: [body id of each WRECK part]}}, ...]}
+// (V = m3 of loose chips). units[0] comes with every new tree; more are bought from the Tab menu
+// ("Buy a new chipper"), and unit k is body CHIPPER_BODY_ID + k in transform snapshots. A pile is a cone at the chips' angle of repose; a
 // pile emptied by players stays in the list at V = 0 so the indices hold.
 
-export const CHIPPER_BODY_ID = 59000;     // its id in transform snapshots (pieces are below, players at 60000+)
+export const CHIPPER_BODY_ID = 59000;     // chipper k is CHIPPER_BODY_ID + k in transform snapshots (pieces are below, players at 60000+)
 
 export const SHAPE = {
   BODY_Y: 0.8,
@@ -37,6 +38,11 @@ export const SHAPE = {
   // Where the drum, flywheel and engine block sit: low in the chassis (mass only, no shape of its own). With it the
   // centre of mass is at CAGE.o (keep them together when changing masses or shapes; a few cm either way still rolls).
   BALLAST: { c: [0, -0.4, 0], h: [1.25, 0.05, 0.6] },
+  // The salad rack: a small open box on the side away from the chute (-z), bolted to the chassis inside the roll cage,
+  // holding three tube salads standing up (SALADS: their centres; radius SALAD_R, half height SALAD_H). Players take
+  // one with {interact}; the rack never runs out. It has no collider: it is reached by a ray against this box.
+  RACK: { c: [0.6, 0.1, -0.74], h: [0.2, 0.14, 0.09] },
+  SALADS: [[0.47, 0.09, -0.76], [0.6, 0.09, -0.76], [0.73, 0.09, -0.76]], SALAD_R: 0.045, SALAD_H: 0.11,
 };
 
 /** The roll cage's curve as chipper-local [y, z] points, from one foot over the top to the other (SHAPE.CAGE). */
@@ -105,6 +111,8 @@ function wreckParts() {
   box(SHAPE.JOCKEY, [SHAPE.JOCKEY_R, 0, 0.04], 0.01, 'wheel');
   box([0.2, h[1] + 0.65, 0.35], [0.13, 0.62, 0.13], 0.03);                                     // the discharge chute, straightened
   for (const x of [SHAPE.CAGE.x0, SHAPE.CAGE.x1]) box([x, h[1] + 0.8, 0], [0.025, 0.025, 1.1], 0.005, 'steel');  // the cage's hoops, straightened
+  const R = SHAPE.RACK;
+  box([R.c[0], R.c[1], R.c[2] - G], [R.h[0], R.h[1], R.h[2] - 0.02], 0.004, 'steel');          // the salad rack, torn off
   return out;
 }
 export const WRECK = wreckParts();

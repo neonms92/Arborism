@@ -7,7 +7,8 @@ import { CFG, INJ, MODE } from '../config.js';
 import { segLen, segAxis, segRadius, segParam, lerp3, perp, cleanName, cleanColor, playerName } from '../model/world.js';
 import { sawStep, sawOff } from './saw.js';
 
-const COUNTERS = ['jump', 'interact', 'drop', 'rig', 'punch', 'wrapUp', 'wrapDn', 'respawn'];
+// respawn and buyChip are the Tab menu's "Respawn player" and "Buy a new chipper" buttons (no key or button of their own)
+const COUNTERS = ['jump', 'interact', 'drop', 'rig', 'punch', 'wrapUp', 'wrapDn', 'respawn', 'buyChip'];
 export function blankInput() {
   const c = {}; for (const k of COUNTERS) c[k] = 0;
   // sy, sp: how far the saw is swung from straight-ahead-and-level (rad)
@@ -38,6 +39,8 @@ export class Players {
       ch: null, chLock: new Set(),   // channel in progress {kind, t, need, seen}; kinds done and not yet let go of
       punch: null,                   // {seg, p: piece-local point, d: world direction, F: N}, fading
       grab: null,                    // holding wood on the ground: {seg, p: piece-local point, L0: rope length, prev}
+      held: '',                      // what is in the other hand: '' or 'salad' (a tube salad off a chipper's rack)
+      rtPrev: 0,                     // {throttle} last tick, for its press (eating)
     };
     this.list.set(id, p);
     sim.emit({ t: 'player', id, name: cleanName(name), color: cleanColor(color) });
@@ -71,12 +74,44 @@ export class Players {
     if (lvl === INJ.SHAKEN) { if (p.inj < INJ.SHAKEN) p.inj = INJ.SHAKEN; }
     else if (lvl > p.inj) {
       p.inj = lvl;
-      this.sim.toast(lvl === INJ.DOWN ? `${this.name(p.id)} is DOWN ({speed:${dv.toFixed(1)}} impact) - job failed` : `${this.name(p.id)} is hurt ({speed:${dv.toFixed(1)}} impact)`);
+      this.sim.toast(lvl === INJ.DOWN ? `${this.name(p.id)} is DOWN ({speed:${dv.toFixed(1)}} impact)` : `${this.name(p.id)} is hurt ({speed:${dv.toFixed(1)}} impact)`);
     }
     sawOff(this.sim, p);
     if (p.mode === MODE.CLIMB && lvl >= INJ.HURT) this.toGround(p);
     if (p.mode === MODE.ROPE) this.leaveRope(p);
   }
+  // ---- tube salads: off a chipper's rack, eaten ({throttle}) or given to another player ({interact}) ----
+  /** A tube salad: p is as good as new, even from DOWN (a downed player gets back up where they lie). */
+  heal(p) {
+    p.inj = INJ.OK; p.shakenT = 0; p.hit = 0;
+  }
+  /** The player p is looking at within reach (their body), or null. */
+  aimPlayer(p) {
+    const sim = this.sim, { o, d } = sim.eye(p);
+    const hit = sim.rapier.castRay(new sim.R.Ray(o, d), CFG.REACH, true, undefined, undefined, undefined, p.body);
+    const id = hit ? sim.colPlayer.get(hit.collider.handle) : undefined;
+    return id === undefined ? null : this.list.get(id) || null;
+  }
+  /** Holding a salad: {interact} on a player in reach gives it to them, {throttle} (not sawing) eats it. Returns the prompt part. */
+  salad(p, inp, pressed) {
+    const eat = inp.rt > 0.5 && p.rtPrev <= 0.5 && !p.saw.on;
+    if (!p.held) return '';
+    const o = this.aimPlayer(p);
+    if (o && pressed.interact) {
+      p.held = ''; pressed.interact = false; p.chLock.add('lanyard');
+      const was = o.inj;
+      this.heal(o);
+      this.sim.toast(`${this.name(p.id)} gave ${this.name(o.id)} a tube salad` + (was === INJ.DOWN ? `: ${this.name(o.id)} is back up` : ''));
+      return '';
+    }
+    if (eat) {
+      p.held = ''; const was = p.inj; this.heal(p);
+      this.sim.toast(was > INJ.SHAKEN ? 'You ate a tube salad: good as new' : 'You ate a tube salad', p.id);
+      return '';
+    }
+    return (o ? '{interact}: give salad' : '') + (p.saw.on ? '' : (o ? '   ' : '') + '{eat}: eat salad');
+  }
+
   onContact(pid, force) {
     const p = this.list.get(pid);
     if (p && p.mode === MODE.CLIMB && !p.ride) {   // kinematic: no velocity change to read, use the force
@@ -168,13 +203,13 @@ export class Players {
   }
   /** Take hold of the chipper's grip (local point pl on it). */
   grabChipper(p, ca) {
-    p.grab = { chip: 1, p: ca.local, L0: Math.max(0.2, this.hands(p, _a).distanceTo(ca.point)), prev: 0 };
+    p.grab = { chip: 1, k: ca.u.k, p: ca.local, L0: Math.max(0.2, this.hands(p, _a).distanceTo(ca.point)), prev: 0 };
   }
   grabStep(p, dt) {
     const g = p.grab, sim = this.sim; p.pull = 0; if (!g) return;
-    const ch = sim.chipper;
+    const ch = g.chip ? sim.chipper.unit(g.k) : null;
     const s = g.chip ? null : sim.world.segs.get(g.seg);
-    if (g.chip ? !ch.body : !s) { p.grab = null; return; }
+    if (g.chip ? !ch || !ch.body : !s) { p.grab = null; return; }
     const h = this.hands(p, _a), w = g.chip ? ch.toWorld(g.p, _b) : sim.segToWorld(s, g.p, _b);
     const dir = _c.copy(h).sub(w), len = dir.length();
     const stretch = len - g.L0, rate = (stretch - g.prev) / dt; g.prev = stretch;
@@ -250,9 +285,10 @@ export class Players {
     if (p.shakenT > 0) { p.shakenT -= dt; if (p.shakenT <= 0 && p.inj === INJ.SHAKEN) p.inj = INJ.OK; }
     if (p.hit) { const dv = p.hit; p.hit = 0; this.impact(p, dv); }
 
+    if (pressed.buyChip) sim.chipper.buy(p);
     if (pressed.respawn) {
       sawOff(sim, p); if (p.mode === MODE.ROPE) this.leaveRope(p);
-      this.toGround(p);
+      this.toGround(p); p.grab = null;
       p.inj = INJ.OK; p.shakenT = 0;
       this.toSpawn(p);
       p.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -297,6 +333,7 @@ export class Players {
     }
     if (standHint && !p.grab && p.mode === MODE.GROUND) p.prompt = standHint;
     if (p.ch && !p.ch.seen) p.ch = null;          // the action stopped being possible: start again
+    p.rtPrev = inp.rt;
     const v = p.body.linvel(); p.vPre.set(v.x, v.y, v.z);
   }
 
@@ -364,6 +401,8 @@ export class Players {
     let first = '';
     if (pressed.rig) rope.place(p, aim);
     const reach = aim && aim.dist < CFG.REACH;
+    // a tube salad in hand goes first: {interact} on another player gives it to them (it takes the press)
+    const sal = this.salad(p, inp, pressed);
     if (nearDev && rope.holder < 0 && !p.grab) {
       first = '{interact}: take tail';
       if (pressed.interact) { p.mode = MODE.ROPE; rope.holder = p.id; }
@@ -377,13 +416,18 @@ export class Players {
       // released; a press that grabs standing wood and keeps being held goes on to throw the lanyard.
       // At the chipper: with wood in hand it feeds it in; at its grip it takes hold of the chipper.
       const ca = control ? sim.chipper.aim(p) : null, atChip = ca && ca.dist < CFG.REACH;
+      const atRack = atChip && ca.rack && !p.grab;
       const pile = control && !p.grab ? sim.chipper.aimPile(p) : -1;      // a chip pile within reach
       const wood = p.grab && !p.grab.chip ? sim.world.segs.get(p.grab.seg) : null;
       const loose = wood && !sim.world.pieces.get(wood.piece).fixed;
       if (pressed.interact && wood && atChip) {
-        if (loose) { sim.chipper.feed(wood.piece, wood.id, p.grab.p); p.grab = null; p.chLock.add('lanyard'); }
+        if (loose) { ca.u.feed(wood.piece, wood.id, p.grab.p); p.grab = null; p.chLock.add('lanyard'); }
         else this.say(p, 'Only loose wood can go in the chipper');
       } else if (pressed.interact && p.grab) { p.grab = null; p.chLock.add('lanyard'); }
+      else if (pressed.interact && atRack) {
+        if (!p.held) { p.held = 'salad'; this.say(p, 'A tube salad: {eat} eats it, {interact} on someone gives it to them'); }
+        p.chLock.add('lanyard');
+      }
       else if (pressed.interact && atChip && ca.grip) this.grabChipper(p, ca);
       else if (pressed.interact && pile >= 0) { sim.chipper.take(p, pile); p.chLock.add('lanyard'); }
       else if (pressed.interact && reach) this.grabStart(p, aim);
@@ -391,7 +435,8 @@ export class Players {
       const kg = (piece) => { const m = sim.weightOf(piece); return isFinite(m) ? ` {mass:${Math.round(m)}}` : ''; };
       if (wood && atChip) first = loose ? '{interact}: feed' + kg(wood.piece) : 'Only loose wood can go in the chipper';
       else if (p.grab) first = p.grab.chip ? '{interact}: let go   {move}: tow' : '{interact}: let go' + (wood ? kg(wood.piece) : '');
-      else if (atChip && sim.chipper.seized()) first = 'The chipper\'s rollers have seized on wood too heavy for it: saw it smaller';
+      else if (atRack) first = p.held ? '' : '{interact}: take salad'
+      else if (atChip && ca.u.seized()) first = 'The chipper\'s rollers have seized on wood too heavy for it: saw it smaller';
       else if (atChip) first = ca.grip ? '{interact}: grab chipper' : 'Chipper: grab a limb, then {interact} here to feed it in. Its grip is at the front';
       else if (pile >= 0) first = '{interact}: take chips';
       else first = reach ? '{interact}: grab' + kg(sim.world.segs.get(aim.seg).piece) : '';
@@ -416,7 +461,7 @@ export class Players {
     }
     if (p.ch && p.ch.kind === 'lanyard') first = 'keep holding {interact}: spur in';
     this.grabStep(p, dt);
-    p.prompt = this.extras(p, aim, first);
+    p.prompt = this.extras(p, aim, (sal && first ? sal + '   ' + first : sal || first));
   }
 
   climb(p, inp, dt, control, pressed, aim) {
@@ -505,7 +550,8 @@ export class Players {
       cl.py = pos.y; cl.vy = vy; cl.ad = (cl.ad || 0) + 0.1 * (-ay - (cl.ad || 0));
       const share = fixed ? 1 : Math.max(0, Math.min(1, 1 - cl.ad / CFG.GRAVITY));
       sim.applyForce(s.id, sim.segToWorld(s, c, _b), _c.set(0, -CFG.P_MASS * CFG.GRAVITY * dyn * share, 0));
-      p.prompt = (control ? this.extras(p, aim, first) + '   ' : '') + '{move}: climb   hold {drop}: let go';
+      const sal = control ? this.salad(p, inp, pressed) : '';    // a salad can be eaten (or handed over) on spurs too
+      p.prompt = (control ? this.extras(p, aim, sal && first ? sal + '   ' + first : sal || first) + '   ' : '') + '{move}: climb   hold {drop}: let go';
     } else {
       // riding a falling piece because we are lanyarded to it
       const rd = p.ride;
@@ -549,7 +595,7 @@ export class Players {
     for (const p of this.list.values()) {
       const s = p.saw;
       out.push({
-        id: p.id, m: p.mode, inj: p.inj, sk: p.shakenT > 0 ? 1 : 0, ck: +(p.chips || 0).toFixed(4), gr: p.grab ? [p.grab.chip ? -1 : p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pt: +p.input.pitch.toFixed(2), pr: p.prompt,
+        id: p.id, m: p.mode, inj: p.inj, sk: p.shakenT > 0 ? 1 : 0, ck: +(p.chips || 0).toFixed(4), hd: p.held ? 1 : 0, gr: p.grab ? [p.grab.chip ? -1 - (p.grab.k || 0) : p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pt: +p.input.pitch.toFixed(2), pr: p.prompt,
         cl: p.cl ? [p.cl.seg, +p.cl.t.toFixed(3), p.cl.side.map((x) => +x.toFixed(3))] : 0,
         saw: s.on ? [...s.A.toArray(), ...s.b.toArray(), ...s.f.toArray(), s.stuck ? 1 : 0, s.cutting ? 1 : 0, CFG.BAR_LEN].map((x) => +x.toFixed(3)) : 0,
       });

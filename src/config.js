@@ -200,6 +200,7 @@ export const CFG = {
   CHIP_BREAK_F: 120000,    // N of contact force in one step, from wood or a structure's parts, that crumples it
   CHIP_CARRY: 0.04,        // m3 of chips a player can carry (an armful, about 40 L)
   CHIP_CAPACITY: 150,      // kg: the heaviest contiguous piece the rollers take; heavier wood seizes them until it is sawn
+  CHIP_MAX: 6,             // most chippers in the world at once ("Buy a new chipper" stops there; each is a 350 kg body with its own tyres and feed)
   CHIP_SWELL: 2.5,         // m3 of loose chips per m3 of wood chipped
   // --- breakable structures (sim/builds.js): the shed; rigid until hit hard enough, then loose boards ---
   SHED_BREAK_F: 25000,     // N of contact force from wood in one tick that breaks a module (the shed) apart
@@ -236,6 +237,7 @@ export const CFG = {
   SHED_COST: 2500,         // the shed broken apart
   HOUSE_COST: 20000,       // one room of a house broken apart
   CHIPPER_COST: 45000,     // the chipper truck wrecked
+  CHIPPER_PRICE: 5000,     // $ for another chipper from the Tab menu (placeholder, unreviewed)
   SHED_DENSITY: 450,       // kg/m3 of the shed's and fences' boards
 };
 

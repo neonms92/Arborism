@@ -46,6 +46,7 @@ const BUTTONS = [
   ['letgo', '⏳ Let go', 'drop', 'hd', ['r', 28, 150, 72]],
   ['saw', 'Saw', null, null, ['r', 214, 22, 64]],
   ['cut', 'Cut', null, null, ['l', 24, 150, 84]],
+  ['eat', 'Eat salad', null, null, ['r', 214, 96, 72]],     // holding a tube salad: it is {throttle} (left mouse) for the other devices
   ['wup', 'Wrap +', 'wrapUp', null, ['l', 104, 196, 56]],
   ['wdn', 'Wrap −', 'wrapDn', null, ['l', 104, 124, 56]],
 ];
@@ -88,12 +89,14 @@ export class Touch {
         if (hold) this.held[hold] = (this.held[hold] || 0) + 1;
         if (id === 'saw') { this.saw = !this.saw; }
         if (id === 'cut') this.cutting = true;
+        if (id === 'eat') { this.eating = true; this.eatUntil = performance.now() + 200; }   // a quick tap still reaches the host
       }, () => {
         if (hold) this.held[hold] = Math.max(0, (this.held[hold] || 0) - 1);
         if (id === 'cut') this.cutting = false;
+        if (id === 'eat') this.eating = false;
       });
     }
-    // top right: settings and respawn
+    // top right: settings (Respawn player is in its menu)
     const top = (label, x, fn) => {
       const b = el('div', 'tb small'); b.textContent = label;
       b.style.width = b.style.height = '44px';
@@ -101,7 +104,6 @@ export class Touch {
       this.press(b, fn, () => {}); root.appendChild(b); return b;
     };
     top('⚙', 8, () => { this.input.menuToggled = true; });
-    top('↺', 60, () => this.count('respawn'));
 
     // rope tail: a spring-centred vertical slider (up hauls in, down eases off) and the wraps buttons beside it
     const sl = this.slider = el('div', 'slider'), sk = el('div', 'knob');
@@ -186,7 +188,7 @@ export class Touch {
     const t = { mx: this.mx, my: this.my, dx: this.dx, dy: this.dy, lt: 0, rt: 0, hi: !!this.held.hi, hd: !!this.held.hd };
     this.dx = this.dy = 0;
     if (this.ropeMode) { t.lt = Math.max(0, this.rope); t.rt = Math.max(0, -this.rope); }
-    else { t.lt = this.saw ? 1 : 0; t.rt = this.cutting ? 1 : 0; }
+    else { t.lt = this.saw ? 1 : 0; t.rt = this.cutting || this.eating || performance.now() < (this.eatUntil || 0) ? 1 : 0; }
     return t;
   }
 
@@ -218,6 +220,10 @@ export class Touch {
     show1(b.saw, !rope && (has('raise') || this.saw || sawOut)); b.saw.classList.toggle('on', this.saw);
     b.saw.textContent = this.saw ? 'Lift saw' : 'Saw';
     show1(b.cut, !rope && (this.saw || sawOut));
+    // a tube salad in hand: Eat (the prompt's {eat}, which is {throttle} on the other devices); Give is the big Action button when someone is in reach
+    const eat = !rope && !sawOut && !this.saw && a && a.hd ? actionLabel(pr, 'eat') : '';
+    show1(b.eat, !!eat); if (eat) b.eat.textContent = eat;
+    if (!eat) this.eating = false;
     show1(b.wup, rope); show1(b.wdn, rope);
     this.slider.style.display = rope ? 'block' : 'none';
     if (rope) this.sliderKnob.style.top = `${50 - this.rope * (50 - 24 / 1.7)}%`;

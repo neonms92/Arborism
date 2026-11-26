@@ -15,7 +15,7 @@ import { Rope } from './rope.js';
 import { Structure } from './structure.js';
 import { Pavers } from './pavers.js';
 import { Damage } from './damage.js';
-import { Chipper } from './chipper.js';
+import { Chippers } from './chipper.js';
 import { Builds } from './builds.js';
 import { Ground } from './ground.js';
 import { CHIPPER_BODY_ID } from '../model/chipper.js';
@@ -79,7 +79,7 @@ export class Sim {
     this.pavers = new Pavers(this);   // needs the ground collider and nothing else yet
     this.rope = new Rope(this);
     this.structure = new Structure(this);
-    this.chipper = new Chipper(this);  // its body is made by the first 'chipper' event (grow)
+    this.chipper = new Chippers(this); // all the chippers; the first one's body is made by the first 'chipper' event (grow)
     this.damage = new Damage(this);
     this.builds = new Builds(this);    // the shed; its bodies are made by the 'builds' event (grow)
     this.stands = new Stands(this);    // the other trees in the yards while dormant; made by the 'stands' event (grow)
@@ -443,7 +443,7 @@ export class Sim {
     this.builds.eachBody(fn);
   }
   pose(id) {
-    const b = id >= PLAYER_BODY_ID ? this.players.list.get(id - PLAYER_BODY_ID)?.body : id === CHIPPER_BODY_ID ? this.chipper.body : this.bodies.get(id) || this.builds.body(id) || this.chipper.partBody(id);
+    const b = id >= PLAYER_BODY_ID ? this.players.list.get(id - PLAYER_BODY_ID)?.body : (id >= CHIPPER_BODY_ID && id < CHIPPER_BODY_ID + 1000 && this.chipper.bodyOf(id)) || this.bodies.get(id) || this.builds.body(id) || this.chipper.partBody(id);
     return b ? { p: b.translation(), q: b.rotation() } : null;
   }
   /** Jump the clock to the next sunrise, noon, sunset or midnight (the Tab menu). */

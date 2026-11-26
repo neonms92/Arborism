@@ -21,7 +21,7 @@ import { PaverView } from './pavers.js';
 import { Sky } from './sky.js';
 import { TerrainView } from './terrain.js';
 import { groundY } from '../model/terrain.js';
-import { ChipperView } from './chipper.js';
+import { ChipperView, saladGeometry } from './chipper.js';
 import { BuildsView } from './builds.js';
 import { SHAPE } from '../model/chipper.js';
 import { woodInto, fibreWidth } from './wood.js';
@@ -68,6 +68,8 @@ function sealed(segs, world) {
   }
   return out;
 }
+
+const _fpTilt = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.35, 0, -0.25));   // the salad in your hand, tipped toward you
 
 export class View {
   constructor(canvas, world) {
@@ -400,6 +402,10 @@ export class View {
       new THREE.MeshLambertMaterial({ map: backTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
     back.position.y = helmet.position.y;
     group.add(tag, back);
+    // a tube salad in the right hand (+x: they face -z), held up in front, while aux says they have one
+    const salad = new THREE.Mesh(this.saladGeo || (this.saladGeo = saladGeometry()), this.saladMat || (this.saladMat = new THREE.MeshLambertMaterial({ color: 0x3fae3a, flatShading: true })));
+    salad.position.set(0.3, -0.12, -0.24); salad.rotation.x = 1.1; salad.castShadow = true; salad.visible = false;
+    group.add(salad);
     // headlamp: in the scene, not the body, so it still shines from your own head while your body is hidden
     const lamp = new THREE.SpotLight(0xfff4e0, 0, 0, CFG.HEADLAMP_ANGLE, 0.55, 2);
     this.scene.add(lamp, lamp.target);
@@ -415,7 +421,7 @@ export class View {
     const grab = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat);
     grab.frustumCulled = false; grab.visible = false;
     this.scene.add(group, saw, lanyard, grab);
-    p = { id, group, saw, bar, eng, lanyard, grab, lamp, lampMat, shirt, engMat, eyeCv, eyeTex, eyeState: '', blinkT: 1 + Math.random() * CFG.BLINK_GAP, tagCv, tagTex, backCv, backTex, lookKey: '' };
+    p = { id, group, salad, saw, bar, eng, lanyard, grab, lamp, lampMat, shirt, engMat, eyeCv, eyeTex, eyeState: '', blinkT: 1 + Math.random() * CFG.BLINK_GAP, tagCv, tagTex, backCv, backTex, lookKey: '' };
     this.players.set(id, p);
     return p;
   }
@@ -495,6 +501,7 @@ export class View {
       pm.group.rotation.y = a.yaw;
       pm.group.rotation.z = a.inj === INJ.DOWN ? Math.PI / 2 : 0;
       pm.group.visible = a.id !== me;                 // first person: you do not see your own body
+      pm.salad.visible = !!a.hd;
       this.setLook(pm);
       if (pm.group.visible) this.poseFace(pm, a, dt);
       if (a.id === me) { mePos = pm.group.position; meA = a; }
@@ -521,11 +528,24 @@ export class View {
       }
       this.camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, roll, 'YXZ'));
     }
+    // your own tube salad, low in the bottom right of the view
+    const fp = this.fpSalad || (this.fpSalad = this.handSalad());
+    fp.visible = !!(mePos && meA && meA.hd && meA.inj !== INJ.DOWN);
+    if (fp.visible) {
+      fp.position.set(0.26, -0.27, -0.62).applyQuaternion(this.camera.quaternion).add(this.camera.position);
+      fp.quaternion.copy(this.camera.quaternion).multiply(_fpTilt);
+    }
     this.adaptDraw();
     this.sky.update(dt, aux, this.camera);
     this.scene.background.copy(this.sky.color); this.fog.color.copy(this.sky.color);
     if (aux) for (const a of aux.pl) this.poseLamp(this.players.get(a.id), a, a.id === me ? inp : null);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /** The salad drawn in your own hand (first person: your body is hidden). */
+  handSalad() {
+    const m = new THREE.Mesh(this.saladGeo || (this.saladGeo = saladGeometry()), this.saladMat || (this.saladMat = new THREE.MeshLambertMaterial({ color: 0x3fae3a, flatShading: true })));
+    m.visible = false; this.scene.add(m); return m;
   }
 
   // a headlamp shines where its wearer looks (your own from the camera, so it follows your view exactly)
@@ -592,24 +612,25 @@ export class View {
     pm.lanyard.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.3), 20, 0.012, 5);
   }
 
-  // the chipper's winch: a rope from the drum over the hopper to each piece it is pulling in
+  // the chippers' winches: a rope from the drum over the hopper to each piece it is pulling in
   poseWinch(aux) {
-    const wn = (aux && aux.chip && aux.chip.wn) || [], cv = this.chipperView;
+    const cv = this.chipperView, wn = [];
+    if (aux && Array.isArray(aux.chip)) aux.chip.forEach((c, k) => { if (c && c.wn) for (const g of c.wn) wn.push([k, g]); });
     this.winchRopes = this.winchRopes || [];
     while (this.winchRopes.length < wn.length) {
       const m = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat); m.frustumCulled = false; this.scene.add(m); this.winchRopes.push(m);
     }
     this.winchRopes.forEach((m, i) => {
-      const g = wn[i], P = g && cv.group.visible ? this.nodeWorld({ seg: g[0], p: [g[1], g[2], g[3]] }, new THREE.Vector3()) : null;
+      const k = wn[i] && wn[i][0], g = wn[i] && wn[i][1], P = g && cv.whole(k) ? this.nodeWorld({ seg: g[0], p: [g[1], g[2], g[3]] }, new THREE.Vector3()) : null;
       m.visible = !!P; if (!P) return;
       m.geometry.dispose();
-      m.geometry = new THREE.TubeGeometry(new THREE.LineCurve3(cv.toWorld(SHAPE.WINCH), P), 1, 0.012, 5);
+      m.geometry = new THREE.TubeGeometry(new THREE.LineCurve3(cv.toWorld(SHAPE.WINCH, new THREE.Vector3(), k), P), 1, 0.012, 5);
     });
   }
 
   // wood held on the ground: a short rope from the hands to the point grabbed
   poseGrab(pm, a) {
-    const g = a.gr, W = !g ? null : g[0] === -1 ? this.chipperView.toWorld([g[1], g[2], g[3]]) : this.nodeWorld({ seg: g[0], p: [g[1], g[2], g[3]] }, new THREE.Vector3());
+    const g = a.gr, W = !g ? null : g[0] < 0 ? this.chipperView.toWorld([g[1], g[2], g[3]], new THREE.Vector3(), -1 - g[0]) : this.nodeWorld({ seg: g[0], p: [g[1], g[2], g[3]] }, new THREE.Vector3());
     pm.grab.visible = !!W;
     if (!W) return;
     const H = pm.group.position.clone().addScaledVector(Y, CFG.GRAB_HEIGHT);
@@ -618,7 +639,7 @@ export class View {
   }
 
   nodeWorld(n, out) {
-    if (n.chip) return this.chipperView.group.visible ? this.chipperView.toWorld(SHAPE.INFEED, out) : null;
+    if (n.chip) return this.chipperView.whole(n.k) ? this.chipperView.toWorld(SHAPE.INFEED, out, n.k || 0) : null;
     const s = this.world.segs.get(n.seg), piece = s && this.pieces.get(s.piece);
     if (!piece) return null;
     const b = frameApply(this.flexNow && this.flexNow.at(s.id, Math.min(1, Math.max(0, segParam(s, n.p)))), n.p);
