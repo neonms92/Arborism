@@ -213,6 +213,8 @@ export const CFG = {
   YARD_LOT_MIN: 14,        // m, lot width at density 1
   YARD_EXTENT: 45,         // m from the tree that lots reach (0 = only the tree's own lot)
   YARD_STREET: 9,          // m, street between blocks of lots
+  STREET_SMOOTH: 30,       // m: a street's grade is the ground averaged this far either way along it (bigger = flatter)
+  STREET_BLEND: 3,         // m beside a street over which it blends into the ground
   YARD_FENCE: 0.5,         // chance a lot is fenced round its sides and back
   YARD_TREE_CLEAR: 4,      // m beyond the trunk kept clear of houses, sheds and the chipper (players spawn 4 m from the tree)
   // --- other trees in the yards (model/stands.js): drawn, with only a trunk to bump into, until someone saws or climbs one ---

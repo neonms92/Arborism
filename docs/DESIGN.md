@@ -917,6 +917,10 @@ what the engine tests use. The word is not remembered between visits.
   lot lines. Lot width goes from `YARD_LOT_MAX` at density 0 to
   `YARD_LOT_MIN` at density 1 (±15 %), depth about 1.4 × width. Lots reach
   `YARD_EXTENT` from the tree (0: only the tree's lot).
+- **Streets** (D92) run along x across the whole ground, one in front of
+  each row of lots. They are flat asphalt: level across, a gentle grade along
+  (the ground averaged over `STREET_SMOOTH` either way), blended into the
+  hills over `STREET_BLEND`, drawn dark grey with a dashed centre line.
 - **The tree's lot** is a lot like the others, the same size for the
   density, placed so the tree stands in its back half. It starts with the
   trunk's clear ground taken (`YARD_TREE_CLEAR` beyond the trunk), then
