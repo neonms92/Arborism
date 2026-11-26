@@ -53,7 +53,8 @@ const money2 = (v) => `$${v.toFixed(2)}`;
 export function describe(text, device, over) {
   const k = device === 'pad' ? 1 : device === 'touch' ? 2 : 0;
   text = text.replace(/\{(\w+):(-?[\d.e+-]+)\}/g, (m, kind, v) => (kind === 'money' ? money(+v) : UNITS[kind] ? qty(kind, +v) : m));
-  return text.replace(/\{(\w+)\}/g, (m, t) => (over && over[t]) || (NAMES[t] ? NAMES[t][k] : m));
+  // {interact|feed}: the key's name here; the words after | are the touch button's dimmed caption (touch.js actionLabel)
+  return text.replace(/\{(\w+)(?:\|[^}]*)?\}/g, (m, t) => (over && over[t]) || (NAMES[t] ? NAMES[t][k] : m));
 }
 
 export class Hud {

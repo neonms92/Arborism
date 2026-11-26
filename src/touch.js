@@ -211,7 +211,7 @@ export class Touch {
     // reach it stays up, dimmed, so it is clear the tie is waiting on getting closer.
     const rig = actionLabel(pr, 'rig'), waiting = !rig && /rope to/.test(pr);
     const b = this.b;
-    b.act.textContent = act || 'Action'; b.act.classList.toggle('dim', !act);
+    b.act.textContent = act || actionLabel(pr, 'interact', true) || 'Action'; b.act.classList.toggle('dim', !act);
     show1(b.jump, !a || a.m === MODE.GROUND);
     show1(b.punch, has('punch'));
     show1(b.rig, !!rig || waiting); b.rig.classList.toggle('dim', waiting);
@@ -231,17 +231,21 @@ export class Touch {
   }
 }
 
-/** The words after {token} (default interact) in a host prompt: what that button will do. */
-export function actionLabel(pr, token = 'interact') {
-  const tok = '{' + token + '}';
+/**
+ * The words after {token} (default interact) in a host prompt: what that button will do. Only a caption
+ * ("{interact}: feed") counts; a hint that names the button mid-sentence gives '' (the button dims). With
+ * off, the dimmed caption a hint carries instead ("{interact|feed}"), or ''.
+ */
+export function actionLabel(pr, token = 'interact', off = false) {
+  const tok = '{' + token, cap = (s) => s.replace(/^\w/, (c) => c.toUpperCase());
   for (const part of pr.split(/\s{3,}/)) {
-    const i = part.indexOf(tok);
-    if (i < 0) continue;
-    let s = part.slice(i + tok.length).replace(/^[:\s]+/, '');
+    if (off) { const m = part.match(new RegExp('\\' + tok + '\\|([^}]+)\\}')); if (m) return cap(m[1].trim()); continue; }
+    const i = part.indexOf(tok + '}');
+    if (i < 0 || !/^\s*:/.test(part.slice(i + tok.length + 1))) continue;
+    let s = part.slice(i + tok.length + 1).replace(/^[:\s]+/, '');
     const hold = /hold/i.test(part.slice(0, i));
     // quantities ({mass:42}) in the HUD's units, other tokens dropped; captions are kept to two words plus a weight
-    s = describe(s, 'touch').trim();
-    s = s.replace(/^\w/, (c) => c.toUpperCase());
+    s = cap(describe(s, 'touch').trim());
     return (hold ? '⏳ ' : '') + (s || 'Action');
   }
   return '';
