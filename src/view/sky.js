@@ -20,6 +20,16 @@
 // moon and sun, and thickens one layer of drifting cloud overhead (a noise
 // pattern on a plane above the eye, fading out towards the draw distance).
 //
+// Tree line: the yard sits in a clearing in a wooded valley. A ring round the
+// eye, just inside the far plane (so it hides the sun, moon and stars as they
+// set), carries a silhouette of crowns as tall as CFG.FOREST_HEIGHT seen from
+// CFG.FOREST_DIST, with a hazier, taller ridge of hillside wood behind. Its
+// colour is the sky's, darkened by CFG.FOREST_DARK, so it follows day, dusk,
+// cloud and night (never brighter than the sky behind it). The lower
+// CFG.FOREST_MIST of it fades back into the sky's colour, which is also the
+// fog's, so the fogged ground runs into it with no seam. Climbing higher
+// lowers it, as it would.
+//
 // Background and fog share one colour (view.js adaptDraw): the fog has to be
 // the sky's colour or fogged ground shows a seam against it.
 
@@ -59,7 +69,7 @@ export class Sky {
 
     const disc = (tex, size) => {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: tex, transparent: true, fog: false, depthWrite: false }));
-      m.frustumCulled = false; scene.add(m); return m;
+      m.frustumCulled = false; m.renderOrder = -3; scene.add(m); return m;
     };
     this.sunMesh = disc(glowTexture(), 1);
     this.moonCanvas = document.createElement('canvas'); this.moonCanvas.width = this.moonCanvas.height = 128;
@@ -79,12 +89,16 @@ export class Sky {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     this.starMat = new THREE.PointsMaterial({ size: 2, sizeAttenuation: false, vertexColors: true, transparent: true, fog: false, depthWrite: false });
-    this.stars = new THREE.Points(g, this.starMat); this.stars.frustumCulled = false; scene.add(this.stars);
+    this.stars = new THREE.Points(g, this.starMat); this.stars.frustumCulled = false; this.stars.renderOrder = -3; scene.add(this.stars);   // drawn first: furthest, behind the tree line
 
     this.cloud = CFG.CLOUDS >= 0 ? CFG.CLOUDS : 0.25; this.drift = new THREE.Vector2(Math.random() * 1000, Math.random() * 1000);
     this.cloudMat = cloudMaterial();
     this.clouds = new THREE.Mesh(new THREE.PlaneGeometry(2, 2).rotateX(Math.PI / 2), this.cloudMat);   // faces down
     this.clouds.frustumCulled = false; this.clouds.renderOrder = -1; scene.add(this.clouds);
+
+    this.forestMat = forestMaterial();
+    this.forest = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 2, 256, 1, true), this.forestMat);   // y on the unit ring = tan(elevation)
+    this.forest.frustumCulled = false; this.forest.renderOrder = -2; scene.add(this.forest);
   }
 
   /** Advance the clock and set every light and colour. cam: the camera (its far plane is the draw distance). */
@@ -159,6 +173,15 @@ export class Sky {
     u.uLit.value.copy(k.color).multiplyScalar(0.35 + 0.65 * smooth(0, 0.3, s)).lerp(_c.setRGB(1, 1, 1), 0.5).multiplyScalar(glow * (1 - 0.3 * c)).lerp(DUSK, 0.8 * dusk);
     u.uShade.value.copy(this.color).multiplyScalar(0.6 + 0.2 * (1 - c)).lerp(_g, 0.3);
     this.clouds.visible = c > 0.01;
+
+    // the tree line, a little nearer than the sun and moon so they set behind it
+    const D = Math.max(1, CFG.FOREST_DIST), f = this.forestMat.uniforms, Rf = R * 0.85;
+    this.forest.visible = CFG.FOREST_HEIGHT > 0;
+    this.forest.position.copy(cam.position); this.forest.scale.setScalar(Rf);
+    f.uH.value = CFG.FOREST_HEIGHT / D; f.uBase.value = -cam.position.y / D;   // the ground is about y = 0
+    f.uN.value = Math.max(8, Math.round(2 * Math.PI * D / 7));                  // a crown every 7 m or so
+    f.uDark.value = Math.min(1, Math.max(0, CFG.FOREST_DARK)); f.uMist.value = Math.max(0.001, CFG.FOREST_MIST);
+    f.uSky.value.copy(this.color); f.uDay.value = day * (1 - 0.7 * c);
   }
 }
 
@@ -185,6 +208,46 @@ function cloudMaterial() {
         if (a < 0.003) discard;
         vec3 col = mix(uLit, uShade, smoothstep(cut + 0.04, cut + 0.25, v) * (0.35 + 0.5 * uCover));
         gl_FragColor = vec4(col, a);
+        #include <colorspace_fragment>
+      }`,
+  });
+}
+
+// The tree line on the unit ring round the eye (y = tan of elevation; uBase is the ground's foot of it, uH the
+// trees' height, both over their distance). Front: a crown per cell round the ring (pointed firs and round
+// broadleaves, overlapping), on a floor of lower wood. Back: a taller, smoother ridge, half as dark (further into
+// the haze). Each is the sky darkened, with a touch of green by day, fading to the sky at its foot.
+function forestMaterial() {
+  return new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false,
+    uniforms: { uH: { value: 0.08 }, uBase: { value: 0 }, uN: { value: 270 }, uDark: { value: 0.5 }, uMist: { value: 0.4 }, uSky: { value: new THREE.Color() }, uDay: { value: 1 } },
+    vertexShader: `varying vec3 vP;
+      void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `uniform float uH; uniform float uBase; uniform float uN; uniform float uDark; uniform float uMist; uniform vec3 uSky; uniform float uDay;
+      varying vec3 vP;
+      float h(float i) { return fract(sin(mod(i, uN) * 78.233 + 11.7) * 43758.5453); }
+      void main() {
+        float a = atan(vP.z, vP.x) + 3.14159265;            // 0 .. 2 pi round the ring
+        float y = vP.y, x = a / 6.2831853 * uN;              // x: cells round the ring
+        float top = 0.55;                                     // the wood under the crowns, as a fraction of uH
+        for (int k = -1; k <= 1; k++) {
+          float i = floor(x) + float(k), r = h(i), s = h(i + 101.0), dx = (x - i - 0.5 - 0.3 * (h(i + 57.0) - 0.5)) / (0.75 + 0.35 * s);
+          if (abs(dx) < 1.0) {
+            float shape = r > 0.45 ? 1.0 - abs(dx) : sqrt(1.0 - dx * dx);   // fir or broadleaf
+            top = max(top, (0.7 + 0.5 * s) * (0.55 + 0.45 * shape));
+          }
+        }
+        float ridge = 1.35 + 0.25 * sin(3.0 * a + 1.3) + 0.15 * sin(7.0 * a + 0.4) + 0.08 * sin(17.0 * a + 2.1) + 0.04 * sin(41.0 * a + 0.7);
+        float q = (y - uBase) / uH;                           // height above the foot, in tree heights
+        float w = fwidth(q) + 1e-5;
+        float aF = smoothstep(-w, w, top - q), aB = smoothstep(-w, w, ridge - q);
+        float mist = smoothstep(0.0, uMist, q);
+        vec3 tint = vec3(0.12, 0.2, 0.11) * uDay;
+        vec3 cF = mix(uSky, uSky * (1.0 - uDark) + tint * uDark * 0.25, mist);
+        vec3 cB = mix(uSky, uSky * (1.0 - 0.5 * uDark) + tint * uDark * 0.12, mist);
+        float A = aF + aB * (1.0 - aF);
+        if (A < 0.003) discard;
+        gl_FragColor = vec4((cF * aF + cB * aB * (1.0 - aF)) / A, A);
         #include <colorspace_fragment>
       }`,
   });

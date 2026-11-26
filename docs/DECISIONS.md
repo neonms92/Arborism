@@ -1400,7 +1400,7 @@ the bin is knocked, tipped or bumped by a player. The handle is held like the
 chipper's grip; pulled back, the bin tips onto its wheels and rolls (a scripted
 tow: 9 m in 6 s). Chips go into a bin when the point they land on (the
 chipper's discharge point, or where a player puts down what they carry) is
-within its mouth plus `BIN_CATCH` (0.15 m), with the bin upright and its lid
+within its mouth plus `BIN_CATCH` (0.15 m; 1 m from 2026-11-26, owner), with the bin upright and its lid
 more than 1.2 rad open. They are gone (`world.prog.gone`). Progress lives in
 the model (`world.prog`), counted by `world.apply` on every machine: the job
 tree's mass when it grows (wood and leaves); every chipped segment that is not
@@ -1510,7 +1510,54 @@ back after a tow, it was upright (up·y 0.99) in about 4 s. Unreviewed: only
 after a release, not when knocked over by wood (it lies where it lands until
 someone grabs and lets go of it).
 
-D98 Grab assist (owner asked, 2026-11-26): grabbing tiny sticks was fiddly, so a
+**D98 — A far tree line round the horizon.** Owner asked for darkness low in
+the sky, about as high as trees grow, so the yard reads as a forest valley
+rather than a mountaintop. It is drawing only (`view/sky.js`): a ring round
+the eye just inside the far plane, carrying a silhouette of overlapping crowns
+(pointed and round, about one per 7 m) `FOREST_HEIGHT` (25 m) tall at
+`FOREST_DIST` (300 m), over a hazier, taller ridge of hillside wood behind.
+Its colour is the sky's colour darkened by `FOREST_DARK` (0.65), plus a touch
+of green by day, so it follows dusk, cloud and night and can never glow. The
+lowest `FOREST_MIST` (0.45) of it fades back into the sky's colour, which is
+also the fog's, so the fogged ground meets it without a seam and the valley
+floor reads as haze. It is placed by the eye's height above y = 0, so climbing
+lowers it. Sun, moon and stars are drawn first so they set behind it, and the
+stars low in the sky are hidden by it at night. Unreviewed choices: all four
+numbers, the crown spacing, the ridge shape (fixed sines, the same for every
+seed), and that it is a picture at a fixed distance rather than geometry.
+
+**D99 — A quieter HUD that stacks on phones.** Owner (2026-11-26, phone
+screenshot): hide network debug info unless switched on, and stop the HUD
+lines overlapping on mobile. `NET_STATS` (Tab menu, View: "Network and debug
+info on the HUD") now defaults off and covers more than the network box: fps,
+the draw-distance note, the wage math after the cash, and ping / loss on a
+joined client's status line all hide with it (the wage math stays in the Tab
+menu's job section). The room code and who joined stay, since players need
+them. Layout: the status and progress lines live in one top-left flex column
+(`#top`), so a line that wraps pushes the next down instead of drawing over
+it. With the touch controls up, `hud.stack` moves the prompt, rope line,
+network box and toasts into that column too, in that order, and the column
+stops 62 px short of the right edge to stay clear of the gear. Unreviewed
+choices: which figures count as debug, and keeping "on the ground | ok" on the
+status line.
+D100 (owner, 2026-11-26): a climber who came down to the ground glitched into
+it and was often hurt or downed. Cause: a climber is a kinematic body placed
+beside the stem, and on uneven ground (or at the stem's foot) that place can be
+inside the terrain or pressed against the trunk; switching it to a dynamic body
+let Rapier push it out at speed, which `post` read as an impact. Now reaching
+the ground lands the climber instead (`players.land`): the lanyard comes off
+and they are put down standing `LAND_DIST` (4 m, the spawn ring's radius) from
+the stem on the side they were climbing, at `SPAWN_HEIGHT` (1.2 m, the old
+respawn height) over the ground, with zero velocity, so no impact. Reaching the
+ground means either stepping off the bottom of the wood (as before) or, while
+moving on the spurs, the feet coming within 5 cm of the ground under them and
+getting closer. The spot is the nearest one clear of anything but the ground
+(a capsule query), swinging round the stem in steps and then further out; the
+Respawn button and falling out of the world use the same search round the
+player's own spawn point. Unreviewed: the 4 m, landing while riding a falling
+piece is unchanged (that is still an impact), a toast says the lanyard is off.
+
+**D101 — Grab assist.** Owner asked (2026-11-26): grabbing tiny sticks was fiddly, so a
 miss falls back to the nearest loose wood in a cone round the reticle
 (`GRAB_CONE`, 5°, in the Tab menu as degrees; 0 turns it off). Choices: the
 exact look ray still wins; only loose wood is assisted (the standing tree is

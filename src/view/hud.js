@@ -64,6 +64,15 @@ export class Hud {
     this.ropeEl = $('rope'); this.keys = $('keys');
     this.ring = $('ringArc');   // channel progress round the reticle
     this.fps = 60; this.device = 'kb';
+    this.top = $('top'); this.stacked = false;
+  }
+
+  /** With the touch controls up, the prompt, rope line, network box and toasts leave the bottom
+   *  (it belongs to the thumbs) and join the top-left column under the status lines, in this order. */
+  stack(on) {
+    if (on === this.stacked) return;
+    this.stacked = on;
+    for (const id of ['prompt', 'rope', 'net', 'toasts']) (on ? this.top : document.body).appendChild($(id));
   }
 
   toast(msg) {
@@ -93,12 +102,15 @@ export class Hud {
 
   update(dt, aux, me, info, device) {
     this.device = device;
+    this.stack(document.body.classList.contains('touchui'));
+    const dbg = CFG.NET_STATS;   // network and debug figures (Tab menu); off by default
     this.fps += (1 / Math.max(dt, 1e-3) - this.fps) * 0.05;
     const a = aux && aux.pl.find((p) => p.id === me);
-    let s = `${info}  |  ${Math.round(this.fps)} fps`;
-    if (this.view && this.view.drawDist < CFG.DRAW_DIST - 0.5) s += `  |  view ${qty('len', this.view.drawDist, 0)}`;   // ridden down for the frame rate
+    let s = info;
+    if (dbg) s += `  |  ${Math.round(this.fps)} fps`;
+    if (dbg && this.view && this.view.drawDist < CFG.DRAW_DIST - 0.5) s += `  |  view ${qty('len', this.view.drawDist, 0)}`;   // ridden down for the frame rate
     const cash = this.world.cash();
-    if (cash !== null) s += `  |  cash ${cash < 0 ? '-' : ''}${money(Math.abs(cash))}, ${wageMath(aux ? aux.pl.length : 1)}`;
+    if (cash !== null) s += `  |  cash ${cash < 0 ? '-' : ''}${money(Math.abs(cash))}${dbg ? `, ${wageMath(aux ? aux.pl.length : 1)}` : ''}`;
     if (a && a.ck > 0) s += `  |  carrying ${qty('vol', a.ck * 1000, 0)} of chips`;
     if (a && a.hd) s += '  |  holding a tube salad';
     if (a) s += `  |  ${a.m === MODE.CLIMB ? 'on spurs, lanyard on' : a.m === MODE.ROPE ? 'on the rope' : 'on the ground'}  |  ${INJ_NAME[a.inj]}`;

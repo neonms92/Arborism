@@ -10,7 +10,7 @@ export const CFG = {
   INTERP_DELAY: 0.1,       // s, client render delay
   INPUT_HZ: 30,
   PING_EVERY: 0.5,         // s between pings from a joined client (net/stats.js)
-  NET_STATS: true,         // show the network box on a joined client
+  NET_STATS: false,        // network and debug figures: the network box when joined, ping, fps, wage math
   NET_QUEUE_MAX: 64,       // kB: snapshots / aux / inputs are skipped while more than this waits to be sent (D89)
   NET_LAG_MAX: 0.25,       // s: ...or while what waits would take longer than this to go out at the link's pace
   INVERT_Y: true,          // push forward / mouse forward looks down
@@ -59,6 +59,11 @@ export const CFG = {
   CLOUD_CHANGE: 120,       // s of play for the cover to go all the way from clear to overcast
   CLOUD_DIM: 0.85,         // fraction of sunlight and moonlight that full cover blocks
   CLOUD_WIND: 0.6,         // m/s the cloud layer drifts overhead
+  // the far tree line: a dark band of crowns round the horizon, so the yard reads as a clearing in a wooded valley (view/sky.js)
+  FOREST_HEIGHT: 25,       // m, how tall the distant trees stand (0 = no tree line)
+  FOREST_DIST: 300,        // m, how far away they stand: with the height this sets how high the band reaches (25 m at 300 m is about 5 degrees)
+  FOREST_DARK: 0.65,       // how much darker than the sky the nearest trees are (0 = invisible, 1 = black); it follows the sky, so it is dark at night
+  FOREST_MIST: 0.45,       // fraction of the tree height, from the foot up, that fades into the haze (and the fog on the ground)
 
   // --- wood (green hardwood) ---
   DENSITY: 900,            // kg/m^3
@@ -175,6 +180,8 @@ export const CFG = {
   SHAKEN_TIME: 2,          // s a shaken player has no control (a hurt player is shaken first too)
   // --- controls that take time (hold the button; let go to cancel) ---
   LANYARD_TIME: 2,         // s of holding {interact} to spur in or move the lanyard
+  SPAWN_HEIGHT: 1.2,       // m, a respawned or landed player's middle above the ground (the feet 0.32 m up)
+  LAND_DIST: 4,            // m from the stem where a climber who reaches the ground is put down
   LETGO_TIME: 4,           // s of holding {drop} to let go of the tree
   // --- punch ({punch}): every press adds a short shove; presses faster than it fades stack up ---
   PUNCH_FORCE: 400,        // N added by one punch, along the look direction at the point hit
@@ -211,7 +218,7 @@ export const CFG = {
   BIN_RIGHT_T: 3,          // s after a player lets go of a bin that it is stood back up for (0 = it stays as it lands)
   BIN_RIGHT_K: 30,         // 1/s2: how hard it is tipped back upright (acceleration per radian of lean)
   BIN_RIGHT_MAX: 300,      // N m, most torque that tips it upright
-  BIN_CATCH: 0.15,         // m past the rim of an open bin's mouth that chips landing still go in
+  BIN_CATCH: 1,            // m past the rim of an open bin's mouth that chips landing still go in
   BIN_PRICE: 100,          // $ a new bin costs (the Tab menu's "Buy a new chip bin")
   // --- breakable structures (sim/builds.js): the shed; rigid until hit hard enough, then loose boards ---
   SHED_BREAK_F: 25000,     // N of contact force from wood in one tick that breaks a module (the shed) apart
