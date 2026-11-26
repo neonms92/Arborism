@@ -1573,3 +1573,21 @@ still use the exact ray. A faint pulsing sleeve on the segment shows the
 target to its own player (aux `tg`), for exact hits and cone hits alike.
 Unreviewed: whether touch should get a wider cone than mouse (same 5° now),
 and whether the sleeve is too faint at a distance.
+
+**D102 — Standing players hold still on slopes up to `WALK_SLOPE`; the legs work along the ground.**
+A player standing on a 9–44° slope slid downhill (about 0.3 m in 4 s at 44°):
+the body has no friction, and the legs only pushed across the map (x, z), so
+nothing resisted the part of gravity along the slope. The legs now work in
+the plane of what is stood on (the normal from the ray under the middle, or
+from the footing contact): the walk keeps its speed across the map and
+follows the slope, and the legs also push against gravity along the slope
+(at 45° about 590 N of `LEG_FORCE`'s 1000 N). That hold is a force, not an
+impulse: cancelling the step's gravity with an impulse up front left the
+body creeping 2–5 cm/s uphill, because the solver spreads gravity over the
+step. The hold comes first; walking, pushing and pulling get what is left of
+`LEG_FORCE` (on flat ground, all of it, as before). Above `WALK_SLOPE` (45°)
+nothing changes: not stood on, so the player slides. Measured on fixed
+ramps: 30°, 40°, 44° drift 0.000 m in 4 s; walking across a 40° ramp drifts
+nothing downhill; 50° still slides. A downed or shaken player (no control)
+still slides as before. Same change: saw defaults `CUT_RATE` 0.065 m²/s
+(650 cm²/s) and `BAR_LEN` 0.6 m, the owner's values.
