@@ -124,7 +124,13 @@ export class Bins {
   }
 
   pre(dt) {
+    const held = new Set();
+    for (const p of this.sim.players.list.values()) if (p.grab && p.grab.bin !== undefined) held.add(p.grab.bin);
     for (const [k, u] of this.units.entries()) {
+      // let go of (by hand, or pulled out of the hands): it is stood back up (owner, 2026-11-26)
+      if (u.held && !held.has(k)) u.right = CFG.BIN_RIGHT_T;
+      u.held = held.has(k);
+      if (u.right > 0) { u.right -= dt; this.rightUp(u, dt); }
       const a = this.lidAngle(k), ax = _v.set(0, 0, 1).applyQuaternion(rot(u.body)), lw = u.lid.angvel(), bw = u.body.angvel();
       const w = (lw.x - bw.x) * ax.x + (lw.y - bw.y) * ax.y + (lw.z - bw.z) * ax.z;      // how fast it swings
       // the hinge's own friction, and the press: a spring toward the far end (an acceleration, so the same feel
@@ -140,6 +146,23 @@ export class Bins {
       u.lid.applyTorqueImpulse({ x: ax.x * J, y: ax.y * J, z: ax.z * J }, true);
       u.body.applyTorqueImpulse({ x: -ax.x * J, y: -ax.y * J, z: -ax.z * J }, true);
     }
+  }
+
+  /** Tip the bin back toward upright: a spring on its tilt (an acceleration, BIN_RIGHT_K, damped), about the
+   * horizontal axis it leans over, with no more than BIN_RIGHT_MAX of torque. It pivots on whatever it rests on. */
+  rightUp(u, dt) {
+    const b = u.body, up = new THREE.Vector3(0, 1, 0).applyQuaternion(rot(b)), ang = Math.acos(Math.max(-1, Math.min(1, up.y)));
+    const ax = new THREE.Vector3(-up.z, 0, up.x);              // up x (0, 1, 0): turning about it brings up to vertical
+    const w = b.angvel(), wl = new THREE.Vector3(w.x, 0, w.z);
+    if (ax.length() < 1e-4) { if (wl.length() < 0.05) { u.right = 0; return; } ax.copy(wl).negate(); }
+    ax.normalize();
+    const wa = wl.dot(ax);
+    if (ang < 0.03 && Math.abs(wa) < 0.05) { u.right = 0; return; }      // stood up
+    const K = CFG.BIN_RIGHT_K, acc = K * ang - 2 * Math.sqrt(K) * wa;
+    const e = b.effectiveWorldInvInertia().elements, x = ax.x, y = ax.y, z = ax.z;
+    const inv = x * (e[0] * x + e[1] * y + e[2] * z) + y * (e[1] * x + e[3] * y + e[4] * z) + z * (e[2] * x + e[4] * y + e[5] * z);
+    const T = Math.max(-CFG.BIN_RIGHT_MAX, Math.min(CFG.BIN_RIGHT_MAX, acc / Math.max(1e-6, inv)));
+    b.applyTorqueImpulse({ x: ax.x * T * dt, y: ax.y * T * dt, z: ax.z * T * dt }, true);
   }
 
   /** Bin k whose open mouth world (x, z) is in, give or take BIN_CATCH: its index, or undefined. */

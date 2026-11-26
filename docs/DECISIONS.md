@@ -1457,7 +1457,60 @@ they hold (someone else has to), the rack sits inside the roll cage and has no
 collider, one salad in hand at a time, the salad drawn low right in first
 person.
 
-**D96 — A far tree line round the horizon.** Owner asked for darkness low in
+**D96 — Wood in the ground is lifted at a fixed speed, not sprung out.**
+Owner (2026-11-26): the push out of the ground (D88) is too aggressive.
+Instead, wood found inside the ground should get a fixed upward velocity for
+a set time, starting at the chipper rollers' speed for 0.2 s at a time, as
+needed. So the spring and its three tunables are gone. When a body has a
+segment inside the ground, its upward velocity is raised to at least
+`GROUND_LIFT_V` (0.6 m/s, `CHIP_FEED_V`) for `GROUND_LIFT_TIME` (0.2 s). If it
+is still in when that time ends, another lift starts. Its spin and sideways
+velocity are left alone. A first try raised only the sunk point to 0.6 m/s,
+correcting for the body's spin. On a pivoting branch that drove the body up at
+2.9 m/s and spun it at 18 rad/s, so the whole body is lifted instead. The
+sunk segment still stops colliding with the ground until its axis is back
+above it (D88).
+
+Headless, with a 25 kg branch put down with its butt 0.3 m under:
+- It is out within 3 s and drags as on open ground.
+- Its upward speed peaked at 0.44 to 0.86 m/s; the spring gave 0.57 to 0.6.
+- Its overall speed peaked at 1.4 to 1.7 m/s as it fell flat; the spring
+  gave about 0.6.
+
+Felling whole trees on two seeds, the 11.6 t tree got two lifts in 40 s and
+came to rest.
+
+**D97 — Damaging the neighbours' trees costs money.** Owner (2026-11-26):
+enact a monetary penalty for damage to non-target trees. Built in
+sim/damage.js, through the same `damage` event and toasts as the structures.
+Only a yard tree that has woken into wood (D74) can be damaged; a dormant one
+has nothing to hurt. Three charges, all placeholders the owner has not
+reviewed: sawing costs `YARD_CUT_COST` ($3,000) per m² of cross-section sawn
+through, each fibre counted the first time it is severed (a second kerf
+through the same fibre is free), added up and charged once the saw has been
+out of that tree for `YARD_CUT_QUIET` (1.5 s); wood that comes off the tree for
+good (a piece no longer held to the rooted tree by any live bundle, checked
+four times a second) costs `YARD_LOSS_COST` ($3/kg, wood and leaves), with any
+sawing not yet charged folded into the same toast; and the first time half
+the tree's wood has come off it counts as felled, `YARD_FELL_COST` ($5,000)
+once. So a tree is not charged twice for one fell, and cutting up a fallen
+yard log costs nothing more. Damage from any cause counts (a job tree landing
+on an awake yard tree and breaking a limb is charged too). Toast wording
+says "a neighbour's tree". At defaults a 12 m yard tree felled costs about
+$12,000 of a $30,000 budget. Not done: twigs swept away as debris within the
+same quarter second they broke off are not charged.
+
+D93 follow-up (owner, 2026-11-26): the bin's mouth z-fought (the black rim band's
+top shared a plane with the body's top face): the body mesh now has no top face
+and the rim sits 5 mm lower. Let go of (by hand or pulled out of the hands),
+the bin stands itself back up for `BIN_RIGHT_T` (3 s): a damped spring on its
+lean (`BIN_RIGHT_K` 30 /s², at most `BIN_RIGHT_MAX` 300 N m) about the axis it
+leans over, pivoting on whatever it rests on. Headless: released tipped well
+back after a tow, it was upright (up·y 0.99) in about 4 s. Unreviewed: only
+after a release, not when knocked over by wood (it lies where it lands until
+someone grabs and lets go of it).
+
+**D98 — A far tree line round the horizon.** Owner asked for darkness low in
 the sky, about as high as trees grow, so the yard reads as a forest valley
 rather than a mountaintop. It is drawing only (`view/sky.js`): a ring round
 the eye just inside the far plane, carrying a silhouette of overlapping crowns

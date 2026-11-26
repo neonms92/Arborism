@@ -487,7 +487,7 @@ export class Players {
       else if (p.grab) first = p.grab.chip || p.grab.bin !== undefined ? '{interact}: let go   {move}: tow' : '{interact}: let go' + (wood ? kg(wood.piece) : '');
       else if (atRack) first = p.held ? '' : '{interact}: take salad';
       else if (atChip && ca.u.seized()) first = 'The chipper\'s rollers have seized on wood too heavy for it: saw it smaller';
-      else if (atChip) first = ca.grip ? '{interact}: grab chipper' : 'Chipper: grab a limb, then {interact} here to feed it in. Its grip is at the front';
+      else if (atChip) first = ca.grip ? '{interact}: grab chipper' : 'Chipper: grab a limb, then {interact|feed} here to feed it in. Its grip is at the front';
       else if (bn) first = bn.part === 'lid' ? (sim.bins.lidAngle(bn.k) > 2 ? '{interact}: shut lid' : '{interact}: open lid')
         : bn.part === 'handle' ? '{interact}: grab bin' : 'Chip bin: {interact} on its lid opens it, its handle moves it. Chips in it are gone';
       else if (pile >= 0) first = '{interact}: take chips';
