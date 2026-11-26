@@ -72,6 +72,8 @@ branch → `/ (root)`. The game is then at
 - Host-side prompt and toast text uses `{tokens}` for controls
   (`{interact}`, `{throttle}`...); `hud.js` maps them per input device.
   Never write a key or button name in `sim/`.
+  A touch button's caption is `{token}: words`; a hint that names the button
+  mid-sentence can carry a dimmed caption as `{interact|feed}`.
 - Rapier getters that return vectors or matrices may hand back a reused
   buffer: read the numbers out before calling Rapier again.
 - No HP anywhere. Harm is a delta-v threshold crossing → injury state
