@@ -16,6 +16,7 @@ import { Structure } from './structure.js';
 import { Pavers } from './pavers.js';
 import { Damage } from './damage.js';
 import { Chipper } from './chipper.js';
+import { Bins } from './bin.js';
 import { Builds } from './builds.js';
 import { Ground } from './ground.js';
 import { CHIPPER_BODY_ID } from '../model/chipper.js';
@@ -80,6 +81,7 @@ export class Sim {
     this.rope = new Rope(this);
     this.structure = new Structure(this);
     this.chipper = new Chipper(this);  // its body is made by the first 'chipper' event (grow)
+    this.bins = new Bins(this);        // the chip bins by the chipper; made by the 'bins' event (grow)
     this.damage = new Damage(this);
     this.builds = new Builds(this);    // the shed; its bodies are made by the 'builds' event (grow)
     this.stands = new Stands(this);    // the other trees in the yards while dormant; made by the 'stands' event (grow)
@@ -92,6 +94,7 @@ export class Sim {
     const plan = this.builds.plan();      // the yards round the tree: the ground is made with the level pads they ask for
     this.emit({ t: 'terrain', spec: this.flat ? null : terrainSpec(CFG, plan.pads), seed: this.flat ? '' : String(CFG.WORLD_SEED || '') });   // seed: the world's word, shown in the Tab menu
     this.pavers.lay(plan.areas); this.chipper.place(false, plan.chipper); this.builds.place();
+    if (!this.flat) this.bins.place(); else this.emit({ t: 'bins', list: [] });   // (none in the engine tests)
     if (plan.trees.length) this.emit({ t: 'stands', ...this.standList(plan.trees) });
     const segs = generateTree(CFG.TREE_SEED, () => this.world.newId());
     // the job tree is marked with an orange X, sprayed on the side facing its street (not on flat ground: the engine tests)
@@ -166,6 +169,7 @@ export class Sim {
   onEvent(ev, info) {
     if (ev.t === 'terrain') { this.makeGround(); this.players.onTerrain(); return; }
     this.chipper.onEvent(ev, info);
+    this.bins.onEvent(ev, info);
     this.builds.onEvent(ev, info);
     this.stands.onEvent(ev, info);
     this.damage.onEvent(ev, info);
@@ -357,6 +361,7 @@ export class Sim {
     this.rope.step(dt);          // rope first: the saw and the fibres both need this tick's rope state
     this.players.pre(dt);
     this.chipper.pre(dt);
+    this.bins.pre(dt);
     if (this.onLoads) this.onLoads(dt);
     this.structure.step(dt);
     if (this.tick % 2 === 0) this.syncColliders();
@@ -440,10 +445,11 @@ export class Sim {
     }
     for (const p of this.players.list.values()) fn(PLAYER_BODY_ID + p.id, p.body.translation(), p.body.rotation(), true);
     this.chipper.eachBody(fn);
+    this.bins.eachBody(fn);
     this.builds.eachBody(fn);
   }
   pose(id) {
-    const b = id >= PLAYER_BODY_ID ? this.players.list.get(id - PLAYER_BODY_ID)?.body : id === CHIPPER_BODY_ID ? this.chipper.body : this.bodies.get(id) || this.builds.body(id) || this.chipper.partBody(id);
+    const b = id >= PLAYER_BODY_ID ? this.players.list.get(id - PLAYER_BODY_ID)?.body : id === CHIPPER_BODY_ID ? this.chipper.body : this.bodies.get(id) || this.builds.body(id) || this.chipper.partBody(id) || this.bins.body(id);
     return b ? { p: b.translation(), q: b.rotation() } : null;
   }
   /** Jump the clock to the next sunrise, noon, sunset or midnight (the Tab menu). */

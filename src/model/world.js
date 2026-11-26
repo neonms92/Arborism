@@ -85,6 +85,8 @@ export class World {
     this.players = new Map();     // id -> {id, name}
     this.paving = null;           // concrete pavers round the tree (model/pavers.js)
     this.chipper = null;          // the wood chipper and its chip piles (model/chipper.js)
+    this.bins = [];               // the chip bins: [{p, q} where each was put down] (model/bin.js)
+    this.prog = newProg();        // how far the job has got: the job tree chipped, and its chips gone into bins
     this.builds = [];             // breakable structures: the shed (model/builds.js)
     this.terrain = null;          // the ground (model/terrain.js); null = flat at y = 0
     this.stands = null;           // the other trees in the yards (model/stands.js)
@@ -176,6 +178,8 @@ export class World {
       case 'tree':
         for (const s of ev.segs) this.segs.set(s.id, { ...s, piece: ev.piece, f: makeBundle(s.N || gridFor(s.r0)) });
         this.pieces.set(ev.piece, { id: ev.piece, fixed: true });
+        if (ev.stand !== undefined) for (const s of ev.segs) this.segs.get(s.id).yd = 1;   // a yard tree's wood: not the job's
+        else for (const s of ev.segs) { const g = this.segs.get(s.id); this.prog.M += segMass(g) + g.leaf; }
         if (ev.mark) this.mark = ev.mark;
         if (ev.stand !== undefined && this.stands) this.stands.list[ev.stand].piece = ev.piece;    // one of the other trees came to life
         this._dirty();
@@ -185,6 +189,7 @@ export class World {
         break;
       case 'reset':                 // all wood gone (a new tree follows)
         this.segs.clear(); this.pieces.clear(); this.rope = { state: 0 }; this.damage = 0; this.wages = 0; this.job = null; this.stands = null; this.mark = null;
+        this.prog = newProg();
         this._dirty();
         break;
       case 'cut': {                 // the saw severed fibres i[] at z[] (m from the segment base)
@@ -202,8 +207,8 @@ export class World {
       }
       case 'split': this._split(ev, info); break;
       case 'rip': this._rip(ev, info); break;
-      case 'rmpiece': {
-        for (const s of [...this.segs.values()]) if (s.piece === ev.piece) this.segs.delete(s.id);
+      case 'rmpiece': {             // swept away as debris: twigs too light to bother with (not chipped, so not counted)
+        for (const s of [...this.segs.values()]) if (s.piece === ev.piece) { if (!s.yd) this.prog.lost += segMass(s) + s.leaf; this.segs.delete(s.id); }
         this.pieces.delete(ev.piece);
         this._dirty();
         this._ropeCheck(info);
@@ -217,16 +222,26 @@ export class World {
         if (!this.chipper) break;
         if (ev.take) { const pl = this.chipper.piles[ev.take[0]]; if (pl) pl[2] = Math.max(0, +(pl[2] - ev.take[1]).toFixed(5)); }
         if (ev.drop) addChips(this.chipper, ev.drop[0], ev.drop[1], ev.drop[2]);
+        if (ev.dump) this.prog.gone += ev.dump;        // a player tipped the chips they carried into a bin
         break;
+      case 'bins': this.bins = ev.list.map(([p, q]) => ({ p, q })); break;   // put down fresh with a new tree
+      case 'bin': this.bins.push({ p: ev.p, q: ev.q }); break;              // one more (bought)
       case 'chip': {                // the chipper took in segments segs[] and blew V m3 of chips out at (x, z)
         const gone = new Set(ev.segs), touched = new Set();
-        for (const id of ev.segs) { const s = this.segs.get(id); if (s) { touched.add(s.piece); this.segs.delete(id); } }
+        for (const id of ev.segs) {
+          const s = this.segs.get(id); if (!s) continue;
+          if (!s.yd) this.prog.chipped += segMass(s) + s.leaf;
+          touched.add(s.piece); this.segs.delete(id);
+        }
         for (const s of this.segs.values()) if (gone.has(s.parent)) s.parent = -1;     // what was held on by them is loose in the same piece
         this._dirty();
         info.gone = []; info.touched = [...touched];
         for (const pc of touched) if (!this.segsOf(pc).length) { this.pieces.delete(pc); info.gone.push(pc); }
         this._dirty();
-        if (this.chipper && ev.V > 0) addChips(this.chipper, ev.x, ev.z, ev.V);
+        // the chips land on a pile, or in the open mouth of bin ev.bin (bottomless: they are gone)
+        if (ev.V > 0) this.prog.made += ev.V;
+        if (ev.V > 0 && ev.bin !== undefined) this.prog.gone += ev.V;
+        else if (this.chipper && ev.V > 0) addChips(this.chipper, ev.x, ev.z, ev.V);
         this._ropeCheck(info);
         break;
       }
@@ -265,6 +280,7 @@ export class World {
   _divide(s, at, newId, parting) {
     const L = segLen(s), zc = at * L, p = lerp3(s.a, s.b, at), r = segRadius(s, at), old = s.f, n = old.n;
     const root = { id: newId, parent: -1, piece: s.piece, a: p, b: s.b, r0: r, r1: s.r1, leaf: s.leaf, f: makeBundle(old.N) };
+    if (s.yd) root.yd = 1;
     for (const k of this.kids(s.id)) this.segs.get(k).parent = root.id;
     this.segs.set(root.id, root);
     const P = makeBundle(old.N), D = root.f;
@@ -329,6 +345,7 @@ export class World {
     const ax = segAxis(s), b0 = bundleBasis(ax), bh = bundleBasis([-ax[0], -ax[1], -ax[2]]);
     const cont = ev.cont >= 0 ? this.segs.get(ev.cont) : null;
     const h = { id: ev.newSeg, parent: cont ? cont.id : s.id, piece: s.piece, a: s.b.slice(), b: s.a.slice(), r0: s.r1, r1: s.r0, leaf: 0, f: makeBundle(N) };
+    if (s.yd) h.yd = 1;
     const H = h.f;
     for (let i = 0; i < H.n; i++) setGone(H, i);
     const off = (bb, i) => [bb.u[0] * lay.X[i] + bb.v[0] * lay.Y[i], bb.u[1] * lay.X[i] + bb.v[1] * lay.Y[i], bb.u[2] * lay.X[i] + bb.v[2] * lay.Y[i]];
@@ -381,6 +398,7 @@ export class World {
       segs: [...this.segs.values()].map((s) => ({ ...s, f: packBundle(s.f) })), pieces: [...this.pieces.values()],
       rope: this.rope, players: [...this.players.values()], paving: packPaving(this.paving), chipper: this.chipper, builds: packBuilds(this.builds),
       terrain: this.terrain ? this.terrain.spec : null, damage: this.damage, job: this.job, wages: this.wages, stands: this.stands, mark: this.mark, seed: this.seed || '',
+      bins: this.bins, prog: this.prog,
     };
   }
   load(o) {
@@ -395,9 +413,14 @@ export class World {
     this.builds = unpackBuilds(o.builds);
     this.damage = o.damage || 0; this.job = o.job || null; this.wages = o.wages || 0;
     this.stands = o.stands || null; this.mark = o.mark || null; this.seed = o.seed || '';
+    this.bins = o.bins || []; this.prog = o.prog || newProg();
     this._dirty();
     for (const fn of this.listeners) fn({ t: 'load' }, {});
   }
 }
 
 const EMPTY = [];
+/** M: kg of the job tree (wood and leaves) as grown; chipped: kg of it chipped; lost: kg of it swept away as debris
+ * (twigs under DEBRIS_MASS, which nobody could chip: the share chipped is of M - lost); made: m3 of chips blown out by
+ * the chippers; gone: m3 of chips that went into bins. */
+function newProg() { return { M: 0, chipped: 0, lost: 0, made: 0, gone: 0 }; }

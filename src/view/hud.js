@@ -5,6 +5,8 @@
 import { CFG, INJ_NAME, MODE } from '../config.js';
 
 const $ = (id) => document.getElementById(id);
+/** Colour of a job percentage (owner): red under 60 %, amber from 60, green from 90, blue from 99. */
+export function pctColour(f) { return f >= 0.99 ? '#5ab4ff' : f >= 0.9 ? '#52d468' : f >= 0.6 ? '#ffb326' : '#ff5a4e'; }
 
 // token -> [keyboard and mouse, gamepad, touch (the on-screen buttons of src/touch.js)]
 const NAMES = {
@@ -68,6 +70,18 @@ export class Hud {
     while (this.toasts.children.length > 5) this.toasts.firstChild.remove();
   }
 
+  /** How far the job has got: the job tree chipped, and of the chips made, how many went into a bin (world.prog). */
+  progress() {
+    const P = this.world.prog, el = this.progEl || (this.progEl = $('prog'));
+    const tree = P.M > (P.lost || 0) ? Math.min(1, P.chipped / (P.M - (P.lost || 0))) : 0, bin = P.made > 0 ? P.gone / P.made : null;
+    const key = `${tree.toFixed(4)} ${bin === null ? '-' : bin.toFixed(4)}`;
+    if (key === this.progKey) return;
+    this.progKey = key;
+    // to a tenth of a percent, rounded down (a big tree moves slowly; 99.96 % is not yet 100 %)
+    const span = (f) => `<span style="color:${pctColour(f)}">${(Math.floor(f * 1000 + 1e-6) / 10).toFixed(1)}%</span>`;
+    el.innerHTML = `Tree chipped ${span(tree)}  ·  Chips in bins ${bin === null ? '<span style="opacity:.7">none yet</span>' : span(bin)}`;
+  }
+
   /** The network box (net/stats.js), top right on a joined client; null hides it. */
   net(lines) {
     const el = this.netEl || (this.netEl = $('net'));
@@ -86,6 +100,7 @@ export class Hud {
     if (a && a.ck > 0) s += `  |  carrying ${qty('vol', a.ck * 1000, 0)} of chips`;
     if (a) s += `  |  ${a.m === MODE.CLIMB ? 'on spurs, lanyard on' : a.m === MODE.ROPE ? 'on the rope' : 'on the ground'}  |  ${INJ_NAME[a.inj]}`;
     this.status.textContent = s;
+    this.progress();
     this.prompt.textContent = a ? describe(a.pr, device, device === 'touch' && a.m === MODE.ROPE ? TOUCH_ROPE : null) : '';
     this.keys.style.display = device === 'touch' ? 'none' : '';
     this.keys.textContent = describe('{move} move   {look} look   {interact} lanyard (hold)   {rig} block / tie   {punch} punch   {raise} saw   {drop} let go (hold)   {menu} settings   {respawn} respawn', device);

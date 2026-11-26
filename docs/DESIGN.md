@@ -785,6 +785,21 @@ never sleeps (Rapier would stop it rolling slowly off its roof).
 - **Reset.** A new tree re-lays the pavers fresh and re-parks the chipper
   (`chipper` event): default pose, brakes on, nothing feeding, no chips.
 
+### 6.5a Chip bins and job progress (D92)
+
+`model/bin.js` (shape), `sim/bin.js` (host), `view/bin.js`. `world.bins` is the
+list of bins as put down ('bins' with a new tree: one by the chipper; 'bin':
+one more, bought from the Tab menu through the `buyBin` input counter, so any
+player can buy). Each is two dynamic bodies, the bin (snapshot id
+`59500 + 2k`) and its lid on a hinge (`59501 + 2k`). The lid has no state of
+its own: open means swung more than 1.2 rad up, read from the bodies on the
+host. Chips that land in an open, upright bin's mouth go in and are gone: the
+'chip' event carries `bin: k`, a player's carried chips go in as
+'chips' `{dump: V}`. `world.prog` = {M: kg of the job tree as grown, chipped,
+lost (swept debris), made and gone (m³ of chips)}, kept by `world.apply` so
+every machine agrees; the HUD shows tree chipped = chipped / (M − lost) and
+chips in bins = gone / made, coloured by `pctColour` (hud.js).
+
 ### 6.6 Breakable structures: sheds, fences and houses
 
 Structures (`model/builds.js`, `sim/builds.js`, `view/builds.js`) are built

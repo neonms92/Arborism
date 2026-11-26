@@ -7,7 +7,7 @@ import { CFG, INJ, MODE } from '../config.js';
 import { segLen, segAxis, segRadius, segParam, lerp3, perp, cleanName, cleanColor, playerName } from '../model/world.js';
 import { sawStep, sawOff } from './saw.js';
 
-const COUNTERS = ['jump', 'interact', 'drop', 'rig', 'punch', 'wrapUp', 'wrapDn', 'respawn'];
+const COUNTERS = ['jump', 'interact', 'drop', 'rig', 'punch', 'wrapUp', 'wrapDn', 'respawn', 'buyBin'];
 export function blankInput() {
   const c = {}; for (const k of COUNTERS) c[k] = 0;
   // sy, sp: how far the saw is swung from straight-ahead-and-level (rad)
@@ -170,9 +170,18 @@ export class Players {
   grabChipper(p, ca) {
     p.grab = { chip: 1, p: ca.local, L0: Math.max(0.2, this.hands(p, _a).distanceTo(ca.point)), prev: 0 };
   }
+  /** Take hold of chip bin k's handle bar (bin-local point on it). */
+  grabBin(p, bn) {
+    p.grab = { bin: bn.k, p: bn.local, L0: Math.max(0.2, this.hands(p, _a).distanceTo(bn.point)), prev: 0 };
+  }
   grabStep(p, dt) {
     const g = p.grab, sim = this.sim; p.pull = 0; if (!g) return;
-    const ch = sim.chipper;
+    const ch = sim.chipper, bin = g.bin !== undefined ? sim.bins.unit(g.bin) : null;
+    if (g.bin !== undefined) {
+      // a chip bin by its handle: held like the chipper's grip (below), with arms as stiff as its weight allows
+      if (!bin) { p.grab = null; return; }
+      return this.holdBody(p, g, bin.body, sim.bins.toWorld(g.bin, g.p, _b), Math.min(CFG.P_MASS, bin.body.mass()), dt, 'The bin pulled out of your hands');
+    }
     const s = g.chip ? null : sim.world.segs.get(g.seg);
     if (g.chip ? !ch.body : !s) { p.grab = null; return; }
     const h = this.hands(p, _a), w = g.chip ? ch.toWorld(g.p, _b) : sim.segToWorld(s, g.p, _b);
@@ -218,6 +227,36 @@ export class Players {
     p.body.applyImpulse({ x: -fx * dt, y: 0, z: -fz * dt }, true);
   }
 
+  /** The arms holding a loose body (not wood) at world point w: the same spring and steering as grabStep's. */
+  holdBody(p, g, body, w, m, dt, lost) {
+    const h = this.hands(p, _a), dir = _c.copy(h).sub(w), len = dir.length();
+    const stretch = len - g.L0, rate = (stretch - g.prev) / dt; g.prev = stretch;
+    if (len < 1e-6) return;
+    const k = Math.min(CFG.GRAB_K, CFG.ROPE_KCAP * m / (dt * dt)), c = 2 * CFG.ROPE_DAMP * Math.sqrt(k * m);
+    const T = Math.max(-CFG.GRAB_MAX, k * stretch + c * rate);
+    p.pull = T;
+    g.held = (g.held || 0) + (Math.max(0, T) - (g.held || 0)) * Math.min(1, dt / Math.max(dt, CFG.GRAB_TAU));
+    if (g.held > CFG.GRAB_MAX) { p.grab = null; p.pull = 0; this.say(p, lost); return; }
+    dir.divideScalar(len);
+    if (T < 0) { const hl = Math.hypot(dir.x, dir.z); if (hl > 0.2) dir.set(dir.x / hl, 0, dir.z / hl); }
+    body.applyImpulseAtPoint({ x: dir.x * T * dt, y: dir.y * T * dt, z: dir.z * T * dt }, w, true);
+    p.body.applyImpulse({ x: -dir.x * T * dt, y: -dir.y * T * dt, z: -dir.z * T * dt }, true);
+    const rx = w.x - h.x, rz = w.z - h.z, rl = Math.hypot(rx, rz), wk = p.walk;
+    if (rl < 0.1 || !wk) return;
+    const along = (rx * wk.x + rz * wk.z) / rl;
+    if (Math.abs(along) < 0.3) return;
+    const tx = Math.sign(along) * wk.x, tz = Math.sign(along) * wk.z;
+    const ux = rx / rl, uz = rz / rl, ex = h.x + tx * rl - w.x, ez = h.z + tz * rl - w.z;
+    const er = ex * ux + ez * uz, lx = ex - ux * er, lz = ez - uz * er;
+    const vm = body.velocityAtPoint(w), vp = p.body.linvel();
+    const dvx = vm.x - vp.x, dvz = vm.z - vp.z, dvr = dvx * ux + dvz * uz;
+    let fx = CFG.GRAB_STEER * lx - 2 * Math.sqrt(CFG.GRAB_STEER * m) * (dvx - ux * dvr);
+    let fz = CFG.GRAB_STEER * lz - 2 * Math.sqrt(CFG.GRAB_STEER * m) * (dvz - uz * dvr);
+    const fl = Math.hypot(fx, fz); if (fl > CFG.LEG_FORCE) { fx *= CFG.LEG_FORCE / fl; fz *= CFG.LEG_FORCE / fl; }
+    body.applyImpulseAtPoint({ x: fx * dt, y: 0, z: fz * dt }, w, true);
+    p.body.applyImpulse({ x: -fx * dt, y: 0, z: -fz * dt }, true);
+  }
+
   // ---- punch: each press adds a shove along the look direction that fades; spamming stacks it ----
   punchPress(p, aim) {
     if (!aim || aim.dist > CFG.REACH) return;
@@ -257,6 +296,7 @@ export class Players {
       this.toSpawn(p);
       p.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     }
+    if (pressed.buyBin) sim.bins.buy(p);          // the Tab menu's "Buy a new chip bin": put down in front of them
     const control = p.inj < INJ.DOWN && p.shakenT <= 0;
     const aim = control ? sim.aim(p) : null;
     p.prompt = '';
@@ -369,15 +409,23 @@ export class Players {
       if (pressed.interact) { p.mode = MODE.ROPE; rope.holder = p.id; }
     } else if (p.chips > 0 && !p.grab) {
       // hands full of chips: {interact} takes more off the pile looked at, while there is room, or puts them all down
+      // At a chip bin: open, they are tipped in (and gone: it has no bottom); shut, the press opens its lid first.
       const pile = control ? sim.chipper.aimPile(p) : -1, room = p.chips < CFG.CHIP_CARRY - 1e-5;
-      if (pressed.interact) { if (pile >= 0 && room) sim.chipper.take(p, pile); else sim.chipper.drop(p); p.chLock.add('lanyard'); }
-      first = pile >= 0 && room ? '{interact}: more chips' : '{interact}: drop chips';
+      const bn = control ? sim.bins.aim(p) : null, bOpen = bn && sim.bins.open(bn.k);
+      if (pressed.interact) {
+        if (bn && bOpen) { sim.emit({ t: 'chips', dump: +p.chips.toFixed(5) }); p.chips = 0; }
+        else if (bn) sim.bins.toggle(bn.k);
+        else if (pile >= 0 && room) sim.chipper.take(p, pile); else sim.chipper.drop(p);
+        p.chLock.add('lanyard');
+      }
+      first = bn ? (bOpen ? '{interact}: tip in' : '{interact}: open lid') : pile >= 0 && room ? '{interact}: more chips' : '{interact}: drop chips';
     } else {
       // {interact} toggles holding the wood. Letting go does not start a lanyard throw until the button is
       // released; a press that grabs standing wood and keeps being held goes on to throw the lanyard.
       // At the chipper: with wood in hand it feeds it in; at its grip it takes hold of the chipper.
       const ca = control ? sim.chipper.aim(p) : null, atChip = ca && ca.dist < CFG.REACH;
       const pile = control && !p.grab ? sim.chipper.aimPile(p) : -1;      // a chip pile within reach
+      const bn = control && !p.grab ? sim.bins.aim(p) : null;              // a chip bin within reach: its lid or its handle
       const wood = p.grab && !p.grab.chip ? sim.world.segs.get(p.grab.seg) : null;
       const loose = wood && !sim.world.pieces.get(wood.piece).fixed;
       if (pressed.interact && wood && atChip) {
@@ -385,14 +433,18 @@ export class Players {
         else this.say(p, 'Only loose wood can go in the chipper');
       } else if (pressed.interact && p.grab) { p.grab = null; p.chLock.add('lanyard'); }
       else if (pressed.interact && atChip && ca.grip) this.grabChipper(p, ca);
+      else if (pressed.interact && bn && bn.part === 'lid') { sim.bins.toggle(bn.k); p.chLock.add('lanyard'); }
+      else if (pressed.interact && bn && bn.part === 'handle') this.grabBin(p, bn);
       else if (pressed.interact && pile >= 0) { sim.chipper.take(p, pile); p.chLock.add('lanyard'); }
       else if (pressed.interact && reach) this.grabStart(p, aim);
       // the weight of the wood in hand, or of loose wood looked at, goes on the button (nothing for wood still on the tree)
       const kg = (piece) => { const m = sim.weightOf(piece); return isFinite(m) ? ` {mass:${Math.round(m)}}` : ''; };
       if (wood && atChip) first = loose ? '{interact}: feed' + kg(wood.piece) : 'Only loose wood can go in the chipper';
-      else if (p.grab) first = p.grab.chip ? '{interact}: let go   {move}: tow' : '{interact}: let go' + (wood ? kg(wood.piece) : '');
+      else if (p.grab) first = p.grab.chip || p.grab.bin !== undefined ? '{interact}: let go   {move}: tow' : '{interact}: let go' + (wood ? kg(wood.piece) : '');
       else if (atChip && sim.chipper.seized()) first = 'The chipper\'s rollers have seized on wood too heavy for it: saw it smaller';
       else if (atChip) first = ca.grip ? '{interact}: grab chipper' : 'Chipper: grab a limb, then {interact} here to feed it in. Its grip is at the front';
+      else if (bn) first = bn.part === 'lid' ? (sim.bins.lidAngle(bn.k) > 2 ? '{interact}: shut lid' : '{interact}: open lid')
+        : bn.part === 'handle' ? '{interact}: grab bin' : 'Chip bin: {interact} on its lid opens it, its handle moves it. Chips in it are gone';
       else if (pile >= 0) first = '{interact}: take chips';
       else first = reach ? '{interact}: grab' + kg(sim.world.segs.get(aim.seg).piece) : '';
     }
@@ -549,7 +601,7 @@ export class Players {
     for (const p of this.list.values()) {
       const s = p.saw;
       out.push({
-        id: p.id, m: p.mode, inj: p.inj, sk: p.shakenT > 0 ? 1 : 0, ck: +(p.chips || 0).toFixed(4), gr: p.grab ? [p.grab.chip ? -1 : p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pt: +p.input.pitch.toFixed(2), pr: p.prompt,
+        id: p.id, m: p.mode, inj: p.inj, sk: p.shakenT > 0 ? 1 : 0, ck: +(p.chips || 0).toFixed(4), gr: p.grab ? [p.grab.chip ? -1 : p.grab.bin !== undefined ? -2 - p.grab.bin : p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pt: +p.input.pitch.toFixed(2), pr: p.prompt,
         cl: p.cl ? [p.cl.seg, +p.cl.t.toFixed(3), p.cl.side.map((x) => +x.toFixed(3))] : 0,
         saw: s.on ? [...s.A.toArray(), ...s.b.toArray(), ...s.f.toArray(), s.stuck ? 1 : 0, s.cutting ? 1 : 0, CFG.BAR_LEN].map((x) => +x.toFixed(3)) : 0,
       });

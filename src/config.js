@@ -201,6 +201,13 @@ export const CFG = {
   CHIP_CARRY: 0.04,        // m3 of chips a player can carry (an armful, about 40 L)
   CHIP_CAPACITY: 150,      // kg: the heaviest contiguous piece the rollers take; heavier wood seizes them until it is sawn
   CHIP_SWELL: 2.5,         // m3 of loose chips per m3 of wood chipped
+  // --- chip bins (sim/bin.js): 96 gal wheeled bins with no bottom; chips in them are gone ---
+  BIN_MASS: 15,            // kg, the bin without its lid
+  BIN_LID_MASS: 2,         // kg
+  BIN_LID_K: 80,           // 1/s2: how hard a press on the lid drives it round its hinge (acceleration, for 1.5 s)
+  BIN_HINGE_DAMP: 2,       // 1/s: friction in the hinge while it swings freely
+  BIN_CATCH: 0.15,         // m past the rim of an open bin's mouth that chips landing still go in
+  BIN_PRICE: 100,          // $ a new bin costs (the Tab menu's "Buy a new chip bin")
   // --- breakable structures (sim/builds.js): the shed; rigid until hit hard enough, then loose boards ---
   SHED_BREAK_F: 25000,     // N of contact force from wood in one tick that breaks a module (the shed) apart
   FENCE_BREAK_F: 10000,    // N of contact force from wood in one tick that breaks one fence section apart

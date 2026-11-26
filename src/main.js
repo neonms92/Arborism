@@ -34,6 +34,7 @@ function applySeed() {
 menu.onSeed = () => { $('seed').value = CFG.WORLD_SEED; };
 menu.showSeed();
 menu.onSkip = () => { if (sim) sim.skipTime(); else hud.toast('Only the host can change the time of day'); };
+menu.onBin = () => { input.state.c.buyBin = (input.state.c.buyBin || 0) + 1; };   // the host buys it: joined players can too
 menu.onChipper = () => { if (sim) sim.chipper.respawn(); else hud.toast('Only the host can respawn the chipper'); };
 view = new View($('game'), world);
 const hud = new Hud(world);
