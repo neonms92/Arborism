@@ -168,6 +168,14 @@ export const CFG = {
   P_MASS: 85, P_RADIUS: 0.28, P_HALF: 0.6,
   PLAYER_NAME_MAX: 16,     // characters in a player's name (lobby box, toasts, name tag, helmet)
   BLINK_GAP: 4,            // s, mean time between blinks (view only)
+  // --- stickers (achievements, D105): handed to everyone in the game at once (sim/awards.js) ---
+  STICKER_T1: 0.6,         // share of the job tree cut down / chipped for the brown tree / bronze chipper sticker
+  STICKER_T2: 0.9,         // ... yellow tree / silver chipper
+  STICKER_T3: 0.99,        // ... green tree / gold chipper
+  STICKER_BIN: 0.99,       // share of the job tree chipped and in bins for the 100% sticker
+  STICKER_SALADS: 3,       // tube salads eaten in a job for the salad sticker
+  STICKER_SIZE: 0.1,       // m across, a sticker on a helmet
+  STICKER_MAX: 40,         // most stickers a helmet carries (the oldest go first)
   WALK: 3.5, JUMP: 3.4,
   WALK_SLOPE: 0.785,       // rad (45°): ground up to this steep is stood on (the legs work on it)
   JUMP_SLOPE: 1.22,        // rad (70°): sliding on ground up to this steep (a ledge face), a jump still pushes off it

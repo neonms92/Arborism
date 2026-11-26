@@ -14,6 +14,8 @@ import { NetStats, upCount, upLoss } from './net/stats.js';
 import { ClimbPredict } from './net/predict.js';
 import { randomSeed, seedNumbers } from './model/seed.js';
 import { cleanName, cleanColor, playerName } from './model/world.js';
+import { Stage } from './view/stage.js';
+import { StickerBook, StickerUI } from './stickerui.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -46,6 +48,11 @@ const input = new Input($('game'));
 // Back / swipe-back asks before leaving a game; the game takes no input while it asks
 const leaveGuard = new LeaveGuard((open) => { input.active = !open; });
 const net = new Net();
+// you, drawn on the start screen and in the sticker dialog; your stickers, kept in this browser (D105)
+const stage = new Stage();
+$('lobbyAv').appendChild(stage.canvas);
+const book = new StickerBook();
+const stk = new StickerUI(book, stage);
 
 let sim = null, interp = null, me = -1, aux = null, room = '', role = '', running = false;
 let lastHeard = 0;                                // when anything last came from the host (a client)
@@ -57,6 +64,7 @@ world.on((ev, info) => {
   if (ev.t === 'toast' && (ev.to < 0 || ev.to === me)) hud.toast(ev.msg);
   if (ev.t === 'rmpiece' && interp) interp.drop(ev.piece);
   if (ev.t === 'chip' && interp) for (const id of info.gone) interp.drop(id);
+  if (ev.t === 'award') { const line = book.award(ev); if (line) hud.toast(line); }   // to everyone in the game at once
 });
 
 // ---------- lobby ----------
@@ -65,8 +73,16 @@ const PALETTE = [0xe8a23a, 0x3a9be8, 0xd94f6a, 0x62c462, 0xb07be0, 0xe0d24a];
 const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 function look() {
   const c = cleanColor(parseInt(($('pcolor').value || '').slice(1), 16));
-  return { name: cleanName($('pname').value), color: c };
+  return { name: cleanName($('pname').value), color: c, st: book.wire() };
 }
+/** Name, shirt and stickers changed: show them on the start screen, and tell the host when in a game. */
+function sendLook() {
+  const l = look();
+  stage.look(l.name || 'You', l.color); stage.stickers(l.st);
+  if (sim && me > 0) sim.players.setLook(me, l.name, l.color, l.st);
+  else if (role === 'client') net.sendRel(net, { t: 'me', ...l });
+}
+book.onChange = () => { sendLook(); stk.refresh(); };
 {
   let n = '', c = -1;
   try { n = localStorage.getItem('arb-name') || ''; c = cleanColor(parseInt(localStorage.getItem('arb-color'), 10)); } catch { /* storage blocked */ }
@@ -74,7 +90,9 @@ function look() {
   $('pname').maxLength = CFG.PLAYER_NAME_MAX;
   $('pname').value = n; $('pcolor').value = hex(c);
   const save = () => { const l = look(); try { localStorage.setItem('arb-name', l.name); localStorage.setItem('arb-color', String(l.color)); } catch { /* storage blocked */ } };
-  $('pname').onchange = save; $('pcolor').oninput = save; save();
+  $('pname').onchange = save; $('pcolor').oninput = () => { save(); sendLook(); }; save();
+  $('pname').oninput = () => sendLook();          // the start-screen you answers as you type
+  sendLook();
 }
 const msg = (s) => { $('msg').textContent = s; };
 const randomRoom = () => Array.from({ length: 5 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.random() * 24 | 0]).join('');
@@ -87,7 +105,7 @@ async function startHost(online) {
   applySeed();
   sim = await Sim.create(world);
   me = nextPid++;
-  sim.players.add(me, look().name, look().color);
+  sim.players.add(me, look().name, look().color, look().st);
   role = 'solo';
   if (online) {
     room = (q.get('host') || randomRoom()).toUpperCase();
@@ -124,7 +142,7 @@ function wireHost() {
       return;
     }
     if (m.t === 'me') {                                // the joiner's lobby name and shirt colour (cleaned in players.setLook)
-      sim.players.setLook(c.pid, m.name, m.color);
+      sim.players.setLook(c.pid, m.name, m.color, m.st);
       if (!c.named) { c.named = true; hud.toast(`${playerName(world, c.pid)} joined`); }
       return;
     }
@@ -316,10 +334,11 @@ function frame(now) {
 
   const mine = aux && aux.pl.find((p) => p.id === me);
   input.sawOut = !!(mine && mine.saw);
-  if (menu.open) { input.mouse.l = input.mouse.r = false; }
+  const covered = menu.open || stk.open;            // the settings menu or the sticker dialog has the mouse and keyboard
+  if (covered) { input.mouse.l = input.mouse.r = false; }
   const inp = input.poll(dt);
   if (input.menuToggled) { input.menuToggled = false; menu.toggle(); }
-  input.menuOpen = menu.open;                      // the menu's Close button shuts it too
+  input.menuOpen = menu.open || stk.open;          // the menu's Close button shuts it too
 
   if (sim) {
     sim.players.setInput(me, inp);
@@ -360,7 +379,7 @@ function frame(now) {
   if (role === 'host') for (const c of net.clients.values()) if (c.st) info += `  P${c.pid} ${c.st.r} ms ${Math.round(Math.max(c.st.l, upLoss(c)) * 100)}%${c.st.via === 'relay' ? ' RELAY' : ''}`;
   hud.net(role === 'client' && CFG.NET_STATS ? stats.lines(performance.now()) : null);
   hud.update(dt, aux, me, info, input.device);
-  input.touch.sync(mine, !menu.open);
+  input.touch.sync(mine, !menu.open && !stk.open);
 }
 requestAnimationFrame(frame);
 
@@ -371,4 +390,4 @@ document.addEventListener('visibilitychange', () => {
 if (room) localStorage.setItem('arb-room', room);
 
 // handy for poking at things from the console
-window.arb = { CFG, world, view, menu, net, get sim() { return sim; }, get aux() { return aux; }, get me() { return me; }, input };
+window.arb = { CFG, world, view, menu, net, stage, book, stk, get sim() { return sim; }, get aux() { return aux; }, get me() { return me; }, input };

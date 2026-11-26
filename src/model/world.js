@@ -17,6 +17,7 @@ import { newPaving, crackPaver, packPaving, unpackPaving } from './pavers.js';
 import { addChips } from './chipper.js';
 import { makeTerrain } from './terrain.js';
 import { newBuild, smashBuild, freezeBuild, packBuilds, unpackBuilds } from './builds.js';
+import { cleanStickers } from './stickers.js';
 
 export const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 export const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -95,6 +96,7 @@ export class World {
     this.job = null;              // the job's budget and how it was worked out: {budget, h, d, lot} (sim/damage.js)
     this.wages = 0;               // $ paid out in wages so far; cash = job.budget - damage - wages - spent
     this.spent = 0;               // $ spent on purchases (another chipper) this job
+    this.awards = newAwards();    // stickers handed out this job (sim/awards.js, model/stickers.js)
     this.seed = '';               // the world's seed word, '' when none (model/seed.js; set by the 'terrain' event)
     this.nextId = 1;              // host allocates all ids
     this.listeners = [];
@@ -263,8 +265,11 @@ export class World {
         break;
       case 'player':
         // joining, or changing name / shirt colour (the same event again): name and color are already cleaned by the host
-        if (ev.leave) this.players.delete(ev.id); else this.players.set(ev.id, { id: ev.id, name: ev.name, color: ev.color });
+        if (ev.leave) this.players.delete(ev.id); else this.players.set(ev.id, { id: ev.id, name: ev.name, color: ev.color, st: cleanStickers(ev.st) });
         break;
+      case 'job': this.awards = { job: ev.id, got: {}, ate: 0 }; break;   // a new job: no stickers handed out yet
+      case 'award': this.awards.got[ev.k] = ev.tier; break;              // everyone got sticker k at this tier (main.js hands it out)
+      case 'ate': this.awards.ate++; break;                              // a tube salad eaten (or given and so eaten)
       case 'toast': break;
     }
     for (const fn of this.listeners) fn(ev, info);
@@ -403,7 +408,7 @@ export class World {
       segs: [...this.segs.values()].map((s) => ({ ...s, f: packBundle(s.f) })), pieces: [...this.pieces.values()],
       rope: this.rope, players: [...this.players.values()], paving: packPaving(this.paving), chipper: this.chipper, builds: packBuilds(this.builds),
       terrain: this.terrain ? this.terrain.spec : null, damage: this.damage, job: this.job, wages: this.wages, spent: this.spent, stands: this.stands, mark: this.mark, seed: this.seed || '',
-      bins: this.bins, prog: this.prog,
+      bins: this.bins, prog: this.prog, awards: this.awards,
     };
   }
   load(o) {
@@ -419,7 +424,7 @@ export class World {
     this.builds = unpackBuilds(o.builds);
     this.damage = o.damage || 0; this.job = o.job || null; this.wages = o.wages || 0; this.spent = o.spent || 0;
     this.stands = o.stands || null; this.mark = o.mark || null; this.seed = o.seed || '';
-    this.bins = o.bins || []; this.prog = o.prog || newProg();
+    this.bins = o.bins || []; this.prog = o.prog || newProg(); this.awards = o.awards || newAwards();
     this._dirty();
     for (const fn of this.listeners) fn({ t: 'load' }, {});
   }
@@ -429,4 +434,7 @@ const EMPTY = [];
 /** M: kg of the job tree (wood and leaves) as grown; chipped: kg of it chipped; lost: kg of it swept away as debris
  * (twigs under DEBRIS_MASS, which nobody could chip: the share chipped is of M - lost); made: m3 of chips blown out by
  * the chippers; gone: m3 of chips that went into bins. */
+/** job: id of this job ('' before one, as in the engine tests: nothing is handed out); got: kind -> highest tier
+ * handed out; ate: tube salads eaten this job. Kept in the world so a host taking over (D104) carries on from it. */
+function newAwards() { return { job: '', got: {}, ate: 0 }; }
 function newProg() { return { M: 0, chipped: 0, lost: 0, made: 0, gone: 0 }; }

@@ -7,6 +7,7 @@ import { CFG, INJ, MODE } from '../config.js';
 import { segLen, segAxis, segRadius, segParam, lerp3, perp, cleanName, cleanColor, playerName } from '../model/world.js';
 import { sawStep, sawOff } from './saw.js';
 import { climbMove, climbSign } from '../model/climb.js';
+import { cleanStickers } from '../model/stickers.js';
 
 // respawn, buyChip and buyBin are the Tab menu's "Respawn player", "Buy a new chipper" and "Buy a new chip bin" buttons (no key or button of their own)
 const COUNTERS = ['jump', 'interact', 'drop', 'rig', 'punch', 'wrapUp', 'wrapDn', 'respawn', 'buyChip', 'buyBin'];
@@ -23,7 +24,7 @@ export class Players {
   constructor(sim) { this.sim = sim; this.list = new Map(); }
 
   /** name and color as the player chose them (cleaned here; '' / -1 when none). */
-  add(id, name, color = -1) {
+  add(id, name, color = -1, st = []) {
     const sim = this.sim, R = sim.R;
     const ang = id * 1.3, sp = [4 * Math.cos(ang), CFG.SPAWN_HEIGHT, 4 * Math.sin(ang)];       // spawn y is above the ground there
     sp[1] += sim.groundY(sp[0], sp[2]);
@@ -45,13 +46,13 @@ export class Players {
       rtPrev: 0,                     // {throttle} last tick, for its press (eating)
     };
     this.list.set(id, p);
-    sim.emit({ t: 'player', id, name: cleanName(name), color: cleanColor(color) });
+    sim.emit({ t: 'player', id, name: cleanName(name), color: cleanColor(color), st: cleanStickers(st) });
     return p;
   }
-  /** A player picked a name and shirt colour in the lobby (a joining client sends them once it is in). */
-  setLook(id, name, color) {
+  /** A player picked a name and shirt colour in the lobby, or stuck a sticker on (a joining client sends them once it is in). */
+  setLook(id, name, color, st) {
     if (!this.list.has(id)) return;
-    this.sim.emit({ t: 'player', id, name: cleanName(name), color: cleanColor(color) });
+    this.sim.emit({ t: 'player', id, name: cleanName(name), color: cleanColor(color), st: cleanStickers(st) });
   }
   name(id) { return playerName(this.sim.world, id); }
   remove(id) {
@@ -77,6 +78,7 @@ export class Players {
     if (lvl === INJ.SHAKEN) { if (p.inj < INJ.SHAKEN) p.inj = INJ.SHAKEN; }
     else if (lvl > p.inj) {
       p.inj = lvl;
+      if (lvl === INJ.DOWN) this.sim.awards.down();
       this.sim.toast(lvl === INJ.DOWN ? `${this.name(p.id)} is DOWN ({speed:${dv.toFixed(1)}} impact)` : `${this.name(p.id)} is hurt ({speed:${dv.toFixed(1)}} impact)`);
     }
     sawOff(this.sim, p);
@@ -103,12 +105,12 @@ export class Players {
     if (o && pressed.interact) {
       p.held = ''; pressed.interact = false; p.chLock.add('lanyard');
       const was = o.inj;
-      this.heal(o);
+      this.heal(o); this.sim.awards.ate();
       this.sim.toast(`${this.name(p.id)} gave ${this.name(o.id)} a tube salad` + (was === INJ.DOWN ? `: ${this.name(o.id)} is back up` : ''));
       return '';
     }
     if (eat) {
-      p.held = ''; const was = p.inj; this.heal(p);
+      p.held = ''; const was = p.inj; this.heal(p); this.sim.awards.ate();
       this.sim.toast(was > INJ.SHAKEN ? 'You ate a tube salad: good as new' : 'You ate a tube salad', p.id);
       return '';
     }

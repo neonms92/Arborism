@@ -28,9 +28,8 @@ import { SHAPE } from '../model/chipper.js';
 import { woodInto, fibreWidth } from './wood.js';
 import { StandsView } from './stands.js';
 import { WeedsView } from './weeds.js';
+import { Avatar, PLAYER_COLORS, HEAD_Y } from './avatar.js';
 
-const PLAYER_COLORS = [0xe8a23a, 0x3a9be8, 0xd94f6a, 0x62c462, 0xb07be0, 0xe0d24a];   // shirts for players who picked none
-const HEAD_R = 0.19, HEAD_Y = 0.56;   // m: the head on the player capsule (centre above the body centre)
 const Y = new THREE.Vector3(0, 1, 0);
 const _ta = new THREE.Vector3(), _tb = new THREE.Vector3(), _tc = new THREE.Vector3();
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _m = new THREE.Matrix4(), _c = new THREE.Color();
@@ -366,51 +365,7 @@ export class View {
   playerMesh(id) {
     let p = this.players.get(id);
     if (p) return p;
-    // The body is drawn round the physics capsule (P_HALF + P_RADIUS = 0.88 m from its centre to each end):
-    // a short tube torso in the shirt colour, a round head, the white helmet with its headlamp, and a face of
-    // two flat eyes. A name tag on the chest and the name again across the back of the helmet.
-    const group = new THREE.Group();
-    const shirt = new THREE.MeshLambertMaterial({ color: 0xe8a23a, flatShading: true });
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.26, 0.7, 2, 9), shirt);
-    body.position.y = -0.25;                        // feet at -0.86, shoulders at 0.36
-    const head = new THREE.Mesh(new THREE.SphereGeometry(HEAD_R, 12, 9), new THREE.MeshLambertMaterial({ color: 0xe9c29a, flatShading: true }));
-    head.position.y = HEAD_Y;
-    const helmetMat = new THREE.MeshLambertMaterial({ color: 0xf4f4f4, flatShading: true });
-    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.205, 10, 5, 0, 2 * Math.PI, 0, 1.3), helmetMat);
-    helmet.position.y = HEAD_Y + 0.025;
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.235, 0.235, 0.012, 12), helmetMat);
-    brim.position.y = helmet.position.y + 0.205 * Math.cos(1.3) + 0.004;
-    body.castShadow = head.castShadow = helmet.castShadow = true;
-    const lampMat = new THREE.MeshBasicMaterial({ color: 0x555555 });
-    const lampBox = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.06, 0.05), lampMat);
-    lampBox.position.set(0, HEAD_Y + 0.13, -0.175);
-    group.add(body, head, helmet, brim, lampBox);
-    // eyes: one drawing of the viewer's-left eye; the other eye shows it mirrored (its UVs flipped)
-    const eyeCv = document.createElement('canvas'); eyeCv.width = eyeCv.height = 64;
-    const eyeTex = new THREE.CanvasTexture(eyeCv); eyeTex.colorSpace = THREE.SRGBColorSpace;
-    const eyeMat = new THREE.MeshLambertMaterial({ map: eyeTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
-    const eyeGeo = new THREE.PlaneGeometry(0.085, 0.085), eyeGeoM = eyeGeo.clone(), uv = eyeGeoM.attributes.uv;
-    for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i));
-    for (const side of [1, -1]) {                   // +x is the viewer's left when the player faces you (-z is their front)
-      const az = 0.36 * side, el = 0.1, d = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
-      const eye = new THREE.Mesh(side > 0 ? eyeGeo : eyeGeoM, eyeMat);
-      eye.position.set(0, HEAD_Y, 0).addScaledVector(d, HEAD_R + 0.004);
-      eye.lookAt(_v.set(0, HEAD_Y, 0).addScaledVector(d, 2));   // the group is still at the origin here
-      group.add(eye);
-    }
-    // name tag on the chest (a strip of the torso's own tube) and the name across the back of the helmet
-    const tagCv = document.createElement('canvas'); tagCv.width = 256; tagCv.height = 80;
-    const tagTex = new THREE.CanvasTexture(tagCv); tagTex.colorSpace = THREE.SRGBColorSpace; tagTex.anisotropy = 4;
-    // over the left breast pocket: upper chest, off to the wearer's left (-x; they face -z)
-    const tagW = 0.15, tagAt = Math.PI + 0.5, tag = new THREE.Mesh(new THREE.CylinderGeometry(0.263, 0.263, 0.047, 4, 1, true, tagAt - tagW / 0.263 / 2, tagW / 0.263),
-      new THREE.MeshLambertMaterial({ map: tagTex, polygonOffset: true, polygonOffsetFactor: -2 }));
-    tag.position.y = 0.02 + 1.25 * 0.047;            // raised 1.25 tag heights (owner)
-    const backCv = document.createElement('canvas'); backCv.width = 256; backCv.height = 64;
-    const backTex = new THREE.CanvasTexture(backCv); backTex.colorSpace = THREE.SRGBColorSpace; backTex.anisotropy = 4;
-    const back = new THREE.Mesh(new THREE.SphereGeometry(0.207, 10, 3, Math.PI / 2 - 0.75, 1.5, 0.72, 0.5),
-      new THREE.MeshLambertMaterial({ map: backTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
-    back.position.y = helmet.position.y;
-    group.add(tag, back);
+    const av = new Avatar(), group = av.group;        // body, head, helmet, eyes, name tags, stickers (avatar.js)
     // a tube salad in the right hand (+x: they face -z), held up in front, while aux says they have one
     const salad = new THREE.Mesh(this.saladGeo || (this.saladGeo = saladGeometry()), this.saladMat || (this.saladMat = new THREE.MeshLambertMaterial({ color: 0x3fae3a, flatShading: true })));
     salad.position.set(0.3, -0.12, -0.24); salad.rotation.x = 1.1; salad.castShadow = true; salad.visible = false;
@@ -430,52 +385,23 @@ export class View {
     const grab = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat);
     grab.frustumCulled = false; grab.visible = false;
     this.scene.add(group, saw, lanyard, grab);
-    p = { id, group, salad, saw, bar, eng, lanyard, grab, lamp, lampMat, shirt, engMat, eyeCv, eyeTex, eyeState: '', blinkT: 1 + Math.random() * CFG.BLINK_GAP, tagCv, tagTex, backCv, backTex, lookKey: '' };
+    p = { id, av, group, salad, saw, bar, eng, lanyard, grab, lamp, lampMat: av.lampMat, engMat };
     this.players.set(id, p);
     return p;
   }
 
-  /** Shirt, saw and name from the model (the 'player' event), redrawn only when they change. */
+  /** Shirt, saw, name and stickers from the model (the 'player' event), redrawn only when they change. */
   setLook(pm) {
     const w = this.world.players.get(pm.id), name = playerName(this.world, pm.id);
-    const c = w && w.color >= 0 ? w.color : PLAYER_COLORS[(pm.id - 1) % PLAYER_COLORS.length], key = name + '|' + c;
-    if (key === pm.lookKey) return;
-    pm.lookKey = key;
-    pm.shirt.color.setHex(c); pm.engMat.color.setHex(c);
-    const fit = (g, text, max, wMax) => { let f = max; do { g.font = `700 ${f}px system-ui, sans-serif`; f -= 2; } while (f > 10 && g.measureText(text).width > wMax); };
-    let g = pm.tagCv.getContext('2d');
-    g.fillStyle = '#f7f7f2'; g.fillRect(0, 0, 256, 80);
-    g.fillStyle = '#c33'; g.fillRect(0, 0, 256, 14);                    // "HELLO my name is" stripe
-    g.fillStyle = '#1b1b1b'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    fit(g, name, 44, 236); g.fillText(name, 128, 48);
-    pm.tagTex.needsUpdate = true;
-    g = pm.backCv.getContext('2d'); g.clearRect(0, 0, 256, 64);
-    g.fillStyle = '#222'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    fit(g, name, 40, 240); g.fillText(name, 128, 34);
-    pm.backTex.needsUpdate = true;
+    const c = w && w.color >= 0 ? w.color : PLAYER_COLORS[(pm.id - 1) % PLAYER_COLORS.length];
+    if (pm.av.setLook(name, c)) pm.engMat.color.setHex(c);
+    pm.av.setStickers(w ? w.st : null);
   }
 
   /** The eyes: open, blinking, wincing while shaken, worried while hurt, crosses when down. */
   poseFace(pm, a, dt) {
-    pm.blinkT -= dt;
-    if (pm.blinkT < -0.13) pm.blinkT = CFG.BLINK_GAP * (0.4 + 1.2 * Math.random());
-    const st = a.inj === INJ.DOWN ? 'x' : a.sk ? 'wince' : pm.blinkT < 0 ? 'blink' : a.inj === INJ.HURT ? 'worry' : 'open';
-    if (st === pm.eyeState) return;
-    pm.eyeState = st;
-    const g = pm.eyeCv.getContext('2d');
-    g.clearRect(0, 0, 64, 64);
-    g.strokeStyle = g.fillStyle = '#1a1410'; g.lineWidth = 7; g.lineCap = g.lineJoin = 'round';
-    const line = (...xy) => { g.beginPath(); g.moveTo(xy[0], xy[1]); for (let i = 2; i < xy.length; i += 2) g.lineTo(xy[i], xy[i + 1]); g.stroke(); };
-    if (st === 'x') { line(16, 18, 48, 50); line(48, 18, 16, 50); }
-    else if (st === 'blink') { g.beginPath(); g.arc(32, 26, 16, 0.25 * Math.PI, 0.75 * Math.PI); g.stroke(); }
-    else if (st === 'wince') line(18, 18, 46, 34, 18, 50);                // ">" squeezed shut toward the nose (the other eye mirrors it)
-    else {
-      const worry = st === 'worry', r = worry ? 9 : 11;
-      g.beginPath(); g.ellipse(32, worry ? 38 : 34, r, r * 1.35, 0, 0, 2 * Math.PI); g.fill();
-      g.fillStyle = '#fff'; g.beginPath(); g.arc(28, worry ? 32 : 28, 3.5, 0, 2 * Math.PI); g.fill();
-      if (worry) { g.lineWidth = 5; line(12, 16, 50, 6); }                 // brow raised toward the nose
-    }
-    pm.eyeTex.needsUpdate = true;
+    const blink = pm.av.blinking(dt);
+    pm.av.setEyes(a.inj === INJ.DOWN ? 'x' : a.sk ? 'wince' : blink ? 'blink' : a.inj === INJ.HURT ? 'worry' : 'open');
   }
 
   /**

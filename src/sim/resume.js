@@ -4,6 +4,7 @@
 // What comes back: the ground, the job tree and every loose piece where it was (at rest), the wood still
 // hanging by fibres (its fibres as the last aux showed them), the chippers, bins and intact structures,
 // the other yard trees, players (climbers on the wood they were on), rope length and wraps, the clock.
+// Stickers handed out so far are in the world (world.awards), so none is handed out twice.
 // What does not: speeds (everything starts still), the state of a chipper mid-feed, debris of broken
 // structures (drawn, no longer solid), someone holding the rope or wood (they let go).
 // Runs in the main thread or a worker: no DOM.
@@ -66,7 +67,7 @@ export function resume(sim, st) {
   // players: everyone in the world, where they were; climbers back on their spurs
   const pl = new Map(); if (aux) for (const a of aux.pl) pl.set(a.id, a);
   for (const m of w.players.values()) {
-    sim.players.add(m.id, m.name, m.color);
+    sim.players.add(m.id, m.name, m.color, m.st);
     const p = sim.players.list.get(m.id), a = pl.get(m.id), ps = st.poses.get(PLAYER_BODY_ID + m.id);
     if (ps) { p.body.setTranslation(ps.p, true); p.body.setLinvel({ x: 0, y: 0, z: 0 }, true); }
     if (a && a.m === MODE.CLIMB && Array.isArray(a.cl) && w.segs.has(a.cl[0])) {
