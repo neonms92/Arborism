@@ -1,4 +1,4 @@
-// Host only: the ground is solid (DECISIONS D88).
+// Host only: the ground is solid (DECISIONS D88, D96).
 //
 // On terrain the ground collider is a heightfield: a surface with nothing
 // under it. A bit of wood pressed hard enough (a crown landing on a twig, a
@@ -11,9 +11,10 @@
 // against the ground height at its two ends and its middle. The axis of wood
 // lying on the ground is at least its radius above it, so a segment whose
 // axis is anywhere under the surface is inside the ground: it stops colliding
-// with the ground collider (collision groups) and the ground pushes it out
-// along its normal at its deepest point instead, as a stiff damped spring
-// (GROUND_PUSH_K, GROUND_PUSH_DAMP, GROUND_PUSH_MAX). Once its whole axis is back
+// with the ground collider (collision groups), and the body is lifted: for
+// GROUND_LIFT_TIME it rises at least GROUND_LIFT_V
+// (the feed rollers' speed), and another lift starts if it is still in
+// when that one ends (D96; the spring of D88 kicked too hard). Once its whole axis is back
 // at least half its radius above the surface, the ordinary contact takes over
 // again. Flat ground (the 1 m slab the engine tests use) has a solid inside
 // and needs none of this.
@@ -33,13 +34,14 @@ export class Ground {
   constructor(sim) {
     this.sim = sim;
     this.sunk = new Set();          // seg ids inside the ground now (their colliders do not meet it)
+    this.lift = new Map();          // piece id -> s left of its lift out of the ground
     this.log = null;                // set to [] in the console to see segments go in and come out
   }
 
   /** The ground collider was made again (sim.makeGround): give it its group and forget old state. */
   onGround(col) {
     if (col) col.setCollisionGroups(GROUND);
-    this.sunk.clear();
+    this.sunk.clear(); this.lift.clear();
   }
 
   /** A segment's collider was made again (sim.addCollider): it starts with the default groups. */
@@ -48,11 +50,12 @@ export class Ground {
   /** Before the physics step. */
   pre(dt) {
     const sim = this.sim, w = sim.world;
-    if (!w.terrain) { if (this.sunk.size) this.sunk.clear(); return; }
-    const K = CFG.GROUND_PUSH_K, C = CFG.GROUND_PUSH_DAMP, PMAX = CFG.GROUND_PUSH_MAX;
+    if (!w.terrain) { this.sunk.clear(); this.lift.clear(); return; }
+    const V = CFG.GROUND_LIFT_V, T = CFG.GROUND_LIFT_TIME;
     const still = new Set(), hits = [];
     for (const [pid, body] of sim.bodies) {
       if (!body.isDynamic() || body.isSleeping()) {
+        if (!body.isDynamic()) this.lift.delete(pid);
         // a sleeping body keeps its state: just remember which of its segments are still in
         for (const s of w.segsOf(pid)) if (this.sunk.has(s.id)) still.add(s.id);
         continue;
@@ -77,23 +80,19 @@ export class Ground {
         }
         if (!was) { col.setCollisionGroups(SUNK); this.log?.push({ tick: sim.tick, seg: s.id, depth: deep }); }
         still.add(s.id);
-        hits.push([_p[k].x, _p[k].y, _p[k].z, deep + s.r0]);    // the point, and how far the wood's underside is in
+        hits.push([_p[k].x, _p[k].y, _p[k].z, deep]);    // the point, and how far its axis is in
       }
-      if (!hits.length) continue;
-      // the ground pushes back like a stiff spring at each point, sharing the body's mass between them, so it holds
-      // up a log as well as a twig (sunk by about g / GROUND_PUSH_K under its own weight), with damping of the speed
-      // along the normal; it only ever pushes
-      const l = body.linvel(), lv = [l.x, l.y, l.z], a = body.angvel(), av = [a.x, a.y, a.z], c = body.worldCom(), com = [c.x, c.y, c.z];
-      const m = body.mass() / hits.length;
-      for (const [x, y, z, pen] of hits) {
-        const n = sim.groundN(x, z), rx = x - com[0], ry = y - com[1], rz = z - com[2];
-        const vn = (lv[0] + av[1] * rz - av[2] * ry) * n[0] + (lv[1] + av[2] * rx - av[0] * rz) * n[1] + (lv[2] + av[0] * ry - av[1] * rx) * n[2];
-        const acc = Math.max(0, K * Math.min(PMAX, pen * n[1]) - C * vn);
-        if (!acc) continue;
-        const J = m * acc * dt;
-        body.applyImpulseAtPoint({ x: n[0] * J, y: n[1] * J, z: n[2] * J }, { x, y, z }, true);
-      }
+      if (!hits.length) { if (!this.lift.has(pid)) continue; }
+      else if (!this.lift.has(pid)) this.lift.set(pid, T);       // found in the ground: lift for GROUND_LIFT_TIME
+      if (!this.lift.has(pid)) continue;
+      // while a lift lasts, the body rises at least V m/s (a velocity, not a force: the same gentle rise for a
+      // twig and a log; its spin is left alone)
+      const l = body.linvel(), lx = l.x, ly = l.y, lz = l.z;
+      if (ly < V) body.setLinvel({ x: lx, y: V, z: lz }, true);
+      const left = this.lift.get(pid) - dt;
+      if (left > 1e-9) this.lift.set(pid, left); else this.lift.delete(pid);   // still in after it ends: a new one starts next tick
     }
+    for (const pid of this.lift.keys()) if (!sim.bodies.has(pid)) this.lift.delete(pid);
     // segments that went away or whose body became fixed: give their colliders back the default groups
     for (const id of this.sunk) {
       if (still.has(id)) continue;
