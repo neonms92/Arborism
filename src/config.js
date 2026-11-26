@@ -209,7 +209,7 @@ export const CFG = {
   BIN_RIGHT_T: 3,          // s after a player lets go of a bin that it is stood back up for (0 = it stays as it lands)
   BIN_RIGHT_K: 30,         // 1/s2: how hard it is tipped back upright (acceleration per radian of lean)
   BIN_RIGHT_MAX: 300,      // N m, most torque that tips it upright
-  BIN_CATCH: 0.15,         // m past the rim of an open bin's mouth that chips landing still go in
+  BIN_CATCH: 1,            // m past the rim of an open bin's mouth that chips landing still go in
   BIN_PRICE: 100,          // $ a new bin costs (the Tab menu's "Buy a new chip bin")
   // --- breakable structures (sim/builds.js): the shed; rigid until hit hard enough, then loose boards ---
   SHED_BREAK_F: 25000,     // N of contact force from wood in one tick that breaks a module (the shed) apart
