@@ -295,6 +295,7 @@ export const CFG = {
   POLE_FELL_COST: 6000,    // $ more, once, when half a utility pole's wood has come off it (sawing into one costs as a yard tree does)
   SHOCK_KNOCK: 5,          // m/s a shock throws you away from the line
   SHOCK_LIFT: 2.5,         // m/s up as well
+  LINE_DEAD_T: 30,         // s after a line first comes down until it goes dead (no sparks, no shocks)
   SHOCK_AGAIN: 1.5,        // s after a shock before the same player can be shocked again
 };
 

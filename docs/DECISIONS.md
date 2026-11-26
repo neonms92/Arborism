@@ -1756,3 +1756,11 @@ dialog keeps only the left / right turn arrows under the head (thinner,
 shorter); tipping is by drag or the up / down keys. Unreviewed: the 10 s
 window, and that a pole sawn down with its lines on counts (the pole is the
 sawyer's wood).
+
+**D112 — Downed lines go dead after 30 s.** Owner (2026-11-26): "Have the
+power lines stop sparking 30 seconds after they are downed." My reading:
+the line goes dead, so it also stops shocking (a breaker trips), and the
+whole line goes dead, both pieces. Counted from the first time it comes
+down (a link snaps or an end comes away), not from each later break. A
+dead line that is sawn or snaps again makes no flash and no shock. Lines
+still up stay live. `LINE_DEAD_T` 30 s, in the Tab menu.

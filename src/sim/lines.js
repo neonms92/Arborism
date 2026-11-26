@@ -5,7 +5,7 @@
 // is loose), so the lines hold up a pole sawn off at its base. Dormant poles and houses take it without moving.
 // Wood that meets a line pushes it aside, and the line pushes back on the wood with its tension.
 // Lines at rest sleep: nothing is solved and nothing is sent. Every line is live: a player who touches one is
-// shocked (players.shock).
+// shocked (players.shock), until LINE_DEAD_T after it first comes down, when it goes dead (a 'dead' event).
 
 import * as THREE from '../../vendor/three/three.module.js';
 import { CFG, INJ } from '../config.js';
@@ -123,11 +123,16 @@ export class Lines {
     const check = sim.tick % 15 === 0;
     w.lines.list.forEach((L, i) => {
       const S = this.st[i]; if (!S) return;
+      // a line that has been down LINE_DEAD_T goes dead (the tick it came down is in the model, so a new host keeps it)
+      if (!L.dead && (L.brk.length || L.off[0] || L.off[1])) {
+        const t0 = L.down !== undefined ? L.down : (S.down ??= sim.tick);   // (a world saved before snaps carried it)
+        if (sim.tick - t0 >= CFG.LINE_DEAD_T / CFG.TICK) sim.emit({ t: 'dead', i });
+      }
       const A = L.off[0] ? null : this.endNow(L.a), B = L.off[1] ? null : this.endNow(L.b);
       if (check) {           // an end whose wood is gone, or whose room broke: the line comes away there
-        if (!L.off[0] && !A) { sim.emit({ t: 'snap', i, end: 0, p: [S.x[0], S.x[1], S.x[2]].map((v) => +v.toFixed(3)) }); this.blamed(S); return; }
+        if (!L.off[0] && !A) { sim.emit({ t: 'snap', i, end: 0, tk: sim.tick, p: [S.x[0], S.x[1], S.x[2]].map((v) => +v.toFixed(3)) }); this.blamed(S); return; }
         const j = 3 * L.n;
-        if (!L.off[1] && !B) { sim.emit({ t: 'snap', i, end: 1, p: [S.x[j], S.x[j + 1], S.x[j + 2]].map((v) => +v.toFixed(3)) }); this.blamed(S); return; }
+        if (!L.off[1] && !B) { sim.emit({ t: 'snap', i, end: 1, tk: sim.tick, p: [S.x[j], S.x[j + 1], S.x[j + 2]].map((v) => +v.toFixed(3)) }); this.blamed(S); return; }
       }
       if (!S.awake) {
         for (const [P, q] of [[A, S.pin[0]], [B, S.pin[1]]]) if (P && q && Math.abs(P[0] - q[0]) + Math.abs(P[1] - q[1]) + Math.abs(P[2] - q[2]) > 1e-3) this.wake(S);
@@ -162,7 +167,7 @@ export class Lines {
       S.tmax = tmax;
       if (tmax > CFG.LINE_BREAK_F) {
         const x = S.x, p = [0, 1, 2].map((c) => +((x[3 * kmax + c] + x[3 * kmax + 3 + c]) / 2).toFixed(3));
-        sim.emit({ t: 'snap', i, k: kmax, p });
+        sim.emit({ t: 'snap', i, k: kmax, tk: sim.tick, p });
         this.blamed(S);
       }
     });
@@ -324,7 +329,7 @@ export class Lines {
       let hit = null;
       for (let i = 0; i < this.st.length && !hit; i++) {
         const S = this.st[i], L = w.lines.list[i];
-        if (!Lines.near(S.box, mid, CFG.P_HALF + reach)) continue;
+        if (L.dead || !Lines.near(S.box, mid, CFG.P_HALF + reach)) continue;
         for (let k = 0; k < L.n && !hit; k++) {
           if (L.brk.includes(k)) continue;
           const q = closest(S.x, 3 * k, 3 * k + 3, a, b);
@@ -359,9 +364,10 @@ export class Lines {
   cut(i, k, p) {
     const S = this.st[i]; if (!S) return;
     const x = S.x, at = [0, 1, 2].map((c) => +((x[3 * k + c] + x[3 * k + 3 + c]) / 2).toFixed(3));
-    this.sim.emit({ t: 'snap', i, k, p: at });
+    const live = !this.sim.world.lines.list[i].dead;
+    this.sim.emit({ t: 'snap', i, k, tk: this.sim.tick, p: at });
     if (p) this.sim.awards.line(p.id);
-    if (p && !this.shockT.has(p.id) && p.inj < INJ.DOWN) { this.shockT.set(p.id, CFG.SHOCK_AGAIN); this.sim.players.shock(p, at); }
+    if (p && live && !this.shockT.has(p.id) && p.inj < INJ.DOWN) { this.shockT.set(p.id, CFG.SHOCK_AGAIN); this.sim.players.shock(p, at); }
   }
 
   /** aux.ln: the points of every line that moved lately, and every 3 s of every line that is not as it was put up (in cm). */

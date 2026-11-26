@@ -182,6 +182,7 @@ export const ROWS = [
   ['YARD_TREES_PITCH', 'Other trees: fibre width once sawn or climbed (mm; bigger = fewer fibres, faster)', 8, 200, 1, 0.001, true],
   ['Power lines'],
   ['LINE_BREAK_F', 'Tension that snaps a line (kN)', 1, 200, 1, 1000, true],
+  ['LINE_DEAD_T', 'Downed line goes dead after (s)', 0, 300, 1],
   ['LINE_EA', 'Line stretch stiffness (MN for 100% stretch)', 0.2, 50, 0.1, 1e6, true],
   ['LINE_SLACK', 'Line slack (% longer than straight; applies when you press Grow)', 0, 2, 0.05, 0.01, true],
   ['POLE_HEIGHT', 'Pole height (m; applies when you press Grow)', 5, 20, 0.5, 1, true],

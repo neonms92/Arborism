@@ -1017,7 +1017,10 @@ when its room breaks or moves; sawing through a line cuts it. Points travel
 in aux `ln` (cm) while they move, so clients and a new host after handover
 have them; a machine with none draws a line hanging at rest.
 
-Every line is live. Touching one hurts a player and throws them back
+Every line is live until `LINE_DEAD_T` (30 s) after it first comes down,
+when the host sends a `dead` event and it stops sparking and shocking (the
+tick it came down is in the model, so a new host keeps the count). Touching
+a live one hurts a player and throws them back
 (`SHOCK_KNOCK`, `SHOCK_LIFT`); a player already hurt goes down; a climber
 comes off the tree. A snap makes a big white flash with a light and a halo
 that keeps its size on screen; a touch makes a smaller one; downed ends on
