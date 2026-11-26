@@ -251,6 +251,11 @@ export const CFG = {
   HOUSE_COST: 20000,       // one room of a house broken apart
   CHIPPER_COST: 45000,     // the chipper truck wrecked
   CHIPPER_PRICE: 5000,     // $ for another chipper from the Tab menu (placeholder, unreviewed)
+  // the other trees in the yards (not the job's), once woken into wood (D97)
+  YARD_CUT_COST: 3000,     // $ per m2 of wood sawn through (a 20 cm limb sawn right through: about $95)
+  YARD_CUT_QUIET: 1.5,     // s the saw is out of a yard tree before what it sawed is charged (one toast per cut)
+  YARD_LOSS_COST: 3,       // $ per kg of wood and leaves that comes off a yard tree for good
+  YARD_FELL_COST: 5000,    // $ more, once, when half a yard tree's wood has come off (it counts as felled)
   SHED_DENSITY: 450,       // kg/m3 of the shed's and fences' boards
 };
 
