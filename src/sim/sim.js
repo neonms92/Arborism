@@ -376,6 +376,7 @@ export class Sim {
     this.chipper.post();
 
     if (this.tick % 60 === 0) this.sweepDebris();
+    if (this.tick % 30 === 0 && this.builds.born.size) this.builds.freezeDue();
   }
 
   onContact(e) {

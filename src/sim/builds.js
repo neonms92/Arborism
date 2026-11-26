@@ -15,6 +15,11 @@
 // ordinary physics, and the structure slumps or is knocked apart. Glued
 // modules that are no longer held by the ground through intact glue become
 // one loose body, which can break again where it lands.
+//
+// Debris does not stay physics for ever: CFG.DEBRIS_FREEZE seconds after a loose
+// body (part or group) is made, once it is moving slower than DEBRIS_FREEZE_V
+// (or at twice that age whatever it is doing), a 'freeze' event makes it scenery: its body and colliders go, the model keeps
+// the pose it came to rest in, and nothing touches it again (D94).
 
 import { CFG } from '../config.js';
 import { groundRange } from '../model/terrain.js';
@@ -35,6 +40,7 @@ export class Builds {
     this.vel = new Map();         // body handle -> [vx,vy,vz, wx,wy,wz] at the end of last tick (loose bodies and parts)
     this.burst = null;            // how the next smash throws its parts (set just before it is emitted)
     this.proxies = new WeakMap();  // module (model) -> the boxes it collides as while intact
+    this.born = new Map();        // loose body id -> [tick it was made, build id], until it freezes
     this.log = null;              // set to [] in the console to see every contact on a module: arb.sim.builds.log = []
   }
 
@@ -94,12 +100,13 @@ export class Builds {
   onEvent(ev) {
     if (ev.t === 'builds') this.build();
     else if (ev.t === 'smash') this.apart(ev);
+    else if (ev.t === 'freeze') this.freeze(ev);
   }
 
   clear() {
     const R = this.sim.rapier;
     for (const b of this.bodies.values()) R.removeRigidBody(b);
-    this.bodies.clear(); this.modCols.clear(); this.colMod.clear(); this.partCol.clear(); this.hits.clear(); this.vel.clear();
+    this.bodies.clear(); this.modCols.clear(); this.colMod.clear(); this.partCol.clear(); this.hits.clear(); this.vel.clear(); this.born.clear();
   }
 
   build() {
@@ -143,7 +150,7 @@ export class Builds {
     for (const l of ev.loose) {
       const body = sim.rapier.createRigidBody(sim.dynamic().setTranslation(l.p[0], l.p[1], l.p[2]).setRotation({ x: l.q[0], y: l.q[1], z: l.q[2], w: l.q[3] })
         .setLinvel(la[0], la[1], la[2]).setAngvel({ x: aa[0], y: aa[1], z: aa[2] }).setLinearDamping(0.05).setAngularDamping(0.2).setCcdEnabled(true));
-      this.bodies.set(l.body, body);
+      this.bodies.set(l.body, body); this.born.set(l.body, [sim.tick, b.id]);
       for (const i of l.mods) { this.dropModule(b.id, i); this.addModule(b, i, body); }
     }
     if (old && !old.isFixed() && !b.mods.some((x) => !x.ids && x.body === oldId)) { sim.rapier.removeRigidBody(old); this.bodies.delete(oldId); }
@@ -156,10 +163,41 @@ export class Builds {
       const body = sim.rapier.createRigidBody(sim.dynamic().setTranslation(f.p[0], f.p[1] + 0.002, f.p[2]).setRotation({ x: f.q[0], y: f.q[1], z: f.q[2], w: f.q[3] })
         .setLinvel(v[0], v[1], v[2]).setAngvel({ x: w[0], y: w[1], z: w[2] }).setLinearDamping(0.05).setAngularDamping(0.3).setCcdEnabled(true));
       const c = sim.rapier.createCollider(R.ColliderDesc.cuboid(pt.h[0], pt.h[1], pt.h[2]).setMass(partMass(pt, CFG.SHED_DENSITY)).setFriction(0.7).setRestitution(0.1), body);
-      this.bodies.set(ev.parts[k], body); this.partCol.set(c.handle, ev.parts[k]);
+      this.bodies.set(ev.parts[k], body); this.partCol.set(c.handle, ev.parts[k]); this.born.set(ev.parts[k], [sim.tick, b.id]);
     });
     // what hit it goes on as if the module had not been there; the parts are in its way now, so it still pays for them
     if (B && B.other && B.otherPre) { const o = B.otherPre; B.other.setLinvel({ x: o[0], y: o[1], z: o[2] }, true); B.other.setAngvel({ x: o[3], y: o[4], z: o[5] }, true); }
+  }
+
+  /** A freeze event: those loose bodies of a build are scenery now (the model has their poses); they lose their physics. */
+  freeze(ev) {
+    const sim = this.sim, b = sim.world.builds.find((x) => x.id === ev.b);
+    for (const { id } of ev.list) {
+      this.born.delete(id);
+      const body = this.bodies.get(id); if (!body) continue;
+      if (b) b.mods.forEach((m, i) => { if (!m.ids && m.body === id) this.dropModule(b.id, i); });
+      for (let i = 0, n = body.numColliders(); i < n; i++) this.partCol.delete(body.collider(i).handle);
+      this.vel.delete(body.handle);
+      sim.rapier.removeRigidBody(body); this.bodies.delete(id);
+    }
+  }
+
+  /** Loose bodies old enough and slow enough to freeze: one 'freeze' event per build (sim.step calls it twice a second, at the end of the tick). */
+  freezeDue() {
+    const sim = this.sim, age = CFG.DEBRIS_FREEZE * 60, vmax = CFG.DEBRIS_FREEZE_V, due = new Map();
+    for (const [id, [t0, bid]] of this.born) {
+      if (sim.tick - t0 < age) continue;
+      const body = this.bodies.get(id); if (!body) { this.born.delete(id); continue; }
+      if (!body.isSleeping() && sim.tick - t0 < 2 * age) {          // still moving: wait, but not past twice the delay (a piece fallen out of the world)
+        const v = body.linvel(), vx = v.x, vy = v.y, vz = v.z;
+        if (Math.hypot(vx, vy, vz) > vmax) continue;
+      }
+      const t = body.translation(), p = [+t.x.toFixed(4), +t.y.toFixed(4), +t.z.toFixed(4)];
+      const r = body.rotation(), q = [+r.x.toFixed(5), +r.y.toFixed(5), +r.z.toFixed(5), +r.w.toFixed(5)];
+      let L = due.get(bid); if (!L) due.set(bid, L = []);
+      L.push({ id, p, q });
+    }
+    for (const [bid, list] of due) sim.emit({ t: 'freeze', b: bid, list });
   }
 
   // ---- contacts and breaking ----

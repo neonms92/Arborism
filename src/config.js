@@ -213,6 +213,8 @@ export const CFG = {
   SHED_BREAK_F: 25000,     // N of contact force from wood in one tick that breaks a module (the shed) apart
   FENCE_BREAK_F: 10000,    // N of contact force from wood in one tick that breaks one fence section apart
   HOUSE_BREAK_F: 40000,    // N of contact force from wood in one tick that breaks one room of a house apart
+  DEBRIS_FREEZE: 60,       // s after a structure breaks that its loose pieces become scenery: no body, nothing collides with them
+  DEBRIS_FREEZE_V: 0.3,    // m/s: a piece still moving faster than this then waits until it slows (not frozen mid-fall or while carried), at most until twice DEBRIS_FREEZE
   HOUSE_RAISE: 0.15,       // m a house's floor stands above the highest ground under it (its foundation shows)
   // --- yards (model/yards.js): lots of houses, sheds, fences and paving round the tree's own lot ---
   YARD_SEED: 1,            // layout of the yards

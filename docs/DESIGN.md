@@ -653,7 +653,7 @@ kinematic climber: contact force × dt / body mass).
 | < 4 m/s | ok | — |
 | 4–7 | `shaken` | 2 s stagger |
 | 7–11 | `hurt` | limps, cannot climb, for the rest of the job |
-| > 11 | `down` | incapacitated until someone gives them a tube salad (D94); the Tab menu's "Respawn player" also brings them back |
+| > 11 | `down` | incapacitated until someone gives them a tube salad (D95); the Tab menu's "Respawn player" also brings them back |
 
 Tool misuse feeds the same states (later tasks): rope running through
 gripping hands, saw pinch release, cutting your own lanyard.
@@ -780,7 +780,7 @@ never sleeps (Rapier would stop it rolling slowly off its roof).
   comes free. Players, the ground and chips do not count toward the hit. A
   chipper that has just been put down cannot crumple for its first second,
   while it is pushed out of anything it was placed in.
-- **Buy a new chipper (D94).** The Tab menu's "Buy a new chipper" (any player:
+- **Buy a new chipper (D95).** The Tab menu's "Buy a new chipper" (any player:
   it is an input counter, `buyChip`) parks one more chipper at the nearest
   clear spot around where the first was parked (a grid 6 m along x 3.2 m
   across, tested with a box the size of the chassis and cage), and charges
@@ -789,7 +789,7 @@ never sleeps (Rapier would stop it rolling slowly off its roof).
   `{piles, units: [{p, q, wreck}]}`; `sim.chipper` is a `Chippers` holding a
   `Chipper` per unit (body id `CHIPPER_BODY_ID + k`, `aux.chip[k]`, rope anchor
   `{chip: 1, k}`, a grip held as `grab {chip: 1, k}`, aux `gk`).
-- **Salad rack (D94).** `SHAPE.RACK` on the side away from the chute (-z),
+- **Salad rack (D95).** `SHAPE.RACK` on the side away from the chute (-z),
   inside the cage, with three tube salads (`SHAPE.SALADS`). No collider: the
   look ray is tested against its box. {interact} at it puts a salad in the
   player's hand (`p.held = 'salad'`, aux `hd`); the rack never runs out.
@@ -869,6 +869,14 @@ Siding and roof colours are picked per house in the view.
 - **Sync.** Loose bodies and parts are ordinary snapshot transforms; the
   `smash` event carries their ids and the pose the module's body had, so a
   client draws the parts where they were until their first transform.
+- **Freezing (D94).** `DEBRIS_FREEZE` s (60) after a loose part or loose
+  group is made, once it moves slower than `DEBRIS_FREEZE_V` (or at twice
+  that age regardless), the host emits `freeze` `{b, list: [{id, p, q}]}`
+  (one per build, checked twice a second): its body and colliders are
+  removed and `b.still[id]` keeps the pose it rests in. It is scenery from
+  then on: drawn where it lies, nothing collides with it (wood, players,
+  the chipper all pass through), it is never in a snapshot again, and a
+  late joiner draws it from `b.still`.
 - **Reset.** A new tree puts the builds up again, intact (`builds` event).
 - **Welcome.** Parts are left out of the welcome's builds; every machine makes
   them again from the module's shape (`packBuilds` / `unpackBuilds`).

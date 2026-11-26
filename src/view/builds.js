@@ -48,7 +48,7 @@ export class BuildsView {
 
   onEvent(ev) {
     if (ev.t === 'builds' || ev.t === 'load') this.rebuild();
-    else if (ev.t === 'smash') { const b = this.world.builds.find((x) => x.id === ev.b); if (b) this.draw(b); }
+    else if (ev.t === 'smash' || ev.t === 'freeze') { const b = this.world.builds.find((x) => x.id === ev.b); if (b) this.draw(b); }
   }
 
   box(pt) {
@@ -78,12 +78,13 @@ export class BuildsView {
     b.mods.forEach((m) => {
       if (m.ids) {                                      // broken: one mesh per loose part
         m.parts.forEach((pt, k) => {
-          const l = compose(m.p, m.q, pt.c, pt.q), rest = compose(m.at.p, m.at.q, l.p, l.q), [key, col] = this.look(b, pt);
+          const still = b.still && b.still[m.ids[k]];     // frozen where it came to rest: no more snapshots for it
+          const l = compose(m.p, m.q, pt.c, pt.q), rest = still || compose(m.at.p, m.at.q, l.p, l.q), [key, col] = this.look(b, pt);
           const mesh = new THREE.Mesh(this.box(pt), this.mat(key, col));
           mesh.castShadow = mesh.receiveShadow = true;
           mesh.position.set(...rest.p); mesh.quaternion.set(...rest.q);
           this.root.add(mesh); d.objs.push(mesh);
-          this.parts.set(m.ids[k], { m: mesh, rest, posed: false }); d.parts.push(m.ids[k]);
+          this.parts.set(m.ids[k], { m: mesh, rest, posed: false, still: !!still }); d.parts.push(m.ids[k]);
         });
         return;
       }
@@ -104,7 +105,7 @@ export class BuildsView {
         g.add(mesh);
       }
       this.root.add(g); d.objs.push(g);
-      this.groups.set(body, { g, fixed: body === b.id }); d.bodies.push(body);
+      this.groups.set(body, { g, fixed: body === b.id || !!(b.still && b.still[body]) }); d.bodies.push(body);
     }
     this.drawn.set(b.id, d);
   }
@@ -116,6 +117,7 @@ export class BuildsView {
       const pose = src.pose(id); if (pose) set(G.g, pose);
     }
     for (const [id, P] of this.parts) {
+      if (P.still) continue;
       const pose = src.pose(id);
       if (pose) set(P.m, pose);
       else if (!P.posed) { P.m.position.set(...P.rest.p); P.m.quaternion.set(...P.rest.q); }
