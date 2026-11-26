@@ -1805,3 +1805,10 @@ loose pole about its length (tiny inertia) and the explicit end force rang
 up and flung it, so the end pull is now implicit on the effective mass at
 the end (found by a unit test impulse): a general rule, not a pole case.
 No secondary rack, cutouts, guy wires or streetlights yet.
+
+**D112 — Smiling ghosts and confetti.** Owner (2026-11-26): turn the ghost
+stickers' frowns upside down, and throw confetti when a sticker is stuck.
+Done: every ghost smiles, with pink cheeks. Stick! bursts about 60 paper
+bits (DOM, Web Animations, gone in 1.6 s) from the sticker's spot on the
+helmet; 12 slower ones when the browser asks for reduced motion. Only the
+player sticking sees it.

@@ -211,7 +211,9 @@ export class StickerUI {
     const p = this.cur, at = this.stage.target();
     if (!p || !at || this.busy) return;
     // a moment to see it on the helmet, then the next one waiting (or the dialog shuts)
+    const c = this.stage.corners();
     this.busy = true; this.stage.freeze();
+    if (c) confetti(c.reduce((a, q) => a + q.x, 0) / 4, c.reduce((a, q) => a + q.y, 0) / 4);
     for (const b of this.box.querySelectorAll('.btns button')) b.disabled = true;
     this.book.stick(p, at);              // saves, tells the host and puts it on the helmet (main.js)
     setTimeout(() => { this.busy = false; for (const b of this.box.querySelectorAll('.btns button')) b.disabled = false; this.refresh(); }, 900);
@@ -229,4 +231,30 @@ export class StickerUI {
     [[0, 0], [1, 3]].forEach(([a, b]) => { h += `<line x1="${ic[a][0].toFixed(1)}" y1="${ic[a][1].toFixed(1)}" x2="${c[b].x.toFixed(1)}" y2="${c[b].y.toFixed(1)}"/>`; });
     this.guides.innerHTML = h;
   }
+}
+
+const CONFETTI = ['#ffd166', '#ef476f', '#06d6a0', '#118ab2', '#f78c6b', '#b388eb', '#ffffff'];
+/** A burst of paper confetti from page point (x, y): a sticker just went on (D112). DOM only, gone in 1.6 s. */
+function confetti(x, y) {
+  let calm = false;
+  try { calm = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { /* old browser */ }
+  const n = calm ? 12 : 60, layer = document.createElement('div');
+  layer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:10050;overflow:hidden';
+  document.body.appendChild(layer);
+  for (let i = 0; i < n; i++) {
+    const d = document.createElement('i'), w = 7 + Math.random() * 6, h = Math.random() < 0.3 ? w : w * (0.4 + Math.random() * 0.3);
+    d.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;margin:${-h / 2}px 0 0 ${-w / 2}px;` +
+      `background:${CONFETTI[i % CONFETTI.length]};border-radius:${Math.random() < 0.25 ? '50%' : '1px'}`;
+    layer.appendChild(d);
+    const ang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.5, v = (calm ? 60 : 120) + Math.random() * (calm ? 60 : 170);
+    const dx = Math.cos(ang) * v, dy = Math.sin(ang) * v, fall = 140 + Math.random() * 120, spin = (Math.random() - 0.5) * 1440;
+    const t = 1100 + Math.random() * 500;
+    d.animate([
+      { transform: 'translate(0,0) rotate(0deg)', opacity: 1 },
+      { transform: `translate(${dx}px,${dy}px) rotate(${spin / 2}deg)`, opacity: 1, offset: 0.35 },
+      { transform: `translate(${dx * 1.2}px,${dy + fall * 0.6}px) rotate(${spin * 0.8}deg)`, opacity: 1, offset: 0.75 },
+      { transform: `translate(${dx * 1.3}px,${dy + fall}px) rotate(${spin}deg)`, opacity: 0 },
+    ], { duration: t, easing: 'cubic-bezier(.2,.7,.4,1)', fill: 'forwards' });
+  }
+  setTimeout(() => layer.remove(), 1700);
 }

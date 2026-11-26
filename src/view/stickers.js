@@ -68,7 +68,7 @@ function salad() {
     '<rect x="37" y="34" width="5" height="44" rx="2" fill="#fff" opacity=".3"/></g>');
 }
 
-// broken things: the ghost of the thing, pale and floating, with a wispy tail and a little face (D107, D108)
+// broken things: the ghost of the thing, pale and floating, with a wispy tail and a little smiling face (D107, D108, D112)
 const GHOST = {
   house: '<path d="M24 50 L50 26 L76 50 Z"/><rect x="30" y="48" width="40" height="22"/>',
   shed: '<path d="M26 44 L74 36 L74 42 L26 50 Z"/><rect x="30" y="45" width="40" height="25"/>',
@@ -85,7 +85,7 @@ function ghost(kind) {
     '<circle cx="24" cy="26" r="1.6" fill="#fff" opacity=".7"/><circle cx="78" cy="22" r="1.2" fill="#fff" opacity=".6"/><circle cx="82" cy="70" r="1.4" fill="#fff" opacity=".5"/>' +
     `<g fill="#eef4ff" opacity=".9" stroke="#c8d6ff" stroke-width="1.5" stroke-linejoin="round">${GHOST[kind]}${tail}</g>` +
     '<path d="M36 74 Q30 82 38 88 M66 70 Q76 76 70 86" stroke="#c8d6ff" stroke-width="2" fill="none" stroke-linecap="round" opacity=".8"/>' +
-    `<g transform="translate(0 ${fy})"><ellipse cx="43" cy="58" rx="3.2" ry="4.2" fill="#2a2d55"/><ellipse cx="57" cy="58" rx="3.2" ry="4.2" fill="#2a2d55"/><path d="M46 65 Q50 62 54 65" stroke="#2a2d55" stroke-width="2" fill="none" stroke-linecap="round"/></g>`);
+    `<g transform="translate(0 ${fy})"><ellipse cx="43" cy="58" rx="3.2" ry="4.2" fill="#2a2d55"/><ellipse cx="57" cy="58" rx="3.2" ry="4.2" fill="#2a2d55"/><path d="M45 63.5 Q50 68.5 55 63.5" stroke="#2a2d55" stroke-width="2" fill="none" stroke-linecap="round"/><ellipse cx="38.5" cy="64" rx="2.6" ry="1.5" fill="#ff9fb8" opacity=".7"/><ellipse cx="61.5" cy="64" rx="2.6" ry="1.5" fill="#ff9fb8" opacity=".7"/></g>`);
 }
 // rigging: a block hanging from the stem, the rope down to a sawn-off log, a dashed kerf
 function rigcut() {
