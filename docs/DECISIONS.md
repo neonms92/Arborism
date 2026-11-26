@@ -1479,3 +1479,13 @@ Headless, with a 25 kg branch put down with its butt 0.3 m under:
 
 Felling whole trees on two seeds, the 11.6 t tree got two lifts in 40 s and
 came to rest.
+
+D93 follow-up (owner, 2026-11-26): the bin's mouth z-fought (the black rim band's
+top shared a plane with the body's top face): the body mesh now has no top face
+and the rim sits 5 mm lower. Let go of (by hand or pulled out of the hands),
+the bin stands itself back up for `BIN_RIGHT_T` (3 s): a damped spring on its
+lean (`BIN_RIGHT_K` 30 /s², at most `BIN_RIGHT_MAX` 300 N m) about the axis it
+leans over, pivoting on whatever it rests on. Headless: released tipped well
+back after a tow, it was upright (up·y 0.99) in about 4 s. Unreviewed: only
+after a release, not when knocked over by wood (it lies where it lands until
+someone grabs and lets go of it).
