@@ -1787,3 +1787,21 @@ other crowns (dormant crowns have no colliders). At the default job tree
 (22 m, crown from 7.5 m) it seldom fires: houses stand under the crown;
 yard trees are cut now and then (about one in seven worlds at density 1).
 
+
+**D114 — North American poles.** Owner (2026-11-26, a power engineer in
+the house): three phase lines on a crossarm with 45° braces, and
+transformer cans the house lines come from. Choices: an 8 ft (2.44 m)
+crossarm 0.3 m under the top, across the street; phases at -1.07, +0.36
+and +1.07 m along it (two on the street side) on 0.2 m pin insulators; a
+neutral on a spool 2.4 m under the arm; a can (0.5 m across, 0.8 m tall)
+only on a pole that feeds houses, on the side of its first house, tapped
+from the nearest phase; the crossarm and braces are fibre wood (they can
+be sawn, and lines on a sawn-off arm come away), insulators and cans are
+drawn only (no mass, no collision). The neutral is grounded: no shock,
+spark or flash. Service drops break at 8 kN (`DROP_BREAK_F`, about a 1/0
+messenger), conductors at 30 kN. With four lines a span, `LINE_COST`
+went from 4000 to 1500. Physics: line ends off a pole's axis twisted the
+loose pole about its length (tiny inertia) and the explicit end force rang
+up and flung it, so the end pull is now implicit on the effective mass at
+the end (found by a unit test impulse): a general rule, not a pole case.
+No secondary rack, cutouts, guy wires or streetlights yet.

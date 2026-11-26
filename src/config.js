@@ -291,8 +291,9 @@ export const CFG = {
   LINE_LINK: 2.5,          // m between the points a line is simulated as
   LINE_EA: 4e6,            // N: stretch stiffness of a line (force for 100% stretch)
   LINE_KG_M: 0.4,          // kg per m of line
-  LINE_BREAK_F: 30000,     // N of tension that snaps a line (one hanging pole pulls about half of this)
-  LINE_COST: 4000,         // $ for each line brought down (snapped, or torn off a house or pole)
+  LINE_BREAK_F: 30000,     // N of tension that snaps a phase, the neutral or a tap (about a 4/0 ACSR conductor; one hanging pole pulls well under it)
+  DROP_BREAK_F: 8000,      // N that snaps a service drop (triplex on a 1/0 messenger is about 8.4 kN)
+  LINE_COST: 1500,         // $ for each line brought down (a span is four) (snapped, or torn off a house or pole)
   POLE_FELL_COST: 6000,    // $ more, once, when half a utility pole's wood has come off it (sawing into one costs as a yard tree does)
   SHOCK_KNOCK: 5,          // m/s a shock throws you away from the line
   SHOCK_LIFT: 2.5,         // m/s up as well

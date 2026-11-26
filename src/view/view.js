@@ -101,7 +101,7 @@ export class View {
     this.binView = new BinView(this.scene, world);           // the chip bins
     this.buildsView = new BuildsView(this.scene, world);     // the shed, whole or in pieces
     this.weedsView = new WeedsView(this.scene, world);       // long grass at the foot of fences, buildings and trunks
-    this.linesView = new LinesView(this.scene, world);       // power lines, and the flash when one snaps
+    this.linesView = new LinesView(this.scene, world, this);       // power lines, and the flash when one snaps
 
     this.barkMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, side: THREE.DoubleSide });
     this.leafMat = new THREE.MeshLambertMaterial({ color: 0x3f7d3a, flatShading: true, transparent: true });

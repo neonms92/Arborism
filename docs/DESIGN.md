@@ -1014,18 +1014,28 @@ Wooden utility poles (`POLE_HEIGHT` 10 m, `POLE_DIAMETER` 0.3 m) stand
 `POLE_SPACING` (35 m) apart along every street, 0.7 m inside the asphalt
 edge (`model/yards.js planPoles`; a pole within 5 m of the chipper is left
 out). They are yard trees of kind 1 (`model/stands.js`): dormant until
-someone saws into one, then a straight fibre trunk like any other wood,
-segments marked `pl` so nobody can grab, spur or lanyard them. A line runs
-from the top of each pole to the next, and a drop from just under the top
-of the nearest pole (within `DROP_MAX`) to the front wall of each house.
+someone saws into one, then fibre wood like any other, segments marked `pl`
+so nobody can grab, spur or lanyard them. North American style (D114): a
+wooden crossarm (8 ft) across the street 0.3 m under the top, held by two
+45° braces, all wood, with three phase conductors on pin insulators (two
+on the street side) and a neutral on a spool 2.4 m under the arm, running
+pole to pole. A pole that feeds houses (the nearest within `DROP_MAX` of
+each house's front) carries a transformer can on the side of its first
+house, tapped from the nearest phase; a service drop runs from the can to
+each house. The neutral is grounded: it never shocks, sparks or flashes.
+Hardware (insulators, spool, can) is drawn only, from `world.lines.hw`,
+and rides on the wood it is fixed to (`POLE` in `model/stands.js`).
 
 The model (`model/lines.js`) holds only the ends and which links have
 snapped; the host (`sim/lines.js`) simulates each line as a chain of points
 `LINE_LINK` apart (XPBD, links pull but never push, `LINE_EA` stiffness,
 `LINE_KG_M` mass, `LINE_SLACK` extra length). Points collide with the
 ground and with wood as cylinders; the line pushes back on loose wood, so
-a sawn pole hangs on its lines. A link whose tension passes `LINE_BREAK_F`
-(30 kN, more than a whole hanging pole) snaps; an end on a house comes away
+a sawn pole hangs on its lines. The pull at an end on loose wood is taken
+implicitly, a spring and half-critical damper on the wood's effective mass
+at that point (so a crossarm tip cannot ring up a pole twisting about its
+length). A link whose tension passes `LINE_BREAK_F` (30 kN; a service drop
+`DROP_BREAK_F` 8 kN) snaps; an end on a house comes away
 when its room breaks or moves; sawing through a line cuts it. Points travel
 in aux `ln` (cm) while they move, so clients and a new host after handover
 have them; a machine with none draws a line hanging at rest.
