@@ -1703,3 +1703,21 @@ hand).
 - House = any room or foundation module; one sticker for the first module
   broken. This blame lives on the host only, so a player who takes over
   starts it afresh (stickers already given stay given: `world.awards.got`).
+
+**D108 — Climbing and rigging stickers; ghosts instead of circle-slashes.**
+Owner (2026-11-26). Once per player per job: "Rigged" (on spurs, saw free
+wood the rigging rope is tied to), "Soft landing" (holding the rope tail,
+let a piece of 600 kg or more touch the ground, with no damage cost for 10 s
+after), "Going down!" (saw free the wood you are lanyarded to). Once per
+player ever: "Look out!" (saw free wood someone else is lanyarded to) and
+"Sorry!" (cut someone else's lanyard): the host still sends them once per
+job, marked `once`, and the browser keeps a list (`ever` in `arb-stickers`)
+and takes each only the first time. The breaking stickers are now ghosts of
+the thing with a wispy tail, named "Sorry, House!" and so on.
+- "Saw free" (my reading): a split whose parting segment this player sawed,
+  or, failing that, the last player to saw job wood in the previous 3 s; the
+  wood is the new piece (the moved segments). "Touch down" = a collider of
+  the rope's anchor piece in contact with the ground heightfield; one try per
+  piece. "Damaging anything" = `world.damage` rising (the money bill: yards,
+  structures, pavers, neighbour trees). Tunables `STICKER_LOWER_KG`,
+  `STICKER_LOWER_T`.

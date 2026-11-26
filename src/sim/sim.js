@@ -422,6 +422,7 @@ export class Sim {
 
     if (this.tick % 60 === 0) this.sweepDebris();
     if (this.tick % 30 === 15) this.awards.check();
+    if (this.tick % 6 === 3) this.awards.lowering();
     if (this.tick % 30 === 0 && this.builds.born.size) this.builds.freezeDue();
   }
 

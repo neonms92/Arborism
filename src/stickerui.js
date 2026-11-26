@@ -2,11 +2,11 @@
 // stuck, kept in localStorage so they pile up from game to game; the glowing button that says one is waiting
 // (Q on a keyboard, a tap on a phone); and the dialog to aim and stick it.
 //
-// The host hands a sticker to everyone at once with an 'award' event (sim/awards.js). A tree or chipper
+// The host hands a sticker to the players who earned it with an 'award' event (sim/awards.js). A tree or chipper
 // sticker that goes up a tier later in the same job changes colour where it is, stuck or still waiting.
 
 import { CFG } from './config.js';
-import { KINDS } from './model/stickers.js';
+import { KINDS, ONCE } from './model/stickers.js';
 import { stickerURL, stickerInfo, tierWord } from './view/stickers.js';
 
 const KEY = 'arb-stickers';
@@ -73,17 +73,18 @@ body.touchui #stk .keys { display: none; }
 /** This device's stickers: stuck [{k, t, j, a, e, r}] (j: the job it came from, for colour changes) and pending [{k, t, j}]. */
 export class StickerBook {
   constructor() {
-    this.stuck = []; this.pending = [];
+    this.stuck = []; this.pending = []; this.ever = new Set();   // ever: once-ever kinds this browser has been given (D108)
     try {
       const o = JSON.parse(localStorage.getItem(KEY) || '{}');
       const ok = (s) => s && Object.hasOwn(KINDS, s.k) && Number.isInteger(s.t) && s.t >= 0 && s.t < KINDS[s.k];
       this.stuck = (Array.isArray(o.stuck) ? o.stuck : []).filter((s) => ok(s) && [s.a, s.e, s.r].every(Number.isFinite));
       this.pending = (Array.isArray(o.pending) ? o.pending : []).filter(ok);
+      this.ever = new Set((Array.isArray(o.ever) ? o.ever : []).filter((k) => ONCE.has(k)));
     } catch { /* storage blocked or spoilt: start empty */ }
     this.onChange = () => {};
   }
   save() {
-    try { localStorage.setItem(KEY, JSON.stringify({ stuck: this.stuck, pending: this.pending })); } catch { /* storage blocked */ }
+    try { localStorage.setItem(KEY, JSON.stringify({ stuck: this.stuck, pending: this.pending, ever: [...this.ever] })); } catch { /* storage blocked */ }
     this.onChange();
   }
   /** The stuck stickers as the model has them ([kind, tier, a, e, r]), for the host and the helmet. */
@@ -92,6 +93,7 @@ export class StickerBook {
   /** The host handed out sticker ev.k at tier ev.tier for job ev.job. Returns the line to toast, or ''. */
   award(ev) {
     if (!Object.hasOwn(KINDS, ev.k)) return '';
+    if (ONCE.has(ev.k)) { if (this.ever.has(ev.k)) return ''; this.ever.add(ev.k); }   // only the first time ever
     const same = (s) => s.k === ev.k && s.j === ev.job;
     const s = this.stuck.find(same);
     if (s) {

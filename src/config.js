@@ -174,6 +174,8 @@ export const CFG = {
   STICKER_T3: 0.99,        // ... green tree / gold chipper
   STICKER_BIN: 0.99,       // share of the job tree chipped and in bins for the 100% sticker
   STICKER_SALADS: 3,       // tube salads a player eats in a job for the salad sticker
+  STICKER_LOWER_KG: 600,   // kg: the piece let down on the rope for the "lower" sticker (owner)
+  STICKER_LOWER_T: 10,     // s after it touches down with nothing damaged (owner)
   STICKER_SHARE: 0.1,      // share of the sawing (tree) or of the feeding (chipper) a player must do to get those stickers
   STICKER_SIZE: 0.1,       // m across, a sticker on a helmet
   STICKER_MAX: 40,         // most stickers a helmet carries (the oldest go first)
