@@ -2,7 +2,7 @@
 // chips flying out of the chute while it is chipping. No game rules.
 
 import * as THREE from 'three';
-import { SHAPE, CHIPPER_BODY_ID, pileShape, chipToWorld, WRECK } from '../model/chipper.js';
+import { SHAPE, CHIPPER_BODY_ID, pileShape, chipToWorld, WRECK, cageArc } from '../model/chipper.js';
 import { compose } from '../model/builds.js';
 import { groundY } from '../model/terrain.js';
 
@@ -37,6 +37,15 @@ export class ChipperView {
     const grip = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.025, 6, 12).rotateX(Math.PI / 2), yellow); grip.position.set(...S.GRIP); parts.push(grip);
     const chute = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(CHUTE.map((p) => new THREE.Vector3(...p))), 12, 0.13, 7), orange);
     parts.push(chute);
+    // the roll cage (its collider is the dome between the hoops, D91): two hoops, rails along it, and struts from
+    // the hoops' feet in to the chassis
+    const C = S.CAGE, arc = cageArc(), foot = arc[0], tube = (pts, n) => new THREE.Mesh(new THREE.TubeGeometry(
+      n ? new THREE.CatmullRomCurve3(pts) : new THREE.LineCurve3(pts[0], pts[1]), n || 1, 0.025, 6), grey);
+    for (const x of [C.x0, C.x1]) {
+      parts.push(tube(arc.map(([y, z]) => new THREE.Vector3(x, y, z)), 48));
+      for (const s of [-1, 1]) parts.push(tube([new THREE.Vector3(x, foot[0], s * foot[1]), new THREE.Vector3(x, foot[0], s * S.CHASSIS.h[2])]));
+    }
+    for (let j = 0; j <= 4; j++) { const [y, z] = arc[Math.round(j * (arc.length - 1) / 4)]; parts.push(tube([new THREE.Vector3(C.x0, y, z), new THREE.Vector3(C.x1, y, z)])); }
     for (const m of parts) { m.castShadow = true; m.receiveShadow = true; this.group.add(m); }
     scene.add(this.group);
 

@@ -705,6 +705,12 @@ a jockey wheel; the sim models the tyres: under the axle they grip sideways
 `CHIP_BRAKE` (axle and jockey wheel) whenever nobody holds the grip. So it
 can be towed by hand and turned about its axle, and rope, wood or a falling
 log can still drag, tip or hoist it.
+A steel roll cage arches over the chassis (`SHAPE.CAGE`, D91); its collider is
+a dome as wide as the wheels whose outline, seen end on, is a gentle spiral
+about the centre of mass, so the weight is always outboard of where it touches
+the ground: rolled onto its roof or side, the chipper rolls on until it is
+back on its wheels. Most of its mass sits low in the chassis (`BALLAST`). It
+never sleeps (Rapier would stop it rolling slowly off its roof).
 
 - **Grip.** The ring at the end of the drawbar is grabbed like wood
   ({interact}); the hold is the same short rope from the hands. Dragging

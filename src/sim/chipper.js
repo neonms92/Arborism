@@ -29,7 +29,7 @@
 import * as THREE from '../../vendor/three/three.module.js';
 import { CFG } from '../config.js';
 import { segMass } from '../model/world.js';
-import { SHAPE, parkedPose, pileShape, chipToWorld, CHIPPER_BODY_ID, WRECK } from '../model/chipper.js';
+import { SHAPE, parkedPose, pileShape, chipToWorld, CHIPPER_BODY_ID, WRECK, cageArc } from '../model/chipper.js';
 import { compose } from '../model/builds.js';
 
 const THROAT = 0.3;                  // m: the feed point counts as in the mouth within this of the hopper's axis
@@ -106,7 +106,9 @@ export class Chipper {
     this.parts.clear(); this.partCols.clear(); this.stick = { A: null, J: null };
     if (!ev.keep) { for (const { col } of this.pileCols.values()) sim.rapier.removeCollider(col, false); this.pileCols.clear(); this.colPile.clear(); }
     const body = sim.rapier.createRigidBody(sim.dynamic().setTranslation(ev.p[0], ev.p[1], ev.p[2])
-      .setRotation({ x: ev.q[0], y: ev.q[1], z: ev.q[2], w: ev.q[3] }).setLinearDamping(0.05).setAngularDamping(0.3));
+      .setRotation({ x: ev.q[0], y: ev.q[1], z: ev.q[2], w: ev.q[3] }).setLinearDamping(0.05).setAngularDamping(0.3)
+      // Rapier would put it to sleep below 0.5 rad/s, which a 350 kg body rolling slowly off its roof is (D91); it is one body
+      .setCanSleep(false));
     const M = CFG.CHIP_MASS, S = SHAPE;
     const add = (desc, c, mass, friction = 0.8) => {
       desc.setTranslation(c[0], c[1], c[2]).setMass(mass).setFriction(friction).setActiveHooks(R.ActiveHooks.FILTER_CONTACT_PAIRS)
@@ -115,7 +117,12 @@ export class Chipper {
       this.cols.add(sim.rapier.createCollider(desc, body).handle);
     };
     const box = (b, mass) => add(R.ColliderDesc.cuboid(b.h[0], b.h[1], b.h[2]), b.c, mass);
-    box(S.CHASSIS, M * 0.8);
+    box(S.CHASSIS, M * 0.45);
+    box(S.BALLAST, M * 0.34);       // mass only: it is inside the chassis
+    // the roll cage: the hull of its two hoops, a dome over the chassis that rolls it back onto its wheels (D91)
+    const arc = cageArc(), hull = new Float32Array(arc.length * 6);
+    arc.forEach(([y, z], i) => hull.set([S.CAGE.x0, y, z, S.CAGE.x1, y, z], i * 6));
+    add(R.ColliderDesc.convexHull(hull), [0, 0, 0], M * 0.01);
     box(S.HOPPER, M * 0.08); this.hopperCol = [...this.cols].pop();
     box(S.DRAWBAR, M * 0.02);
     add(R.ColliderDesc.cuboid(S.GRIP_H[0], S.GRIP_H[1], S.GRIP_H[2]), S.GRIP, M * 0.005);
