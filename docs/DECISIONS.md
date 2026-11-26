@@ -1381,3 +1381,37 @@ speckled asphalt with a dashed yellow centre line (vertex colours on the
 ground grid, so the line is one 0.5 m grid row). Unreviewed: the 30 m and
 3 m, the colours, the centre line, no kerbs or sidewalks along it, and the
 street being as grippy as grass.
+
+**D93 — Chip bins, and how far the job has got.** Owner (2026-11-26): a 96
+gallon bin by the chipper; chips landing on it go in, players can tip chips
+in by hand; no capacity, a bottomless disposal; indestructible; "Buy a new
+chip bin" in the settings menu; a floppy lid that collects nothing while shut,
+opened and shut by interacting with it; the handles move it. Track how much of
+the target tree has been chipped and how much of the chips have been disposed
+of, coloured red under 60 %, amber from 60, green from 90, blue from 99.
+Built as physics: the bin is a 15 kg box with two frictionless wheel balls at
+the bottom of its back and a handle bar; the lid is its own 2 kg body on a
+hinge joint (Rapier's revolute limits and motor only work within ±180°, so the
+hinge has none: shut, the lid lies on the rim; swung back it rests on the
+handle bar, at about 198°). A press on the lid drives the hinge toward the
+other end for up to 1.5 s (`BIN_LID_K`, an acceleration spring), then lets it
+swing on its own with a little friction (`BIN_HINGE_DAMP`); the lid flops when
+the bin is knocked, tipped or bumped by a player. The handle is held like the
+chipper's grip; pulled back, the bin tips onto its wheels and rolls (a scripted
+tow: 9 m in 6 s). Chips go into a bin when the point they land on (the
+chipper's discharge point, or where a player puts down what they carry) is
+within its mouth plus `BIN_CATCH` (0.15 m), with the bin upright and its lid
+more than 1.2 rad open. They are gone (`world.prog.gone`). Progress lives in
+the model (`world.prog`), counted by `world.apply` on every machine: the job
+tree's mass when it grows (wood and leaves); every chipped segment that is not
+a yard tree's (segments of woken yard trees carry `yd`); chips made and chips
+gone into bins. Twigs swept away as debris (under `DEBRIS_MASS`) cannot be
+chipped, so the tree's share is chipped / (grown − swept); the HUD shows both
+shares to a tenth of a percent, rounded down. Choices the owner hasn't
+reviewed: where the bin is parked (chipper-local x 1.6, z 1.7: by the drawbar
+on the chute side, 1.5 m from where chips land, so it has to be wheeled under
+the chute), a bought bin is put down 1.5 m in front of the buyer, its price
+($100, `BIN_PRICE`), the swept-debris rule, colours (red #ff5a4e, amber
+#ffb326, green #52d468, blue #5ab4ff), and "Chips in bins: none yet" before any
+are made. A player standing behind an open bin pushes the lid shut (it sticks
+out 0.7 m behind).

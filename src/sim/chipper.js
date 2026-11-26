@@ -209,7 +209,9 @@ export class Chipper {
     const hit = sim.rapier.castRay(new sim.R.Ray(o, d), CFG.REACH, true, undefined, undefined, undefined, p.body);
     const t = p.body.translation();
     const x = hit ? o.x + d.x * hit.timeOfImpact : t.x + d.x * 0.8, z = hit ? o.z + d.z * hit.timeOfImpact : t.z + d.z * 0.8;
-    sim.emit({ t: 'chips', drop: [+x.toFixed(2), +z.toFixed(2), +p.chips.toFixed(5)] });
+    // put down over an open bin, they go into it and are gone (sim/bin.js)
+    if (sim.bins.catchAt(x, z) !== undefined) sim.emit({ t: 'chips', dump: +p.chips.toFixed(5) });
+    else sim.emit({ t: 'chips', drop: [+x.toFixed(2), +z.toFixed(2), +p.chips.toFixed(5)] });
     p.chips = 0;
   }
 
@@ -553,7 +555,8 @@ export class Chipper {
     for (const s of eat) V += (segMass(s) + s.leaf) / CFG.DENSITY;
     V *= CFG.CHIP_SWELL;
     const out = this.toWorld([SHAPE.DISCHARGE[0], -SHAPE.BODY_Y, SHAPE.DISCHARGE[1]], _a);
-    sim.emit({ t: 'chip', segs: ids, V: +V.toFixed(5), x: +out.x.toFixed(2), z: +out.z.toFixed(2) });
+    const bin = sim.bins.catchAt(out.x, out.z);       // landing in an open bin's mouth, they go into it (sim/bin.js)
+    sim.emit({ t: 'chip', segs: ids, V: +V.toFixed(5), x: +out.x.toFixed(2), z: +out.z.toFixed(2), ...(bin === undefined ? {} : { bin }) });
     this.busy = 40;
     if (ids.includes(f.seg)) f.seg = -1;
     f.F = 0;                          // the wood that held the motor back is gone: it starts again from nothing
