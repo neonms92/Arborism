@@ -38,6 +38,7 @@ export class Players {
       ride: null, prompt: '',
       ch: null, chLock: new Set(),   // channel in progress {kind, t, need, seen}; kinds done and not yet let go of
       punch: null,                   // {seg, p: piece-local point, d: world direction, F: N}, fading
+      target: -1,                    // the loose wood {interact} would grab (seg id; -1: none), highlighted for its player
       grab: null,                    // holding wood on the ground: {seg, p: piece-local point, L0: rope length, prev}
       held: '',                      // what is in the other hand: '' or 'salad' (a tube salad off a chipper's rack)
       rtPrev: 0,                     // {throttle} last tick, for its press (eating)
@@ -335,7 +336,7 @@ export class Players {
     if (pressed.buyBin) sim.bins.buy(p);          // the Tab menu's "Buy a new chip bin": put down in front of them
     const control = p.inj < INJ.DOWN && p.shakenT <= 0;
     const aim = control ? sim.aim(p) : null;
-    p.prompt = '';
+    p.prompt = ''; p.target = -1;
     // one of the other trees in the yards, still without wood of its own (sim/stands.js): starting to saw it
     // (holding {raise}), climb or grab it ({interact}) or rig it ({rig}) grows its wood. Rapier only finds the new
     // colliders after the next step, so the press that did it is handed on to the next tick.
@@ -468,6 +469,8 @@ export class Players {
       const bn = control && !p.grab ? sim.bins.aim(p) : null;              // a chip bin within reach: its lid or its handle
       const wood = p.grab && !p.grab.chip ? sim.world.segs.get(p.grab.seg) : null;
       const loose = wood && !sim.world.pieces.get(wood.piece).fixed;
+      // what {interact} would grab: the wood looked at, or, just missing loose wood, the nearest in the grab cone
+      const gaim = p.grab || !control ? null : reach ? aim : sim.coneAim(p);
       if (pressed.interact && wood && atChip) {
         if (loose) { ca.u.feed(wood.piece, wood.id, p.grab.p); p.grab = null; p.chLock.add('lanyard'); }
         else this.say(p, 'Only loose wood can go in the chipper');
@@ -480,7 +483,7 @@ export class Players {
       else if (pressed.interact && bn && bn.part === 'lid') { sim.bins.toggle(bn.k); p.chLock.add('lanyard'); }
       else if (pressed.interact && bn && bn.part === 'handle') this.grabBin(p, bn);
       else if (pressed.interact && pile >= 0) { sim.chipper.take(p, pile); p.chLock.add('lanyard'); }
-      else if (pressed.interact && reach) this.grabStart(p, aim);
+      else if (pressed.interact && gaim) this.grabStart(p, gaim);
       // the weight of the wood in hand, or of loose wood looked at, goes on the button (nothing for wood still on the tree)
       const kg = (piece) => { const m = sim.weightOf(piece); return isFinite(m) ? ` {mass:${Math.round(m)}}` : ''; };
       if (wood && atChip) first = loose ? '{interact}: feed' + kg(wood.piece) : 'Only loose wood can go in the chipper';
@@ -491,7 +494,9 @@ export class Players {
       else if (bn) first = bn.part === 'lid' ? (sim.bins.lidAngle(bn.k) > 2 ? '{interact}: shut lid' : '{interact}: open lid')
         : bn.part === 'handle' ? '{interact}: grab bin' : 'Chip bin: {interact} on its lid opens it, its handle moves it. Chips in it are gone';
       else if (pile >= 0) first = '{interact}: take chips';
-      else first = reach ? '{interact}: grab' + kg(sim.world.segs.get(aim.seg).piece) : '';
+      else first = gaim ? '{interact}: grab' + kg(sim.world.segs.get(gaim.seg).piece) : '';
+      // shown to its player as a highlight on that wood (loose wood only: the standing tree is plain to see)
+      if (gaim && !atChip && !bn && pile < 0 && !sim.world.pieces.get(sim.world.segs.get(gaim.seg).piece).fixed) p.target = gaim.seg;
     }
     if (reach && !(nearDev && rope.holder < 0 && !p.grab)) {
       const s = sim.world.segs.get(aim.seg), piece = sim.world.pieces.get(s.piece);
@@ -647,7 +652,7 @@ export class Players {
     for (const p of this.list.values()) {
       const s = p.saw;
       out.push({
-        id: p.id, m: p.mode, inj: p.inj, sk: p.shakenT > 0 ? 1 : 0, ck: +(p.chips || 0).toFixed(4), hd: p.held ? 1 : 0, gk: p.grab && p.grab.chip ? p.grab.k || 0 : 0, gr: p.grab ? [p.grab.chip ? -1 : p.grab.bin !== undefined ? -2 - p.grab.bin : p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pt: +p.input.pitch.toFixed(2), pr: p.prompt,
+        id: p.id, m: p.mode, inj: p.inj, sk: p.shakenT > 0 ? 1 : 0, ck: +(p.chips || 0).toFixed(4), hd: p.held ? 1 : 0, gk: p.grab && p.grab.chip ? p.grab.k || 0 : 0, gr: p.grab ? [p.grab.chip ? -1 : p.grab.bin !== undefined ? -2 - p.grab.bin : p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pt: +p.input.pitch.toFixed(2), pr: p.prompt, tg: p.target >= 0 && !p.grab ? p.target : -1,
         cl: p.cl ? [p.cl.seg, +p.cl.t.toFixed(3), p.cl.side.map((x) => +x.toFixed(3))] : 0,
         saw: s.on ? [...s.A.toArray(), ...s.b.toArray(), ...s.f.toArray(), s.stuck ? 1 : 0, s.cutting ? 1 : 0, CFG.BAR_LEN].map((x) => +x.toFixed(3)) : 0,
       });

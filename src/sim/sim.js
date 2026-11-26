@@ -4,7 +4,7 @@
 import RAPIER from '../../vendor/rapier/rapier.mjs';
 import * as THREE from '../../vendor/three/three.module.js';
 import { CFG } from '../config.js';
-import { segLen, segAxis, segMass, segParam, lerp3 } from '../model/world.js';
+import { segLen, segAxis, segMass, segParam, segRadius, lerp3 } from '../model/world.js';
 import { layout, bundleBasis, isGone } from '../model/fibres.js';
 import { generateTree, treeShape } from '../model/treegen.js';
 import { markOn } from '../model/stands.js';
@@ -24,6 +24,7 @@ import { terrainSpec, groundY, groundN } from '../model/terrain.js';
 
 export const PLAYER_BODY_ID = 60000;   // snapshot ids >= this are players
 const Y = new THREE.Vector3(0, 1, 0);
+const _ca = new THREE.Vector3(), _cb = new THREE.Vector3(), _cq = new THREE.Vector3();
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
 
 export class Sim {
@@ -327,6 +328,46 @@ export class Sim {
   aim(p) {
     const { o, d } = this.eye(p);
     return this.ray(o, d, 8, p.body);
+  }
+  /**
+   * Grab assist: the loose wood nearest the reticle that the eye can see, within CFG.GRAB_CONE of the look
+   * direction and REACH of the eyes, for when the look ray itself just misses (a thin stick). Scored by the angle
+   * off the reticle to its nearest surface, then by distance (GRAB_CONE_DIST). {seg, point, dist} or null.
+   */
+  coneAim(p, max = CFG.REACH) {
+    const cone = CFG.GRAB_CONE; if (!(cone > 0)) return null;
+    const { o, d } = this.eye(p), w = this.world, A = _ca, B = _cb, Q = _cq;
+    const cands = [];
+    for (const s of w.segs.values()) {
+      const piece = w.pieces.get(s.piece);
+      if (!piece || piece.fixed || !this.segCol.has(s.id)) continue;
+      this.segToWorld(s, s.a, A); this.segToWorld(s, s.b, B);
+      if (Math.min(A.distanceTo(o), B.distanceTo(o)) > max + segLen(s)) continue;
+      // the point on the segment's axis nearest the look ray
+      const vx = B.x - A.x, vy = B.y - A.y, vz = B.z - A.z, wx = o.x - A.x, wy = o.y - A.y, wz = o.z - A.z;
+      const b = d.x * vx + d.y * vy + d.z * vz, c = vx * vx + vy * vy + vz * vz, dd = d.x * wx + d.y * wy + d.z * wz, e = vx * wx + vy * wy + vz * wz;
+      const den = c - b * b;
+      const t = Math.min(1, Math.max(0, den > 1e-9 ? (e - b * dd) / den : 0));
+      Q.set(A.x + vx * t, A.y + vy * t, A.z + vz * t);
+      const along = (Q.x - o.x) * d.x + (Q.y - o.y) * d.y + (Q.z - o.z) * d.z;
+      if (along <= 0) continue;
+      const r = segRadius(s, t), off = Math.hypot(Q.x - o.x - d.x * along, Q.y - o.y - d.y * along, Q.z - o.z - d.z * along);
+      const ang = Math.atan2(Math.max(0, off - r), along), dist = Q.distanceTo(o) - r;
+      if (ang > cone || dist > max) continue;
+      // grab its surface on the side facing the eyes
+      const P = o.clone().sub(Q).normalize().multiplyScalar(r * 0.9).add(Q);
+      cands.push({ seg: s.id, piece: s.piece, point: P, dist: Math.max(0, dist), score: ang + CFG.GRAB_CONE_DIST * dist });
+    }
+    cands.sort((x, y) => x.score - y.score);
+    // the first that nothing else hides: a ray from the eyes to it meets that piece first
+    for (const k of cands.slice(0, 4)) {
+      const to = k.point.clone().sub(o), len = to.length(); to.divideScalar(len);
+      const hit = this.rapier.castRay(new RAPIER.Ray(o, to), len + 0.05, true, undefined, undefined, undefined, p.body);
+      const hs = hit && this.colSeg.get(hit.collider.handle);
+      if (hit && hit.timeOfImpact < len - 0.05 && (hs === undefined || w.segs.get(hs)?.piece !== k.piece)) continue;
+      return { seg: k.seg, point: k.point, dist: k.dist };
+    }
+    return null;
   }
   /** The wood a ray from o along unit d meets within max m: {seg, point:Vector3, dist} or null. `skip`: a body to see through. */
   ray(o, d, max, skip) {
