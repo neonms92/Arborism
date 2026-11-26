@@ -2,7 +2,8 @@
 // where the host's solver has the line (src.line(i): the host's own points, or a joined player's copy of the last
 // ones it was sent), or hanging at rest where nothing has been sent. A joined player's lines ease towards each new
 // set of points so they do not jump at 10 Hz. A line that snaps (or a player who touches one) makes a white flash
-// you can see from far off; the live ends of a downed line lying on the ground spark now and then. No game rules.
+// you can see from far off; the live ends of a downed line lying on the ground spark now and then, until it goes
+// dead. No game rules.
 
 import * as THREE from 'three';
 import { endRest, restNodes } from '../model/lines.js';
@@ -40,9 +41,11 @@ export class LinesView {
 
   onEvent(ev) {
     if (ev.t === 'lines' || ev.t === 'reset' || ev.t === 'load') this.rebuild();
-    else if (ev.t === 'snap' && ev.p) this.flash(ev.p, 1);
+    else if (ev.t === 'snap' && ev.p && !this.deadLine(ev.i)) this.flash(ev.p, 1);
     else if (ev.t === 'zap' && ev.p) this.flash(ev.p, 0.45);
   }
+
+  deadLine(i) { const L = this.world.lines && this.world.lines.list[i]; return !!(L && L.dead); }
 
   rebuild() {
     if (this.mesh) { this.scene.remove(this.mesh); this.mesh.dispose(); this.mesh = null; }
@@ -96,7 +99,7 @@ export class LinesView {
       if (this.sparkT <= 0) {
         this.sparkT = 0.15;
         w.lines.list.forEach((L, i) => {
-          const V = this.lines[i]; if (!V || (!L.brk.length && !L.off[0] && !L.off[1])) return;
+          const V = this.lines[i]; if (!V || L.dead || (!L.brk.length && !L.off[0] && !L.off[1])) return;
           const ends = [];
           for (const q of L.brk) ends.push(q, q + 1);
           if (L.off[0]) ends.push(0); if (L.off[1]) ends.push(L.n);

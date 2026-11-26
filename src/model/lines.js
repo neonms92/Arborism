@@ -7,7 +7,8 @@
 //
 // world.lines = {list: [line...]} or null
 // line = {a, b: its two ends, n: links it is simulated as, L0: m of line, kind: 0 along the street | 1 a drop,
-//         brk: [k...] links that have snapped (between point k and k + 1), off: [a, b] 1 where that end came away}
+//         brk: [k...] links that have snapped (between point k and k + 1), off: [a, b] 1 where that end came away,
+//         down: host tick it first came down (from the snap event), dead: 1 once it has gone dead (a 'dead' event)}
 // an end is one of
 //   {st, h}       on dormant pole st (stand index), h m above its base: at [x, y + h, z]
 //   {seg, p}      on wood: piece-local point p on segment seg (a pole that has woken; it follows splits)
@@ -67,7 +68,11 @@ export function snapLine(lines, ev) {
   const l = lines && lines.list[ev.i]; if (!l) return;
   if (ev.k !== undefined) { if (!l.brk.includes(ev.k)) l.brk.push(ev.k); }
   else if (ev.end !== undefined) l.off[ev.end] = 1;
+  if (l.down === undefined && ev.tk !== undefined) l.down = ev.tk;
 }
+
+/** A 'dead' event: line i, down for LINE_DEAD_T, no longer carries power (no sparks, no shocks). */
+export function deadLine(lines, ev) { const l = lines && lines.list[ev.i]; if (l) l.dead = 1; }
 
 /** Pole st has woken into wood (segments segs, rooted, piece-local = world): ends on it move onto its wood. */
 export function wakeEnds(lines, st, segs) {

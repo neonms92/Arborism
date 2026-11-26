@@ -176,6 +176,7 @@ export const CFG = {
   STICKER_SALADS: 3,       // tube salads a player eats in a job for the salad sticker
   STICKER_LOWER_KG: 600,   // kg: the piece let down on the rope for the "lower" sticker (owner)
   STICKER_LOWER_T: 10,     // s after it touches down with nothing damaged (owner)
+  STICKER_LINE_T: 10,      // s: a line that snaps is blamed on whoever's wood last leaned on it, or held its end, this long before (owner)
   STICKER_SHARE: 0.1,      // share of the sawing (tree) or of the feeding (chipper) a player must do to get those stickers
   STICKER_SIZE: 0.1,       // m across, a sticker on a helmet
   STICKER_MAX: 40,         // most stickers a helmet carries (the oldest go first)
@@ -295,6 +296,7 @@ export const CFG = {
   POLE_FELL_COST: 6000,    // $ more, once, when half a utility pole's wood has come off it (sawing into one costs as a yard tree does)
   SHOCK_KNOCK: 5,          // m/s a shock throws you away from the line
   SHOCK_LIFT: 2.5,         // m/s up as well
+  LINE_DEAD_T: 30,         // s after a line first comes down until it goes dead (no sparks, no shocks)
   SHOCK_AGAIN: 1.5,        // s after a shock before the same player can be shocked again
 };
 

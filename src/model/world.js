@@ -19,7 +19,7 @@ import { addChips } from './chipper.js';
 import { makeTerrain } from './terrain.js';
 import { newBuild, smashBuild, freezeBuild, packBuilds, unpackBuilds } from './builds.js';
 import { cleanStickers } from './stickers.js';
-import { newLines, snapLine, wakeEnds, divideEnds } from './lines.js';
+import { newLines, snapLine, deadLine, wakeEnds, divideEnds } from './lines.js';
 
 export const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 export const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -264,6 +264,7 @@ export class World {
       case 'rope': this.rope = ev.rope; break;
       case 'lines': this.lines = newLines(ev.list); break;    // the power lines, put up whole with a new tree
       case 'snap': snapLine(this.lines, ev); break;            // a power line parted (k: link) or came away at an end (end)
+      case 'dead': deadLine(this.lines, ev); break;           // a downed line went dead: no more sparks or shocks
       case 'zap': break;                                       // someone touched a live line (drawn as a flash)
       case 'damage': this.damage += ev.cost; break;   // the price of something broken (sim/damage.js)
       case 'budget': this.job = ev.job; this.wages = 0; this.spent = 0; break;   // a new job: what it pays to start with (sim/damage.js)
