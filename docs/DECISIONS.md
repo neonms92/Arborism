@@ -1764,3 +1764,26 @@ whole line goes dead, both pieces. Counted from the first time it comes
 down (a link snaps or an end comes away), not from each later break. A
 dead line that is sawn or snaps again makes no flash and no shock. Lines
 still up stay live. `LINE_DEAD_T` 30 s, in the Tab menu.
+
+**D113 — The job tree anywhere on its lot; pruning at planting.** Owner
+(2026-11-26): "The target tree should be able to grow just about anywhere on
+the lot, whether adjacent to fences or houses or the street. Delete branches
+that intersect with obstacles. Are other trees able to grow in the same lot
+as the target? They should." They already could (113 of 200 plans had one),
+but the 4 m clear square round the trunk, its paving and the house's whole
+front yard left little room; now 183 of 200 do. Judgment calls: the trunk's
+footprint is its leaning axis up to `POLE_HEIGHT` (so a leaning trunk never
+reaches over its fence, into the street's lines or into a house; a trunk
+cannot be pruned), `YARD_TREE_EDGE` 0.3 m to the lot lines and
+`YARD_TREE_CLEAR` 0.6 m (was 4 m) to houses, sheds and the chipper (players
+still spawn clear: `safeSpot`); houses no longer take their whole front yard
+on any lot, so yard trees may stand in front yards everywhere; paving round
+the trunk only when there is room for three cells beyond the pit; drops skip
+poles whose line would cross a trunk. Pruning is one general rule for every
+tree: a branch segment whose axis comes within its radius of a build
+module's collision box, a power line at rest, another trunk or pole, or
+dips under the ground, is cut with everything beyond it. Crowns may overlap
+other crowns (dormant crowns have no colliders). At the default job tree
+(22 m, crown from 7.5 m) it seldom fires: houses stand under the crown;
+yard trees are cut now and then (about one in seven worlds at density 1).
+

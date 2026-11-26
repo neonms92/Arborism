@@ -190,7 +190,7 @@ function fillLot(plan, lot, R, d, o, posts, edges, key) {
     let room = Math.min(tu + W / 2, W / 2 - tu, tw, D - tw) - 0.5;
     for (const t of taken.slice(1)) room = Math.min(room, Math.max(t[0] - tu, tu - t[1], t[2] - tw, tw - t[3]) - 0.3);
     const r = Math.min(T.paveMax * (0.6 + 0.4 * R()), room);
-    if (r <= T.pit + c) return;
+    if (r < T.pit + 3 * c) return;                               // (less would be a few slabs round the pit)
     if (pick(0.5)) plan.areas.push({ shape: 'circle', x: 0, z: 0, r: r4(r), pit: T.pit });
     else { const s = Math.floor(2 * r / 1.42 / c) * c; plan.areas.push({ shape: 'rect', x: 0, z: 0, yaw, w: r4(s), d: r4(s), pit: T.pit }); }
     plan.treePave = r; take(tu - r, tu + r, tw - r, tw + r);
