@@ -1415,3 +1415,24 @@ the chute), a bought bin is put down 1.5 m in front of the buyer, its price
 #ffb326, green #52d468, blue #5ab4ff), and "Chips in bins: none yet" before any
 are made. A player standing behind an open bin pushes the lid shut (it sticks
 out 0.7 m behind).
+
+**D94 — Broken structure pieces freeze into scenery after a minute.** Owner
+(2026-11-26): smashed structure pieces become permanently frozen in place and
+intangible one minute after destruction, for performance. Built: every loose
+body a `smash` makes (each part, and each loose group of intact modules) is
+timed from that tick; at `DEBRIS_FREEZE` (60 s, Tab menu "Houses, sheds and
+fences") the host emits a `freeze` event with its pose, removes the body and
+its colliders, and the model keeps the pose in `b.still`, so clients and late
+joiners draw it there without snapshots. A piece still moving faster than
+`DEBRIS_FREEZE_V` (0.3 m/s) waits until it slows, so boards are not frozen
+mid-fall or while riding a log; at twice the delay it freezes regardless. A
+frozen loose group's intact modules cannot break again. Choices the owner
+hasn't reviewed: frozen debris is fully intangible, so wood, players and the
+chipper pass through it (the chipper still flattens standing structures and
+fresh debris as before); debris resting on a log that is later dragged away
+stays floating where it was; the timer runs from the smash, not from when a
+piece came to rest. Checked headless: a smashed shed (40 boards) dropped from
+77 to 37 Rapier bodies after the delay with every board drawn where it lay;
+host, client and a late joiner agree on all 40 frozen poses (local PeerJS
+server). Smoke 18 / 22 (FM-05, 12, 13, 20 fail as on main; engine tests have
+no builds).

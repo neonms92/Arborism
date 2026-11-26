@@ -16,7 +16,7 @@ import { CFG } from '../config.js';
 import { newPaving, crackPaver, packPaving, unpackPaving } from './pavers.js';
 import { addChips } from './chipper.js';
 import { makeTerrain } from './terrain.js';
-import { newBuild, smashBuild, packBuilds, unpackBuilds } from './builds.js';
+import { newBuild, smashBuild, freezeBuild, packBuilds, unpackBuilds } from './builds.js';
 
 export const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 export const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -247,6 +247,7 @@ export class World {
       }
       case 'builds': this.builds = ev.list.map(newBuild); break;   // put up fresh (all intact)
       case 'smash': smashBuild(this.builds, ev); break;           // a module came apart (sim/builds.js)
+      case 'freeze': freezeBuild(this.builds, ev); break;         // its debris came to rest long enough ago: scenery now
       case 'rope': this.rope = ev.rope; break;
       case 'damage': this.damage += ev.cost; break;   // the price of something broken (sim/damage.js)
       case 'budget': this.job = ev.job; this.wages = 0; break;   // a new job: what it pays to start with (sim/damage.js)
