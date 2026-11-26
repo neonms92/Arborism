@@ -100,6 +100,12 @@ export class Lines {
     const sim = this.sim, w = sim.world;
     if (e.seg !== undefined) {
       const s = w.segs.get(e.seg); if (!s || !sim.bodies.get(s.piece)) return null;
+      // On standing wood the end stays where that wood was grown, not where its bend has carried it (D116): the
+      // bend follows its load at a fixed FLEX_FREQ, and a line is far stiffer than the wood it is on, so a pin
+      // that moved with the bend would feed the line's pull back into the bend and ring it up until the wood
+      // broke. The bend is millimetres to centimetres while the wood is stiff; once it goes live the end
+      // follows the loose body and the line's pull is taken implicitly (step()).
+      if (w.pieces.get(s.piece).fixed) return e.p.slice();
       return sim.segToWorld(s, e.p, _p).toArray();
     }
     if (e.st !== undefined) return endRest(w, e);

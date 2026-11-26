@@ -1826,3 +1826,20 @@ lanyard into a utility pole after all." Poles now take spurs, a grab and
 the lanyard like any trunk, by the same rules (`SPUR_MIN_R` decides the
 crossarm and braces too). The `pl` mark stays, for the pole colour only.
 A climber who touches a live line is shocked off the pole as before.
+
+**D116 — A line's end on standing wood stays where that wood was grown.**
+Owner (2026-11-26): grabbing a pole to climb it seemed to snap it ("the
+fibres are giving" and then it was loose). Grabbing wakes a dormant pole;
+its bend (model/flex.js) then moved the line pins a few millimetres, which
+woke its lines, and their pull went back into the bend. The bend follows
+its load at the fixed `FLEX_FREQ`, but four lines are far stiffer than a
+10 m pole or a 5 cm crossarm, so the loop rang up (tension 200 N to 6 kN in
+a second) until a crossarm half passed MOR and went live; 4 of 6 poles
+woken on one seed did. Now a line end on a rooted piece is pinned at the
+grown position (`lines.endNow`), so the line still pulls on the standing
+wood but the wood's bend no longer drags the line. The bend is millimetres
+to centimetres while wood is stiff, so the line end on a bent pole can be
+that far off the drawn wood. Once wood goes live the end follows the loose
+body as before (implicit pull, D114). A general rule for any line on any
+standing wood, not a pole case. Headless: 16 poles on two seeds woken, and
+with every line forced awake for 7 s, no splits.
