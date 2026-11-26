@@ -1556,3 +1556,17 @@ getting closer. The spot is the nearest one clear of anything but the ground
 Respawn button and falling out of the world use the same search round the
 player's own spawn point. Unreviewed: the 4 m, landing while riding a falling
 piece is unchanged (that is still an impact), a toast says the lanyard is off.
+
+**D101 — Grab assist.** Owner asked (2026-11-26): grabbing tiny sticks was fiddly, so a
+miss falls back to the nearest loose wood in a cone round the reticle
+(`GRAB_CONE`, 5°, in the Tab menu as degrees; 0 turns it off). Choices: the
+exact look ray still wins; only loose wood is assisted (the standing tree is
+big and climbing/spurring keep exact aim); the angle is measured to the
+segment's surface, not its axis, so thick pieces are easier than thin ones at
+the same offset; candidates are scored by angle plus `GRAB_CONE_DIST` (0.02
+rad per m) times distance, and the first of the best four that a ray from the
+eyes reaches without something else in the way wins. Punch, saw and rigging
+still use the exact ray. A faint pulsing sleeve on the segment shows the
+target to its own player (aux `tg`), for exact hits and cone hits alike.
+Unreviewed: whether touch should get a wider cone than mouse (same 5° now),
+and whether the sleeve is too faint at a distance.

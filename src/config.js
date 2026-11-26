@@ -194,6 +194,8 @@ export const CFG = {
   GRAB_MAX: 2500,          // N, pull at which the wood is pulled out of the player's hands
   LEG_FORCE: 1000,         // N, most a player's legs push the body across the ground with: walking, pushing and pulling alike (keep under GRAB_MAX)
   GRAB_HEIGHT: 0.3,        // m, hands above the body centre
+  GRAB_CONE: 0.0873,       // rad (5°): looking just past loose wood in reach, {interact} still grabs the piece nearest the reticle within this angle (0: exact aim only)
+  GRAB_CONE_DIST: 0.02,    // rad per m: between candidates in the cone, how much being nearer counts against being off the reticle
   // --- wood chipper (sim/chipper.js): a towable chipper on two wheels and a jockey wheel ---
   CHIP_MASS: 350,          // kg (applies when it is put back by a new tree or respawned)
   CHIP_GAP: 3,             // m between the tree's paving (or the trunk) and the chipper, where it is parked

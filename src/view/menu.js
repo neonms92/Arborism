@@ -33,6 +33,7 @@ export const ROWS = [
   ['PUNCH_MAX', 'Punch: most force stacked presses reach (N)', 0, 20000, 100, 1, true],
   ['LEG_FORCE', 'Legs: most force you push or pull with (walking into things, or away from what you hold; N)', 50, 5000, 10, 1, true],
   ['GRAB_MAX', 'Pulling: force that tears what you hold out of your hands (N)', 50, 10000, 10, 1, true],
+  ['GRAB_CONE', 'Grab assist: angle round the reticle that still grabs loose wood (°)', 0, 20, 0.5, Math.PI / 180, true],
   ['GRAB_K', 'Grabbed wood: stiffness of the hold (N/m)', 500, 100000, 500, 1, true],
   ['View'],
   ['NET_STATS', 'Network and debug info on the HUD (fps, ping, loss, wage math; network box when joined)'],
