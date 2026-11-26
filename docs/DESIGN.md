@@ -854,6 +854,14 @@ Siding and roof colours are picked per house in the view.
 - **Sync.** Loose bodies and parts are ordinary snapshot transforms; the
   `smash` event carries their ids and the pose the module's body had, so a
   client draws the parts where they were until their first transform.
+- **Freezing (D94).** `DEBRIS_FREEZE` s (60) after a loose part or loose
+  group is made, once it moves slower than `DEBRIS_FREEZE_V` (or at twice
+  that age regardless), the host emits `freeze` `{b, list: [{id, p, q}]}`
+  (one per build, checked twice a second): its body and colliders are
+  removed and `b.still[id]` keeps the pose it rests in. It is scenery from
+  then on: drawn where it lies, nothing collides with it (wood, players,
+  the chipper all pass through), it is never in a snapshot again, and a
+  late joiner draws it from `b.still`.
 - **Reset.** A new tree puts the builds up again, intact (`builds` event).
 - **Welcome.** Parts are left out of the welcome's builds; every machine makes
   them again from the module's shape (`packBuilds` / `unpackBuilds`).

@@ -350,6 +350,20 @@ export function smashBuild(builds, ev) {
 }
 
 /**
+ * A 'freeze' event (sim/builds.js): loose bodies of build ev.b (parts of broken modules, or loose groups of
+ * intact ones) that have lain still for CFG.DEBRIS_FREEZE are scenery from now on, at the pose they came to
+ * rest in: ev.list = [{id, p, q}]. b.still[id] = {p, q}; nothing collides with them any more.
+ */
+export function freezeBuild(builds, ev) {
+  const b = builds.find((x) => x.id === ev.b); if (!b) return;
+  if (!b.still) b.still = {};
+  for (const r of ev.list) {
+    b.still[r.id] = { p: r.p, q: r.q };
+    if (b.bodies[r.id]) b.bodies[r.id] = { p: r.p, q: r.q };
+  }
+}
+
+/**
  * Intact modules of body `body` once module `gone` breaks, grouped by glue:
  * {stay: [mods still held by the ground in the fixed body], loose: [[mods], ...]}.
  */

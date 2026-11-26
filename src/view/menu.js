@@ -116,6 +116,7 @@ export const ROWS = [
   ['HOUSE_BREAK_F', 'House: force from wood that breaks one room apart (N)', 500, 400000, 500, 1, true],
   ['SHED_BREAK_F', 'Shed: force from wood that breaks it apart (N)', 500, 200000, 500, 1, true],
   ['FENCE_BREAK_F', 'Fence: force from wood that breaks one section apart (N)', 500, 200000, 500, 1, true],
+  ['DEBRIS_FREEZE', 'Broken pieces become scenery (no collision) after (s)', 1, 600, 1, 1, true],
   ['SHED_DENSITY', 'Board density (kg/m3)', 100, 1200, 10, 1, true],
   ['Money: budget, wages and damage'],
   ['BUDGET_BASE', 'Budget for the reference tree ($; applies when you press Grow)', 0, 100000, 500, 1, true],
