@@ -9,7 +9,8 @@
 
 import * as THREE from '../../vendor/three/three.module.js';
 import { CFG, INJ } from '../config.js';
-import { endRest, restNodes, houseEnd } from '../model/lines.js';
+import { endRest, restNodes, houseEnd, KIND, HW, isLive } from '../model/lines.js';
+import { POLE, poleParts } from '../model/stands.js';
 
 const SUB = 4, ITER = 8;        // substeps per tick, solver sweeps per substep
 const R_LINE = 0.015;           // m, radius of a line (what it collides as)
@@ -25,25 +26,47 @@ export class Lines {
     this.sphere = new Map();    // piece id -> {c: piece-local centre, r} (bounding sphere of its wood)
   }
 
-  /** The lines for a new world: a line from pole to pole along each street, a drop from a pole to each house. */
+  /** The lines for a new world: three phases and a neutral from pole to pole along each street, a can and drops to the houses. */
   place(plan, base) {
     const sim = this.sim, w = sim.world, list = [];
     if (!plan.poles || !plan.poles.length || !w.stands) return;     // (no event: the engine tests' flat ground has none)
-    const add = (a, b, kind) => {
+    const add = (a, b, kind, slack = CFG.LINE_SLACK) => {
       const A = endRest(w, a), B = endRest(w, b), c = Math.hypot(B[0] - A[0], B[1] - A[1], B[2] - A[2]);
-      if (c < 1) return;
-      list.push({ a, b, n: Math.max(2, Math.round(c / Math.max(0.5, CFG.LINE_LINK))), L0: +(c * (1 + Math.max(0, CFG.LINE_SLACK))).toFixed(4), kind });
+      if (c < 0.5) return;
+      list.push({ a, b, n: Math.max(2, Math.round(c / Math.max(0.5, CFG.LINE_LINK))), L0: +(c * (1 + Math.max(0, slack))).toFixed(4), kind });
     };
+    const hw = [], at = (st, d) => ({ st, h: +d[1].toFixed(4), o: [+d[0].toFixed(4), +d[2].toFixed(4)] });
+    const parts = (pi) => poleParts(w.stands.list[base + pi].h);
+    // every pole: its three pin insulators and the neutral's spool
+    plan.poles.forEach((_, pi) => {
+      const P = parts(pi);
+      for (const d of P.pins) hw.push({ e: at(base + pi, d), k: HW.PIN });
+      hw.push({ e: at(base + pi, P.neutral), k: HW.SPOOL });
+    });
+    // along the street: the three phases, pin to pin, and the neutral
     for (const [i, j] of plan.spans) {
-      const hi = w.stands.list[base + i].h - 0.08, hj = w.stands.list[base + j].h - 0.08;
-      add({ st: base + i, h: +hi.toFixed(4) }, { st: base + j, h: +hj.toFixed(4) }, 0);
+      const Pi = parts(i), Pj = parts(j);
+      Pi.pins.forEach((d, k) => add(at(base + i, d), at(base + j, Pj.pins[k]), KIND.PHASE));
+      add(at(base + i, Pi.neutral), at(base + j, Pj.neutral), KIND.NEUTRAL);
     }
+    // a pole that feeds houses: a transformer can, a tap down to it from the yard-side phase, and a drop from it to each house
+    const cans = new Map();         // pole -> the side its can is on
     for (const [pi, bi] of plan.drops) {
       const b = w.builds[bi], s = w.stands.list[base + pi]; if (!b || !s || !plan.builds[bi]) continue;
       const he = houseEnd({ ...b, h: plan.builds[bi].h }, [s.x, s.z]); if (!he) continue;     // (the world's builds keep no house spec)
-      add({ st: base + pi, h: +(s.h - 0.9).toFixed(4) }, { b: b.id, m: he.m, w: he.w }, 1);
+      // the can hangs on the side of the pole its first house is on
+      const first = !cans.has(pi);
+      if (first) cans.set(pi, he.w[2] > s.z ? 1 : -1);
+      const P = poleParts(s.h, cans.get(pi));
+      if (first) {
+        hw.push({ e: at(base + pi, P.can), k: HW.CAN, s: cans.get(pi) });
+        add(at(base + pi, P.pins[P.tap]), at(base + pi, P.bushing), KIND.TAP, 0.08);
+      }
+      // the drop leaves the side of the can that faces the house, near its top
+      const dx = he.w[0] - s.x - P.can[0], dz = he.w[2] - s.z - P.can[2], dl = Math.hypot(dx, dz) || 1, r = POLE.CAN_R + 0.03;
+      add(at(base + pi, [P.can[0] + dx / dl * r, P.can[1] + POLE.CAN_H / 2 - 0.15, P.can[2] + dz / dl * r]), { b: b.id, m: he.m, w: he.w }, KIND.DROP);
     }
-    sim.emit({ t: 'lines', list });
+    sim.emit({ t: 'lines', list, hw });
   }
 
   onEvent(ev, info) {
@@ -146,8 +169,10 @@ export class Lines {
       for (const id of [...near.map((o) => o.id), ...own]) { const by = sim.awards.by.get(id); if (by !== undefined && by >= 0) S.blame = { id: by, t: sim.tick }; }
       this.solve(L, S, A, B, near, dt);
       this.push(L, S, near, dt);
-      // the ends pull on what holds them
-      for (const [end, k0, k1, e] of [[0, 0, 1, L.a], [1, L.n, L.n - 1, L.b]]) {
+      // the ends pull on what holds them (not when both are on the same piece: a tap pulls its pole on itself)
+      const pa = L.a.seg !== undefined && w.segs.get(L.a.seg), pb = L.b.seg !== undefined && w.segs.get(L.b.seg);
+      const inner = pa && pb && pa.piece === pb.piece && !L.off[0] && !L.off[1] && !L.brk.length;
+      for (const [end, k0, k1, e] of inner ? [] : [[0, 0, 1, L.a], [1, L.n, L.n - 1, L.b]]) {
         const link = end ? L.n - 1 : 0, T = S.T[link];
         if (!(T > 0) || L.off[end] || e.seg === undefined) continue;
         const x = S.x;
@@ -155,17 +180,20 @@ export class Lines {
         const s = w.segs.get(e.seg), body = s && sim.bodies.get(s.piece); if (!body) continue;
         _p.set(x[3 * k0], x[3 * k0 + 1], x[3 * k0 + 2]);
         if (w.pieces.get(s.piece).fixed) { sim.applyForce(e.seg, _p, _f); continue; }
-        // on loose wood the line is also a damper (half critical, for the wood's mass at that end), so a pole
-        // hanging on its lines settles instead of bouncing on them
-        const v = body.velocityAtPoint(_p), u = _f.clone().divideScalar(T), along = v.x * u.x + v.y * u.y + v.z * u.z;
-        const c = Math.sqrt(CFG.LINE_EA / L.L0 * body.mass() / 3), Td = Math.max(0, T - c * along);
-        this.impulse(body, u.multiplyScalar(Td * dt), _p);
+        // on loose wood the line's pull is taken implicitly, as a spring (the line's stiffness) and a half-critical
+        // damper on the wood's effective mass at that point along the line (found by a unit test impulse), so a
+        // pole hanging on its lines settles instead of bouncing, and an end far off a light axis (a crossarm tip
+        // twisting a pole about its length) cannot ring up
+        const u = _f.clone().divideScalar(T), along = this.along(body, _p, u), me = this.massAt(body, _p, u, along);
+        const k = CFG.LINE_EA / L.L0, c = Math.sqrt(k * me), g = (k * dt + c) * dt;
+        const J = Math.max(0, me * (T * dt - g * along) / (me + g));
+        this.impulse(body, u.multiplyScalar(J), _p);
       }
       // a link pulled past its strength snaps (one a tick)
       let kmax = -1, tmax = 0;
       for (let k = 0; k < L.n; k++) if (S.T[k] > tmax) { tmax = S.T[k]; kmax = k; }
       S.tmax = tmax;
-      if (tmax > CFG.LINE_BREAK_F) {
+      if (tmax > (L.kind === KIND.DROP ? CFG.DROP_BREAK_F : CFG.LINE_BREAK_F)) {
         const x = S.x, p = [0, 1, 2].map((c) => +((x[3 * kmax + c] + x[3 * kmax + 3 + c]) / 2).toFixed(3));
         sim.emit({ t: 'snap', i, k: kmax, tk: sim.tick, p });
         this.blamed(S);
@@ -309,6 +337,16 @@ export class Lines {
     }
   }
 
+  /** Speed of body at world point p along unit u. */
+  along(body, p, u) { const v = body.velocityAtPoint(p); return v.x * u.x + v.y * u.y + v.z * u.z; }
+  /** Effective mass of body at p along u: a unit impulse there, the change in speed it makes, and taken back. */
+  massAt(body, p, u, v0) {
+    body.applyImpulseAtPoint({ x: u.x, y: u.y, z: u.z }, p, true);
+    const dv = this.along(body, p, u) - v0;
+    body.applyImpulseAtPoint({ x: -u.x, y: -u.y, z: -u.z }, p, true);
+    return 1 / Math.max(dv, 1e-6);
+  }
+
   /** An impulse J (Vector3, changed) on a loose body at p, at most what changes its speed by DV_MAX. */
   impulse(body, J, p) {
     const cap = body.mass() * DV_MAX, l = J.length();
@@ -329,7 +367,7 @@ export class Lines {
       let hit = null;
       for (let i = 0; i < this.st.length && !hit; i++) {
         const S = this.st[i], L = w.lines.list[i];
-        if (L.dead || !Lines.near(S.box, mid, CFG.P_HALF + reach)) continue;
+        if (L.dead || !isLive(L) || !Lines.near(S.box, mid, CFG.P_HALF + reach)) continue;
         for (let k = 0; k < L.n && !hit; k++) {
           if (L.brk.includes(k)) continue;
           const q = closest(S.x, 3 * k, 3 * k + 3, a, b);
@@ -364,7 +402,7 @@ export class Lines {
   cut(i, k, p) {
     const S = this.st[i]; if (!S) return;
     const x = S.x, at = [0, 1, 2].map((c) => +((x[3 * k + c] + x[3 * k + 3 + c]) / 2).toFixed(3));
-    const live = !this.sim.world.lines.list[i].dead;
+    const Li = this.sim.world.lines.list[i], live = !Li.dead && isLive(Li);
     this.sim.emit({ t: 'snap', i, k, tk: this.sim.tick, p: at });
     if (p) this.sim.awards.line(p.id);
     if (p && live && !this.shockT.has(p.id) && p.inj < INJ.DOWN) { this.shockT.set(p.id, CFG.SHOCK_AGAIN); this.sim.players.shock(p, at); }

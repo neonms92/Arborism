@@ -24,14 +24,56 @@ export function standSegs(stands, st, newId) {
   return applyCuts(generateTree(st.seed, newId, [st.x, st.y, st.z], standShape(stands, st)), st.cut);
 }
 
-/** A utility pole: a straight round trunk h tall, d across at its base, two thirds of that at its top. */
+/**
+ * North American distribution pole hardware, in m (fixed, not tunables: every machine must grow the same pole).
+ * A wooden crossarm (an 8 ft arm, 2.44 m) square across the street (streets run along x, so it lies along z),
+ * ARM_DROP below the top, held by two flat braces at 45 degrees from the pole up to the arm. Three phase
+ * conductors on pin insulators on the arm (two on the street side, one on the yard side), a neutral on a spool
+ * bracket lower down, and below the arm, on a pole that feeds houses, a pole-mount transformer can on the yard
+ * side (or the street side, whichever its first house is on), with a tap from the nearest phase down to its top
+ * bushing and the service drops leaving its side.
+ */
+export const POLE = {
+  ARM_DROP: 0.3, ARM_HALF: 1.22, ARM_R: 0.05,        // crossarm: below the pole top, half its length, radius
+  BRACE: 0.55, BRACE_R: 0.02,                        // braces: they meet the arm this far out and rise as much (45 deg)
+  PINS: [-1.07, 0.36, 1.07], PIN_H: 0.2,             // phases: z along the arm (- yard side, + street side), insulator height
+  NEUTRAL: 2.4, NEUTRAL_OUT: 0.17,                   // neutral: below the arm, out from the axis on the street side
+  CAN_TOP: 1.0, CAN_H: 0.8, CAN_R: 0.25, CAN_OUT: 0.41,   // transformer can: top below the arm, height, radius, out on the yard side
+};
+
+/** Where the hardware of a pole h tall is, as [dx, dy, dz] from the middle of its base; its can on side `side` (-1 yard, +1 street). */
+export function poleParts(h, side = -1) {
+  const arm = h - POLE.ARM_DROP;
+  return {
+    arm,
+    pins: POLE.PINS.map((z) => [0, arm + POLE.ARM_R + POLE.PIN_H, z]),
+    neutral: [0, arm - POLE.NEUTRAL, POLE.NEUTRAL_OUT],
+    can: [0, arm - POLE.CAN_TOP - POLE.CAN_H / 2, side * POLE.CAN_OUT],    // the can's middle
+    bushing: [0, arm - POLE.CAN_TOP + 0.08, side * (POLE.CAN_OUT - 0.08)], // its primary bushing, on the lid
+    tap: side > 0 ? 1 : 0,                                                  // the phase tapped: the pin nearest the can
+  };
+}
+
+/**
+ * A utility pole: a straight round trunk h tall, d across at its base, two thirds of that at its top, with its
+ * crossarm (two halves out from the pole's axis) and the two braces under it, all wood, all marked pl.
+ */
 export function poleSegs(st, newId, pitch) {
-  const n = Math.max(2, Math.ceil(st.h / 1.5)), out = [], r0 = st.d / 2, r1 = st.d / 3;
-  for (let i = 0; i < n; i++) {
-    const ra = r0 + (r1 - r0) * i / n, rb = r0 + (r1 - r0) * (i + 1) / n;
-    out.push({ id: newId(), parent: i ? out[i - 1].id : -1, a: [st.x, st.y + st.h * i / n, st.z], b: [st.x, st.y + st.h * (i + 1) / n, st.z],
-      r0: ra, r1: rb, leaf: 0, N: gridFor(ra, pitch), pl: 1 });
+  const { arm } = poleParts(st.h), foot = arm - POLE.BRACE, r0 = st.d / 2, r1 = st.d / 3, out = [];
+  // the trunk, in pieces of about 1.5 m, with joints where the braces and the arm meet it
+  const ys = [0];
+  for (const y of [foot, arm, st.h]) { const n = Math.max(1, Math.round((y - ys[ys.length - 1]) / 1.5)), y0 = ys[ys.length - 1]; for (let i = 1; i <= n; i++) ys.push(y0 + (y - y0) * i / n); }
+  const rad = (y) => r0 + (r1 - r0) * y / st.h, at = {};
+  for (let i = 0; i + 1 < ys.length; i++) {
+    const ya = ys[i], yb = ys[i + 1], ra = rad(ya), rb = rad(yb);
+    const s = { id: newId(), parent: i ? out[out.length - 1].id : -1, a: [st.x, st.y + ya, st.z], b: [st.x, st.y + yb, st.z], r0: ra, r1: rb, leaf: 0, N: gridFor(ra, pitch), pl: 1 };
+    out.push(s);
+    if (Math.abs(yb - foot) < 1e-9) at.foot = s; if (Math.abs(yb - arm) < 1e-9) at.arm = s;
   }
+  const kid = (par, a, b, r) => out.push({ id: newId(), parent: par.id, a, b, r0: r, r1: r, leaf: 0, N: gridFor(r, pitch), pl: 1 });
+  for (const sg of [1, -1]) kid(at.arm, [st.x, st.y + arm, st.z], [st.x, st.y + arm, st.z + sg * POLE.ARM_HALF], POLE.ARM_R);
+  for (const sg of [1, -1]) kid(at.foot, [st.x, st.y + foot, st.z], [st.x, st.y + arm - POLE.ARM_R, st.z + sg * (POLE.BRACE - POLE.ARM_R)], POLE.BRACE_R);
+  // (the arm and braces go after the whole trunk, so trunkOf still sees a plain trunk)
   return out;
 }
 

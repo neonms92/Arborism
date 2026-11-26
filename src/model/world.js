@@ -262,7 +262,7 @@ export class World {
       case 'smash': smashBuild(this.builds, ev); break;           // a module came apart (sim/builds.js)
       case 'freeze': freezeBuild(this.builds, ev); break;         // its debris came to rest long enough ago: scenery now
       case 'rope': this.rope = ev.rope; break;
-      case 'lines': this.lines = newLines(ev.list); break;    // the power lines, put up whole with a new tree
+      case 'lines': this.lines = newLines(ev.list, ev.hw); break;    // the power lines, put up whole with a new tree
       case 'snap': snapLine(this.lines, ev); break;            // a power line parted (k: link) or came away at an end (end)
       case 'dead': deadLine(this.lines, ev); break;           // a downed line went dead: no more sparks or shocks
       case 'zap': break;                                       // someone touched a live line (drawn as a flash)
