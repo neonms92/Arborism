@@ -1812,3 +1812,11 @@ Done: every ghost smiles, with pink cheeks. Stick! bursts about 60 paper
 bits (DOM, Web Animations, gone in 1.6 s) from the sticker's spot on the
 helmet; 12 slower ones when the browser asks for reduced motion. Only the
 player sticking sees it.
+
+**D115 — Menu action buttons at the top, and they close the menu.** Owner
+(2026-11-26): "Move the respawn buttons to the top of the settings list, and
+close the settings menu when any are pressed." Read as all four action
+buttons (Buy a new chipper, Buy a new chip bin, Grow tree, Respawn player):
+they now sit in a row under Close, above the search box, and any press closes
+the menu before acting. Reset all stays at the bottom. The time-skip button
+stays in its section and leaves the menu open.

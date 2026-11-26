@@ -239,6 +239,8 @@ export class Menu {
     const close = document.createElement('button'); close.textContent = 'Close'; close.className = 'go';
     close.onclick = () => this.toggle(false);
     el.appendChild(close);
+    // the action buttons (grow, buy, respawn) sit at the top; pressing one closes the menu
+    const top = document.createElement('div'); top.className = 'actions top'; el.appendChild(top);
     // a search box: shows only the settings whose label (or config name) has every word typed, sections opened
     const search = document.createElement('input'); search.type = 'search'; search.className = 'search';
     search.placeholder = 'Search settings'; el.appendChild(search);
@@ -246,7 +248,7 @@ export class Menu {
     try { open = JSON.parse(localStorage.getItem(OPEN_KEY) || '{}'); } catch { /* ignore */ }
     this.inputs = [];
     this.buildSeed(el);
-    const sections = [], actions = [];
+    const sections = [];
     let sec = null;
     for (const r of ROWS) {
       if (r.length === 1) {         // a section: a collapsible block, closed until opened (remembered)
@@ -259,10 +261,16 @@ export class Menu {
         el.appendChild(d); sec = { d, title: r[0], rows: [] }; sections.push(sec); continue;
       }
       const into = sec ? sec.d : el;
-      if (r[0] === '@grow' || r[0] === '@chipper' || r[0] === '@respawn' || r[0] === '@bin') {   // actions: kept out of the sections, beside the reset button
+      if (r[0] === '@grow' || r[0] === '@chipper' || r[0] === '@respawn' || r[0] === '@bin') {   // actions: kept out of the sections, at the top
         const b = document.createElement('button'); b.textContent = r[1]; b.title = r[2] || ''; b.className = 'go';
-        b.onclick = () => (r[0] === '@grow' ? this.onGrow() : r[0] === '@chipper' ? this.onChipper && this.onChipper() : r[0] === '@bin' ? this.onBin && this.onBin() : this.onRespawn && this.onRespawn());
-        actions.push(b); continue;
+        b.onclick = () => {
+          this.toggle(false);
+          if (r[0] === '@grow') this.onGrow();
+          else if (r[0] === '@chipper') this.onChipper && this.onChipper();
+          else if (r[0] === '@bin') this.onBin && this.onBin();
+          else this.onRespawn && this.onRespawn();
+        };
+        top.appendChild(b); continue;
       }
       if (r[0] === '@skip') {                           // an action that belongs to its section
         const b = document.createElement('button'); b.textContent = r[1]; b.title = r[2] || ''; b.className = 'go';
@@ -304,7 +312,6 @@ export class Menu {
     const reset = document.createElement('button'); reset.textContent = 'Reset all'; reset.title = 'Reset everything to defaults';
     reset.onclick = () => { Object.assign(CFG, this.defaults); localStorage.removeItem(KEY); for (const f of this.inputs) f(); this.onChange(); };
     const foot = document.createElement('div'); foot.className = 'actions';
-    for (const b of actions) foot.appendChild(b);
     foot.appendChild(reset); el.appendChild(foot);
   }
 
