@@ -38,6 +38,8 @@ export class ChipperView {
     const grip = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.025, 6, 12).rotateX(Math.PI / 2), yellow); grip.position.set(...S.GRIP); parts.push(grip);
     const chute = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(CHUTE.map((p) => new THREE.Vector3(...p))), 12, 0.13, 7), orange);
     parts.push(chute);
+    // the tube is open-ended and single-sided: line its inside black so the outlet reads as a dark hole
+    const liner = new THREE.Mesh(chute.geometry, lam(0x111111, { side: THREE.BackSide }));
     // the roll cage (its collider is the dome between the hoops, D91): two hoops, rails along it, and struts from
     // the hoops' feet in to the chassis
     const C = S.CAGE, arc = cageArc(), foot = arc[0], tube = (pts, n) => new THREE.Mesh(new THREE.TubeGeometry(
@@ -58,6 +60,7 @@ export class ChipperView {
     for (const c of S.SALADS) { const m = new THREE.Mesh(this.saladGeo, this.saladMat); m.position.set(...c); rack.push(m); }
     parts.push(...rack);
     for (const m of parts) { m.castShadow = true; m.receiveShadow = true; this.group.add(m); }
+    this.group.add(liner);
     this.units = [];                // per world.chipper.units[k]: {group, spray, t, posed, wreckRoot, wreckParts}
 
     this.pileMat = lam(0xc49a5c);

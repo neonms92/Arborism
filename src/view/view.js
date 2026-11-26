@@ -22,6 +22,7 @@ import { Sky } from './sky.js';
 import { TerrainView } from './terrain.js';
 import { groundY } from '../model/terrain.js';
 import { ChipperView, saladGeometry } from './chipper.js';
+import { BinView } from './bin.js';
 import { BuildsView } from './builds.js';
 import { SHAPE } from '../model/chipper.js';
 import { woodInto, fibreWidth } from './wood.js';
@@ -96,6 +97,7 @@ export class View {
     this.terrainView = new TerrainView(this.scene, world);  // the ground: hills and ledges, or flat
     this.paverView = new PaverView(this.scene, world);   // concrete pavers round the tree, and their cracks
     this.chipperView = new ChipperView(this.scene, world);   // the wood chipper and its chip piles
+    this.binView = new BinView(this.scene, world);           // the chip bins
     this.buildsView = new BuildsView(this.scene, world);     // the shed, whole or in pieces
     this.weedsView = new WeedsView(this.scene, world);       // long grass at the foot of fences, buildings and trunks
 
@@ -146,6 +148,7 @@ export class View {
     this.terrainView.onEvent(ev);
     this.paverView.onEvent(ev);
     this.chipperView.onEvent(ev);
+    this.binView.onEvent(ev);
     this.buildsView.onEvent(ev);
     this.standsView.onEvent(ev);
     this.weedsView.onEvent(ev);
@@ -489,6 +492,7 @@ export class View {
     if (flex) for (const p of this.pieces.values()) this.bendPiece(p, flex);
     if (aux && CFG.SHOW_FIBRES && aux.tick !== this.lastAuxTick && (CFG.STRESS_COLORS || !this.painted)) { this.lastAuxTick = aux.tick; this.painted = true; this.paintFibres(aux); }
     this.chipperView.update(dt, src, aux);
+    this.binView.update(src);
     this.poseWinch(aux);
     this.buildsView.update(src);
     this.weedsView.update(this.camera);
@@ -630,7 +634,7 @@ export class View {
 
   // wood held on the ground: a short rope from the hands to the point grabbed
   poseGrab(pm, a) {
-    const g = a.gr, W = !g ? null : g[0] < 0 ? this.chipperView.toWorld([g[1], g[2], g[3]], new THREE.Vector3(), -1 - g[0]) : this.nodeWorld({ seg: g[0], p: [g[1], g[2], g[3]] }, new THREE.Vector3());
+    const g = a.gr, W = !g ? null : g[0] === -1 ? this.chipperView.toWorld([g[1], g[2], g[3]], new THREE.Vector3(), a.gk || 0) : g[0] <= -2 ? this.binView.toWorld(-2 - g[0], [g[1], g[2], g[3]]) : this.nodeWorld({ seg: g[0], p: [g[1], g[2], g[3]] }, new THREE.Vector3());
     pm.grab.visible = !!W;
     if (!W) return;
     const H = pm.group.position.clone().addScaledVector(Y, CFG.GRAB_HEIGHT);

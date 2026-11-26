@@ -202,6 +202,13 @@ export const CFG = {
   CHIP_CAPACITY: 150,      // kg: the heaviest contiguous piece the rollers take; heavier wood seizes them until it is sawn
   CHIP_MAX: 6,             // most chippers in the world at once ("Buy a new chipper" stops there; each is a 350 kg body with its own tyres and feed)
   CHIP_SWELL: 2.5,         // m3 of loose chips per m3 of wood chipped
+  // --- chip bins (sim/bin.js): 96 gal wheeled bins with no bottom; chips in them are gone ---
+  BIN_MASS: 15,            // kg, the bin without its lid
+  BIN_LID_MASS: 2,         // kg
+  BIN_LID_K: 80,           // 1/s2: how hard a press on the lid drives it round its hinge (acceleration, for 1.5 s)
+  BIN_HINGE_DAMP: 2,       // 1/s: friction in the hinge while it swings freely
+  BIN_CATCH: 0.15,         // m past the rim of an open bin's mouth that chips landing still go in
+  BIN_PRICE: 100,          // $ a new bin costs (the Tab menu's "Buy a new chip bin")
   // --- breakable structures (sim/builds.js): the shed; rigid until hit hard enough, then loose boards ---
   SHED_BREAK_F: 25000,     // N of contact force from wood in one tick that breaks a module (the shed) apart
   FENCE_BREAK_F: 10000,    // N of contact force from wood in one tick that breaks one fence section apart
@@ -214,6 +221,8 @@ export const CFG = {
   YARD_LOT_MIN: 14,        // m, lot width at density 1
   YARD_EXTENT: 45,         // m from the tree that lots reach (0 = only the tree's own lot)
   YARD_STREET: 9,          // m, street between blocks of lots
+  STREET_SMOOTH: 30,       // m: a street's grade is the ground averaged this far either way along it (bigger = flatter)
+  STREET_BLEND: 3,         // m beside a street over which it blends into the ground
   YARD_FENCE: 0.5,         // chance a lot is fenced round its sides and back
   YARD_TREE_CLEAR: 4,      // m beyond the trunk kept clear of houses, sheds and the chipper (players spawn 4 m from the tree)
   // --- other trees in the yards (model/stands.js): drawn, with only a trunk to bump into, until someone saws or climbs one ---

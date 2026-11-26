@@ -39,7 +39,9 @@ Vertical look is inverted (forward looks down).
 | Press the bar forward (chain runs) | left mouse | RT |
 | On the rope tail: ease grip / haul in / wraps | left / right mouse / arrows | RT / LT / D-pad up-down |
 | Settings menu (sensitivity, bark visibility, fibre strengths...) | Tab | Back |
-| Respawn (prototype) | Enter | Start |
+| Take / give a tube salad (chipper's rack / another player) | R | X |
+| Eat the tube salad in hand | left mouse | RT |
+| Respawn player | Tab menu button | Tab menu button |
 
 ### Things to try
 

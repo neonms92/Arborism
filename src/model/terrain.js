@@ -17,6 +17,10 @@
 //                into the natural ground over the next `blend` m. y omitted: the natural height at
 //                (x, z), or at yAt [x, z] if given (a patio level with its house's pad). Applied in order, so a later pad wins where they overlap. This is how
 //                anything that needs level ground (the tree's yard, a shed, a house) gets it.
+//   streets      [{z0, z1}] strips along x, the whole width of the grid: level across, and along their
+//                length the natural ground averaged over streetSmooth m either way, so hills and ledges
+//                become long gentle grades. They blend into the ground over the next streetBlend m and
+//                are applied after the pads, so a street stays smooth where a pad's blend reaches it.
 //
 // The natural ground is shifted so it is at 0 at the origin, where the tree
 // is rooted (rooted pieces sit at the origin: structure.js relies on it).
@@ -71,6 +75,38 @@ function naturalFn(s) {
   return (x, z) => raw(x, z) - y0;
 }
 
+/** Weight of a street at z: 1 on it, easing to 0 over blend m beside it. */
+function streetW(st, z, blend) {
+  const d = z < st.z0 ? st.z0 - z : z > st.z1 ? z - st.z1 : 0;
+  return d <= 0 ? 1 : blend <= 0 ? 0 : 1 - smooth(d / blend);
+}
+
+/**
+ * A street's height at each grid column: the natural ground averaged across the street, then along it
+ * with two passes of a running mean `reach` m either way (a smooth, gentle grade; clamped at the ends).
+ */
+function streetProfile(nat, st, n, cell, half, reach) {
+  const N = n + 1, a = new Float64Array(N), m = Math.max(1, Math.round((st.z1 - st.z0) / cell));
+  for (let j = 0; j < N; j++) {
+    const x = -half + j * cell;
+    let sum = 0; for (let k = 0; k <= m; k++) sum += nat(x, st.z0 + (st.z1 - st.z0) * k / m);
+    a[j] = sum / (m + 1);
+  }
+  const r = Math.round(Math.max(0, reach) / cell);
+  let p = a;
+  for (let pass = 0; pass < 2 && r > 0; pass++) {
+    const pre = new Float64Array(N + 1), q = new Float64Array(N);
+    for (let j = 0; j < N; j++) pre[j + 1] = pre[j] + p[j];
+    for (let j = 0; j < N; j++) {
+      // a window that keeps its full width at the ends of the grid (shifted inward), so the ends do not dip
+      const lo = Math.max(0, Math.min(j - r, N - 1 - 2 * r)), hi = Math.min(N - 1, lo + 2 * r);
+      q[j] = (pre[hi + 1] - pre[lo]) / (hi - lo + 1);
+    }
+    p = q;
+  }
+  return Float32Array.from(p);
+}
+
 export class Terrain {
   constructor(spec) {
     const s = this.spec = spec, cell = this.cell = Math.max(0.1, s.cell);
@@ -79,6 +115,9 @@ export class Terrain {
     const nat = naturalFn(s);
     const pads = (s.pads || []).map((p) => ({ ...p, y: p.y ?? (p.yAt ? nat(p.yAt[0], p.yAt[1]) : nat(p.x, p.z)), blend: p.blend ?? 0 }));
     this.pads = pads;
+    const streets = this.streets = (s.streets || []).map((st) => ({ z0: Math.min(st.z0, st.z1), z1: Math.max(st.z0, st.z1), prof: null }));
+    const sb = this.streetBlend = Math.max(0, s.streetBlend ?? 0);
+    for (const st of streets) st.prof = streetProfile(nat, st, n, cell, this.half, s.streetSmooth ?? 0);
     // Rapier's layout: column-major, heights[i + j * (n + 1)] for row i (along z) and column j (along x)
     const H = this.h = new Float32Array((n + 1) * (n + 1));
     for (let j = 0; j <= n; j++) {
@@ -90,12 +129,22 @@ export class Terrain {
           const w = 1 - smooth((Math.hypot(x - p.x, z - p.z) - p.r) / Math.max(1e-6, p.blend));
           if (w > 0) y += (p.y - y) * w;
         }
+        for (const st of streets) {
+          const w = streetW(st, z, sb);
+          if (w > 0) y += (st.prof[j] - y) * w;
+        }
         H[i + j * (n + 1)] = y;
       }
     }
     let lo = Infinity, hi = -Infinity;
     for (const y of H) { if (y < lo) lo = y; if (y > hi) hi = y; }
     this.lo = lo; this.hi = hi;
+  }
+
+  /** How much of world (x, z) is street surface: 1 on a street, 0 off it (the blend beside it is not street). */
+  streetAt(x, z) {
+    for (const st of this.streets) if (z >= st.z0 && z <= st.z1) return 1;
+    return 0;
   }
 
   /** Grid height at row i (z), column j (x), clamped to the grid. */
@@ -155,12 +204,13 @@ export class Terrain {
 export function makeTerrain(spec) { return spec ? new Terrain(spec) : null; }
 
 /** The spec for the current settings, with these pads. CFG.TERRAIN_* (config.js). */
-export function terrainSpec(CFG, pads = []) {
+export function terrainSpec(CFG, pads = [], streets = []) {
   return {
     seed: CFG.TERRAIN_SEED, size: CFG.TERRAIN_SIZE, cell: CFG.TERRAIN_CELL,
     hillH: CFG.TERRAIN_HILL_H, hillW: CFG.TERRAIN_HILL_W,
     ledges: CFG.TERRAIN_LEDGES, ledgeH: CFG.TERRAIN_LEDGE_H, ledgeW: CFG.TERRAIN_LEDGE_W, ledgeSharp: CFG.TERRAIN_LEDGE_SHARP,
     ledgeGaps: CFG.TERRAIN_LEDGE_GAPS, pads,
+    streets, streetSmooth: CFG.STREET_SMOOTH, streetBlend: CFG.STREET_BLEND,
   };
 }
 

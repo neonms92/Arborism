@@ -22,6 +22,7 @@
 //
 // plan = {lots: [{x0, x1, z0, z1, face, tree}], builds: [{kind, p:[x, 0, z], q, ...}],
 //         areas: [paver areas, model/pavers.js], pads: [{x, z, r, blend, yAt?}],
+//         streets: [{z0, z1}] (strips along x, the whole width of the ground, flattened by the terrain),
 //         chipper: {x, z, yaw} | null (where it is parked), treePave: radius of the tree's paving (or undefined),
 //         trees: [[x, z, seed, height, diameter]] (the other trees), front: [x, z] (the tree's lot faces its street this way)}
 
@@ -49,7 +50,7 @@ const r4 = (v) => +v.toFixed(4);
 export function planYards(o) {
   const R = rng(o.seed * 7919 + 17), d = Math.min(1, Math.max(0, o.density));
   const lotW = o.lotMax + (o.lotMin - o.lotMax) * d, lotD = lotW * 1.4, E = o.extent, ST = o.street;
-  const plan = { lots: [], builds: [], areas: [], pads: [], chipper: null, trees: [], front: [0, 1] };
+  const plan = { lots: [], builds: [], areas: [], pads: [], streets: [], chipper: null, trees: [], front: [0, 1] };
   const jit = (v, f = 0.15) => v * (1 + (R() * 2 - 1) * f);
 
   // The tree's lot is a lot like the others (the same width and depth for the density), placed so that the tree
@@ -81,6 +82,7 @@ export function planYards(o) {
   const posts = new Set(), edges = new Set();
   const key = (x, z) => `${Math.round(x * 20)},${Math.round(z * 20)}`;
   for (const row of rows) {
+    const nLots = plan.lots.length;
     for (let k = 0; k + 1 < row.xs.length; k++) {
       const x0 = row.xs[k], x1 = row.xs[k + 1], tree = row.tree && x0 <= 0 && x1 > 0;
       if (!tree && (Math.abs((x0 + x1) / 2) > E || Math.abs((row.z0 + row.z1) / 2) > E)) continue;
@@ -89,7 +91,13 @@ export function planYards(o) {
       if (tree) plan.front = [0, row.face];
       fillLot(plan, lot, R, d, o, posts, edges, key);
     }
+    // the street this row faces (two rows across a street share it), if the row has any lots
+    if (plan.lots.length > nLots) {
+      const z0 = r4(row.face > 0 ? row.z1 : row.z0 - ST), z1 = r4(z0 + ST);
+      if (!plan.streets.some((s) => Math.abs(s.z0 - z0) < 0.01)) plan.streets.push({ z0, z1 });
+    }
   }
+  plan.streets.sort((a, b) => a.z0 - b.z0);
   return plan;
 }
 

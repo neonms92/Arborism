@@ -37,6 +37,7 @@ menu.onSkip = () => { if (sim) sim.skipTime(); else hud.toast('Only the host can
 // the Tab menu's buttons that act for this player go to the host as presses, like any other (sim/players.js)
 menu.onChipper = () => { input.state.c.buyChip++; };
 menu.onRespawn = () => { input.state.c.respawn++; };
+menu.onBin = () => { input.state.c.buyBin = (input.state.c.buyBin || 0) + 1; };   // the host buys it: joined players can too
 view = new View($('game'), world);
 const hud = new Hud(world);
 hud.view = view;                                 // the HUD shows the draw distance when the frame rate has cut it

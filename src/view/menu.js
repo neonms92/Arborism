@@ -106,9 +106,13 @@ export const ROWS = [
   ['CHIP_MASS', 'Mass (kg, applies at the next new tree)', 100, 5000, 50, 1, true],
   ['CHIP_SWELL', 'Chips: loose volume per volume of wood', 1, 5, 0.1, 1, true],
   ['CHIP_CARRY', 'Chips a player can carry (litres)', 1, 500, 1, 0.001, true],
+  ['BIN_CATCH', 'Chip bin: how far past its rim chips landing still go in (m)', 0, 1, 0.05, 1, true],
+  ['BIN_LID_K', 'Chip bin: how hard a press swings the lid (1/s²)', 10, 1000, 10, 1, true],
+  ['BIN_HINGE_DAMP', 'Chip bin: friction in the lid hinge (1/s)', 0, 20, 0.1, 1, true],
   ['CHIP_BREAK_F', 'Hit that crumples it (kN, from wood or a structure)', 1, 500, 1, 1000, true],
   ['@chipper', 'Buy a new chipper', 'Buy another chipper (CHIPPER_PRICE off the cash), parked near where the first one was; the ones you have stay'],
   ['CHIP_MAX', 'Most chippers at once (the buy button stops there)', 1, 20, 1, 1, true],
+  ['@bin', 'Buy a new chip bin', 'A 96 gallon chip bin, put down in front of you. Chips in a bin are gone: it has no bottom'],
   ['Houses, sheds and fences (breakable structures)'],
   ['HOUSE_BREAK_F', 'House: force from wood that breaks one room apart (N)', 500, 400000, 500, 1, true],
   ['SHED_BREAK_F', 'Shed: force from wood that breaks it apart (N)', 500, 200000, 500, 1, true],
@@ -126,6 +130,7 @@ export const ROWS = [
   ['HOUSE_COST', 'Cost of a smashed room of a house ($)', 0, 200000, 500, 1, true],
   ['CHIPPER_PRICE', 'Price of a new chipper ($, the Buy a new chipper button)', 0, 100000, 500, 1, true],
   ['CHIPPER_COST', 'Cost of a wrecked chipper truck ($)', 0, 200000, 500, 1, true],
+  ['BIN_PRICE', 'Price of a new chip bin ($)', 0, 1000, 5, 1, true],
   ['New tree (these apply when you press Grow)'],
   ['TREE_HEIGHT', 'Height (m)', 3, 30, 0.5, 1, true],
   ['TREE_DIAMETER', 'Trunk diameter at the base (m)', 0.1, 1.5, 0.02, 1, true],
@@ -149,6 +154,8 @@ export const ROWS = [
   ['YARD_LOT_MIN', 'Lot width at density 1 (m)', 8, 60, 1, 1, true],
   ['YARD_EXTENT', 'Yards reach this far from the tree (m; 0 = only the tree\'s yard)', 0, 90, 1, 1, true],
   ['YARD_STREET', 'Street width between blocks (m)', 3, 30, 0.5, 1, true],
+  ['STREET_SMOOTH', 'Street grade: ground averaged this far along it (m; bigger = flatter)', 0, 100, 1, 1, true],
+  ['STREET_BLEND', 'Street edge blends into the ground over (m)', 0, 10, 0.5, 1, true],
   ['YARD_FENCE', 'Chance a yard is fenced', 0, 1, 0.05, 1, true],
   ['YARD_TREE_CLEAR', 'Clear ground round the trunk (m; no house, shed or chipper)', 0, 10, 0.5, 1, true],
   ['YARD_TREES', 'Other trees per yard (average)', 0, 6, 0.1, 1, true],
@@ -225,9 +232,9 @@ export class Menu {
         el.appendChild(d); sec = { d, title: r[0], rows: [] }; sections.push(sec); continue;
       }
       const into = sec ? sec.d : el;
-      if (r[0] === '@grow' || r[0] === '@chipper' || r[0] === '@respawn') {   // actions: kept out of the sections, beside the reset button
+      if (r[0] === '@grow' || r[0] === '@chipper' || r[0] === '@respawn' || r[0] === '@bin') {   // actions: kept out of the sections, beside the reset button
         const b = document.createElement('button'); b.textContent = r[1]; b.title = r[2] || ''; b.className = 'go';
-        b.onclick = () => (r[0] === '@grow' ? this.onGrow() : r[0] === '@chipper' ? this.onChipper && this.onChipper() : this.onRespawn && this.onRespawn());
+        b.onclick = () => (r[0] === '@grow' ? this.onGrow() : r[0] === '@chipper' ? this.onChipper && this.onChipper() : r[0] === '@bin' ? this.onBin && this.onBin() : this.onRespawn && this.onRespawn());
         actions.push(b); continue;
       }
       if (r[0] === '@skip') {                           // an action that belongs to its section

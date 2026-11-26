@@ -1366,3 +1366,72 @@ a fence or house it can come to rest leaning on it. Its chute still pokes
 into the ground while it is on its roof (the chute is drawn, not a collider).
 Not changed: stood on its hopper end (nose down) it still stays
 there, as before; a cage over the hopper would block feeding.
+
+**D92 — Streets are flat asphalt.** Owner (2026-11-26): the street between
+blocks was grass and followed the hills; make it road coloured and flat. The
+yard plan now lists its streets (`plan.streets`, strips along x the whole
+width of the ground, one per street a row of lots faces) and they travel in
+the terrain spec. The terrain makes each street level across, and along it
+the natural ground averaged over `STREET_SMOOTH` (30 m) either way, two
+passes, so hills and ledges become grades of about 2 % at most rather than a
+dead-level road with deep cuts. Streets blend into the ground over
+`STREET_BLEND` (3 m) and are applied after the pads, so a street stays
+smooth where a house pad's blend reaches it. The view draws the street as
+speckled asphalt with a dashed yellow centre line (vertex colours on the
+ground grid, so the line is one 0.5 m grid row). Unreviewed: the 30 m and
+3 m, the colours, the centre line, no kerbs or sidewalks along it, and the
+street being as grippy as grass.
+
+**D93 — Chip bins, and how far the job has got.** Owner (2026-11-26): a 96
+gallon bin by the chipper; chips landing on it go in, players can tip chips
+in by hand; no capacity, a bottomless disposal; indestructible; "Buy a new
+chip bin" in the settings menu; a floppy lid that collects nothing while shut,
+opened and shut by interacting with it; the handles move it. Track how much of
+the target tree has been chipped and how much of the chips have been disposed
+of, coloured red under 60 %, amber from 60, green from 90, blue from 99.
+Built as physics: the bin is a 15 kg box with two frictionless wheel balls at
+the bottom of its back and a handle bar; the lid is its own 2 kg body on a
+hinge joint (Rapier's revolute limits and motor only work within ±180°, so the
+hinge has none: shut, the lid lies on the rim; swung back it rests on the
+handle bar, at about 198°). A press on the lid drives the hinge toward the
+other end for up to 1.5 s (`BIN_LID_K`, an acceleration spring), then lets it
+swing on its own with a little friction (`BIN_HINGE_DAMP`); the lid flops when
+the bin is knocked, tipped or bumped by a player. The handle is held like the
+chipper's grip; pulled back, the bin tips onto its wheels and rolls (a scripted
+tow: 9 m in 6 s). Chips go into a bin when the point they land on (the
+chipper's discharge point, or where a player puts down what they carry) is
+within its mouth plus `BIN_CATCH` (0.15 m), with the bin upright and its lid
+more than 1.2 rad open. They are gone (`world.prog.gone`). Progress lives in
+the model (`world.prog`), counted by `world.apply` on every machine: the job
+tree's mass when it grows (wood and leaves); every chipped segment that is not
+a yard tree's (segments of woken yard trees carry `yd`); chips made and chips
+gone into bins. Twigs swept away as debris (under `DEBRIS_MASS`) cannot be
+chipped, so the tree's share is chipped / (grown − swept); the HUD shows both
+shares to a tenth of a percent, rounded down. Choices the owner hasn't
+reviewed: where the bin is parked (chipper-local x 1.6, z 1.7: by the drawbar
+on the chute side, 1.5 m from where chips land, so it has to be wheeled under
+the chute), a bought bin is put down 1.5 m in front of the buyer, its price
+($100, `BIN_PRICE`), the swept-debris rule, colours (red #ff5a4e, amber
+#ffb326, green #52d468, blue #5ab4ff), and "Chips in bins: none yet" before any
+are made. A player standing behind an open bin pushes the lid shut (it sticks
+out 0.7 m behind).
+
+**D94 — Tube salads, buying chippers, respawn only in the menu.** Owner
+(2026-11-26): the chipper reset button becomes "Buy a new chipper" and keeps
+the ones there; a small rack of three green "tube salads" on the non-chute
+side; interact takes one into the hand (endless supply); left mouse eats it,
+interact gives it to another player; either restores full health, even DOWN;
+no "job failed" with DOWN; no key or phone button for respawn, a Respawn
+player button in the Tab menu. How: several chippers (`world.chipper.units`,
+`sim.chipper` a manager, each with its own feed and tyres); the menu buttons
+are input counters (`buyChip`, `respawn`, as D93's `buyBin`) so joined players
+can press them; the salad is `{eat}` in prompts so touch shows an "Eat salad"
+button (keyboard and pad: left mouse / RT). Healing sets `ok` and clears the
+shaken pause; it is not physics, there is nothing to derive it from. Choices
+the owner hasn't reviewed: price $5,000 (`CHIPPER_PRICE`; the wreck still costs
+`CHIPPER_COST` $45,000), at most 6 (`CHIP_MAX`), where a bought one parks
+(nearest clear spot round the first one's spot, rack side first; dropped in
+from 2.5 m beside it if nowhere is clear), a downed player cannot eat a salad
+they hold (someone else has to), the rack sits inside the roll cage and has no
+collider, one salad in hand at a time, the salad drawn low right in first
+person.
