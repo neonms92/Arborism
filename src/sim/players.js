@@ -347,6 +347,7 @@ export class Players {
   prePlayer(p, dt) {
     const sim = this.sim, inp = p.input, w = sim.world;
     const pressed = {};
+    p.body.resetForces(true);          // the legs' hold on a slope (ground) is set again each tick it applies
     for (const k of COUNTERS) { pressed[k] = p.primed && inp.c[k] !== p.last[k]; p.last[k] = inp.c[k]; }
     p.primed = true;
     if (p.replay) { for (const k in p.replay) pressed[k] = pressed[k] || p.replay[k]; p.replay = null; }   // a press that woke a tree (below)
@@ -437,11 +438,16 @@ export class Players {
   }
 
   ground(p, inp, dt, control, pressed, aim) {
-    const sim = this.sim, body = p.body, t = body.translation(), v = body.linvel();
-    const hit = sim.rapier.castRay(new sim.R.Ray(t, { x: 0, y: -1, z: 0 }), CFG.P_HALF + CFG.P_RADIUS + 0.12, true,
+    const sim = this.sim, body = p.body, t = body.translation(), v0 = body.linvel(), v = { x: v0.x, y: v0.y, z: v0.z };
+    const hit = sim.rapier.castRayAndGetNormal(new sim.R.Ray(t, { x: 0, y: -1, z: 0 }), CFG.P_HALF + CFG.P_RADIUS + 0.12, true,
       undefined, undefined, undefined, body);
-    // standing: ground under the middle, or anything under the body no steeper than WALK_SLOPE (the side of a ditch)
-    p.grounded = !!hit || this.footing(p, null, CFG.WALK_SLOPE);
+    // standing: ground under the middle, or anything under the body no steeper than WALK_SLOPE (the side of a ditch).
+    // gn: the normal of what is stood on, for the legs below (read out before Rapier is called again)
+    const gn = _a.set(0, 1, 0);
+    if (hit) gn.set(hit.normal.x, hit.normal.y, hit.normal.z);
+    p.grounded = !!hit || this.footing(p, gn, CFG.WALK_SLOPE);
+    // what is under the middle can be steeper than the body stands on (an edge seen past a log): the legs then push across
+    if (gn.normalize().y < Math.cos(CFG.WALK_SLOPE) - 1e-3) gn.set(0, 1, 0);
     if (!control) { if (p.grounded) body.setLinvel({ x: v.x * 0.8, y: v.y, z: v.z * 0.8 }, true); return; }
     const speed = CFG.WALK * (p.inj >= INJ.HURT ? 0.45 : 1);
     const sy = Math.sin(inp.yaw), cy = Math.cos(inp.yaw);
@@ -449,12 +455,24 @@ export class Players {
     let wx = (-sy * inp.my + cy * inp.mx) * speed, wz = (-cy * inp.my - sy * inp.mx) * speed;
     const wl = Math.hypot(wx, wz); p.walk = wl > 0.1 && p.grounded ? { x: wx / wl, z: wz / wl } : null;   // for grabStep's steering
     if (p.grounded) {
-      // The legs: they push the body toward the walking velocity with at most LEG_FORCE across the ground. The body
+      // The legs: they push the body toward the walking velocity with at most LEG_FORCE along the ground. The body
       // has no friction of its own, so this is all its traction: what it pushes or pulls (the chipper, a log) gets
       // that force at most, either way, and what pulls on it (a held rope) moves it once past that.
-      const jx = CFG.P_MASS * (wx - v.x), jz = CFG.P_MASS * (wz - v.z), jl = Math.hypot(jx, jz), cap = CFG.LEG_FORCE * dt;
-      const f = jl > cap ? cap / jl : 1;
-      body.applyImpulse({ x: jx * f, y: 0, z: jz * f }, true);
+      // They work in the plane of the ground (normal gn): the walk keeps its speed across the map and follows the
+      // slope, and the legs also hold against the part of gravity along the slope, so a player standing on a hill
+      // stays put (up to WALK_SLOPE: at 45° that takes P_MASS·g·sin 45°, about 590 N of the LEG_FORCE).
+      // The hold is a force, not an impulse, so the solver spreads it over the step as it does gravity (an impulse
+      // that cancelled this step's gravity up front left the body creeping a few cm/s up the hill).
+      const nx = gn.x, ny = gn.y, nz = gn.z, m = CFG.P_MASS, g = CFG.GRAVITY;
+      const wy = -(nx * wx + nz * wz) / ny;                                  // the walk, along the slope
+      const vn = v.x * nx + v.y * ny + v.z * nz;                             // v off the plane is the contact's business
+      const ix = m * (wx - (v.x - vn * nx)), iy = m * (wy - (v.y - vn * ny)), iz = m * (wz - (v.z - vn * nz));
+      const hx = -m * g * ny * nx, hy = m * g * (1 - ny * ny), hz = -m * g * ny * nz;   // −(gravity along the plane)
+      // the hold comes first (at 45° it takes about 590 N); the walk, a push or a pull gets what is left of LEG_FORCE
+      const hl = Math.hypot(hx, hy, hz), fh = hl > CFG.LEG_FORCE ? CFG.LEG_FORCE / hl : 1;
+      const room = Math.max(0, CFG.LEG_FORCE - hl * fh) * dt, il = Math.hypot(ix, iy, iz), fi = il > room ? room / il : 1;
+      body.applyImpulse({ x: ix * fi, y: iy * fi, z: iz * fi }, true);
+      body.addForce({ x: hx * fh, y: hy * fh, z: hz * fh }, true);
       if (pressed.jump) { const u = body.linvel(); body.setLinvel({ x: u.x, y: CFG.JUMP, z: u.z }, true); }
     }
     // sliding on ground too steep to stand on (a ledge face): a jump still pushes off it, so a ledge just over

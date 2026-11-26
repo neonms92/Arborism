@@ -139,8 +139,8 @@ export const CFG = {
   COLOR_GAMMA: 0.6,        // debug fibre colours: (stress / limit) ^ gamma
 
   // --- chainsaw ---
-  BAR_LEN: 0.5,            // m
-  CUT_RATE: 0.02,          // m^2 of wood cross-section the chain clears per second at full throttle
+  BAR_LEN: 0.6,            // m
+  CUT_RATE: 0.065,         // m^2 of wood cross-section the chain clears per second at full throttle
   SAW_FEED: 0.3,           // m/s the bar moves forward under full throttle when nothing is in the way
   SAW_REACH: 2.0,          // m from the eyes to where the bar can be planted
   SAW_SENS: Math.PI,       // rad the bar pivots per screen-width of mouse travel
