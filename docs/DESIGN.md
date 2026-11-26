@@ -1014,8 +1014,9 @@ Wooden utility poles (`POLE_HEIGHT` 10 m, `POLE_DIAMETER` 0.3 m) stand
 `POLE_SPACING` (35 m) apart along every street, 0.7 m inside the asphalt
 edge (`model/yards.js planPoles`; a pole within 5 m of the chipper is left
 out). They are yard trees of kind 1 (`model/stands.js`): dormant until
-someone saws into one, then fibre wood like any other, segments marked `pl`
-so nobody can grab, spur or lanyard them. North American style (D114): a
+someone saws or climbs one, then fibre wood like any other, segments marked
+`pl` (drawn as creosoted pole wood). Players can spur in and lanyard onto a
+pole like any trunk (D115; D110 had them unclimbable). North American style (D114): a
 wooden crossarm (8 ft) across the street 0.3 m under the top, held by two
 45° braces, all wood, with three phase conductors on pin insulators (two
 on the street side) and a neutral on a spool 2.4 m under the arm, running

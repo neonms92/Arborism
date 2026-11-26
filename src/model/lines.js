@@ -1,7 +1,7 @@
 // Power lines: plain data and pure functions (the host simulates them in sim/lines.js, view/lines.js draws them).
 //
 // Wooden utility poles stand along every street (they are yard trees of kind 1, model/stands.js: dormant until
-// someone saws into one, then wood like any other, but never climbable), North American style: three phase
+// someone saws or climbs one, then wood like any other, D115), North American style: three phase
 // conductors on a braced crossarm and a neutral below run from each pole to the next along the street. A pole
 // that feeds houses carries a transformer can, tapped from a phase, and a service drop runs from the can to the
 // front of each house it feeds. Every line but the neutral is live.

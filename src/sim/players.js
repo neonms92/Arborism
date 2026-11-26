@@ -406,11 +406,11 @@ export class Players {
     let standHint = '';
     if (stand) {
       const sawIt = inp.lt >= 0.3 && stand.dist <= CFG.SAW_REACH, near = stand.dist < CFG.REACH;
-      if (sawIt || (near && ((pressed.interact && !stand.pole) || pressed.rig))) {
+      if (sawIt || (near && (pressed.interact || pressed.rig))) {
         sim.stands.wake(stand.i);
         p.replay = { interact: pressed.interact, rig: pressed.rig };
         pressed.interact = pressed.rig = false;
-      } else if (near) standHint = (stand.dist <= CFG.SAW_REACH ? '{raise}: plant saw   ' : '') + (stand.pole ? '{rig}: hang block   (utility poles cannot be climbed)' : '{interact}: grab   hold {interact}: spur in   {rig}: hang block');
+      } else if (near) standHint = (stand.dist <= CFG.SAW_REACH ? '{raise}: plant saw   ' : '') + '{interact}: grab   hold {interact}: spur in   {rig}: hang block';
     }
     if (p.ch) p.ch.seen = false;
     if (!inp.hi) p.chLock.delete('lanyard');
@@ -579,8 +579,7 @@ export class Players {
     }
     if (reach && !(nearDev && rope.holder < 0 && !p.grab)) {
       const s = sim.world.segs.get(aim.seg), piece = sim.world.pieces.get(s.piece);
-      if (piece.fixed && s.pl) first += '   (utility poles cannot be climbed)';
-      else if (piece.fixed && p.inj < INJ.HURT) {
+      if (piece.fixed && p.inj < INJ.HURT) {
         const loc = sim.segToLocal(s, aim.point), tt = Math.min(1, Math.max(0, segParam(s, loc)));
         if (segRadius(s, tt) >= CFG.SPUR_MIN_R) {
           if (!p.chLock.has('lanyard')) first += '   hold {interact}: spur in';
@@ -619,7 +618,7 @@ export class Players {
     if (control && !p.ride && aim && aim.dist < CFG.REACH) {
       // throw the lanyard round another stem within reach: the way past a union
       const s2 = w.segs.get(aim.seg), loc = sim.segToLocal(s2, aim.point), t2 = Math.min(1, Math.max(0, segParam(s2, loc)));
-      if (w.pieces.get(s2.piece).fixed && !s2.pl && segRadius(s2, t2) >= CFG.SPUR_MIN_R && (s2.id !== s.id || Math.abs(t2 - cl.t) * segLen(s) > 0.3)) {
+      if (w.pieces.get(s2.piece).fixed && segRadius(s2, t2) >= CFG.SPUR_MIN_R && (s2.id !== s.id || Math.abs(t2 - cl.t) * segLen(s) > 0.3)) {
         first = 'hold {interact}: move lanyard';
         if (this.hold(p, 'lanyard', inp.hi, CFG.LANYARD_TIME, dt)) {
           const c = lerp3(s2.a, s2.b, t2), pl = sim.segToLocal(s2, p.body.translation());

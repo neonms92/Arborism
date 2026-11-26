@@ -1820,3 +1820,9 @@ buttons (Buy a new chipper, Buy a new chip bin, Grow tree, Respawn player):
 they now sit in a row under Close, above the search box, and any press closes
 the menu before acting. Reset all stays at the bottom. The time-skip button
 stays in its section and leaves the menu open.
+
+**D115 — Poles can be climbed.** Owner (2026-11-26): "Let the player
+lanyard into a utility pole after all." Poles now take spurs, a grab and
+the lanyard like any trunk, by the same rules (`SPUR_MIN_R` decides the
+crossarm and braces too). The `pl` mark stays, for the pole colour only.
+A climber who touches a live line is shocked off the pole as before.

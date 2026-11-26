@@ -9,7 +9,7 @@
 //
 // world.stands = {g: shared shape {dens, blen, sl, cap, pitch}, list: [{x, y, z, seed, h, d, piece, k}]}
 // (y: the trunk's base; cut: where it was pruned at planting, model/prune.js; piece: 0 while dormant, else the rooted piece it became; k: 1 for a utility pole, a
-// straight trunk with no branches whose segments are marked pl (no spurs go into it), model/lines.js)
+// straight trunk with a braced crossarm whose segments are marked pl (drawn as pole wood), model/lines.js)
 
 import { generateTree } from './treegen.js';
 import { gridFor } from './fibres.js';
