@@ -1526,7 +1526,21 @@ stars low in the sky are hidden by it at night. Unreviewed choices: all four
 numbers, the crown spacing, the ridge shape (fixed sines, the same for every
 seed), and that it is a picture at a fixed distance rather than geometry.
 
-D99 (owner, 2026-11-26): a climber who came down to the ground glitched into
+**D99 — A quieter HUD that stacks on phones.** Owner (2026-11-26, phone
+screenshot): hide network debug info unless switched on, and stop the HUD
+lines overlapping on mobile. `NET_STATS` (Tab menu, View: "Network and debug
+info on the HUD") now defaults off and covers more than the network box: fps,
+the draw-distance note, the wage math after the cash, and ping / loss on a
+joined client's status line all hide with it (the wage math stays in the Tab
+menu's job section). The room code and who joined stay, since players need
+them. Layout: the status and progress lines live in one top-left flex column
+(`#top`), so a line that wraps pushes the next down instead of drawing over
+it. With the touch controls up, `hud.stack` moves the prompt, rope line,
+network box and toasts into that column too, in that order, and the column
+stops 62 px short of the right edge to stay clear of the gear. Unreviewed
+choices: which figures count as debug, and keeping "on the ground | ok" on the
+status line.
+D100 (owner, 2026-11-26): a climber who came down to the ground glitched into
 it and was often hurt or downed. Cause: a climber is a kinematic body placed
 beside the stem, and on uneven ground (or at the stem's foot) that place can be
 inside the terrain or pressed against the trunk; switching it to a dynamic body
