@@ -180,6 +180,8 @@ export const CFG = {
   SHAKEN_TIME: 2,          // s a shaken player has no control (a hurt player is shaken first too)
   // --- controls that take time (hold the button; let go to cancel) ---
   LANYARD_TIME: 2,         // s of holding {interact} to spur in or move the lanyard
+  SPAWN_HEIGHT: 1.2,       // m, a respawned or landed player's middle above the ground (the feet 0.32 m up)
+  LAND_DIST: 4,            // m from the stem where a climber who reaches the ground is put down
   LETGO_TIME: 4,           // s of holding {drop} to let go of the tree
   // --- punch ({punch}): every press adds a short shove; presses faster than it fades stack up ---
   PUNCH_FORCE: 400,        // N added by one punch, along the look direction at the point hit

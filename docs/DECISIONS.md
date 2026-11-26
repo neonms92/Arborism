@@ -1525,3 +1525,20 @@ lowers it. Sun, moon and stars are drawn first so they set behind it, and the
 stars low in the sky are hidden by it at night. Unreviewed choices: all four
 numbers, the crown spacing, the ridge shape (fixed sines, the same for every
 seed), and that it is a picture at a fixed distance rather than geometry.
+
+D99 (owner, 2026-11-26): a climber who came down to the ground glitched into
+it and was often hurt or downed. Cause: a climber is a kinematic body placed
+beside the stem, and on uneven ground (or at the stem's foot) that place can be
+inside the terrain or pressed against the trunk; switching it to a dynamic body
+let Rapier push it out at speed, which `post` read as an impact. Now reaching
+the ground lands the climber instead (`players.land`): the lanyard comes off
+and they are put down standing `LAND_DIST` (4 m, the spawn ring's radius) from
+the stem on the side they were climbing, at `SPAWN_HEIGHT` (1.2 m, the old
+respawn height) over the ground, with zero velocity, so no impact. Reaching the
+ground means either stepping off the bottom of the wood (as before) or, while
+moving on the spurs, the feet coming within 5 cm of the ground under them and
+getting closer. The spot is the nearest one clear of anything but the ground
+(a capsule query), swinging round the stem in steps and then further out; the
+Respawn button and falling out of the world use the same search round the
+player's own spawn point. Unreviewed: the 4 m, landing while riding a falling
+piece is unchanged (that is still an impact), a toast says the lanyard is off.

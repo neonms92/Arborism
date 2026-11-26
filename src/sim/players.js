@@ -24,7 +24,7 @@ export class Players {
   /** name and color as the player chose them (cleaned here; '' / -1 when none). */
   add(id, name, color = -1) {
     const sim = this.sim, R = sim.R;
-    const ang = id * 1.3, sp = [4 * Math.cos(ang), 1.2, 4 * Math.sin(ang)];       // spawn y is above the ground there
+    const ang = id * 1.3, sp = [4 * Math.cos(ang), CFG.SPAWN_HEIGHT, 4 * Math.sin(ang)];       // spawn y is above the ground there
     sp[1] += sim.groundY(sp[0], sp[2]);
     const body = sim.rapier.createRigidBody(sim.dynamic().setTranslation(sp[0], sp[1], sp[2]).lockRotations());
     const col = sim.rapier.createCollider(R.ColliderDesc.capsule(CFG.P_HALF, CFG.P_RADIUS).setMass(CFG.P_MASS)
@@ -122,10 +122,41 @@ export class Players {
 
   // ---- mode changes ----
   /** Back to where p started, 1.2 m above the ground there (the ground may have changed since). */
+  /** Back to the player's own spot 4 m from the tree, or the nearest clear spot round it (safeSpot). */
   toSpawn(p) {
-    const s = p.spawn;
-    s[1] = this.sim.groundY(s[0], s[2]) + 1.2;
-    p.body.setTranslation({ x: s[0], y: s[1], z: s[2] }, true);
+    const s = p.spawn, c = this.safeSpot(p, 0, 0, Math.atan2(s[2], s[0]), Math.hypot(s[0], s[2]));
+    p.body.setTranslation({ x: c[0], y: c[1], z: c[2] }, true);
+  }
+  /** Where a standing player can be put down: dist from (cx, cz) at angle ang (rad, from +x towards +z), at the
+   *  spawn height (SPAWN_HEIGHT over the ground there), or the nearest clear spot to it: the angle swung either way
+   *  in steps, then further out. Clear means nothing but the ground (or a sensor) where the player's capsule goes. */
+  safeSpot(p, cx, cz, ang, dist) {
+    const sim = this.sim, R = sim.R, shape = new R.Capsule(CFG.P_HALF, CFG.P_RADIUS + 0.05), q = { x: 0, y: 0, z: 0, w: 1 };
+    const at = (a, r) => { const x = cx + r * Math.cos(a), z = cz + r * Math.sin(a); return [x, sim.groundY(x, z) + CFG.SPAWN_HEIGHT, z]; };
+    for (const r of [dist, dist + 1.5, dist + 3, dist + 5]) {
+      for (let i = 0; i <= 12; i++) {
+        const c = at(ang + (i & 1 ? -1 : 1) * Math.ceil(i / 2) * 0.4 * 4 / r, r);
+        let hit = false;
+        sim.rapier.intersectionsWithShape({ x: c[0], y: c[1], z: c[2] }, q, shape, (col) => {
+          if (col.handle === sim.groundCol.handle || col.isSensor()) return true;
+          hit = true; return false;
+        }, undefined, undefined, undefined, p.body);
+        if (!hit) return c;
+      }
+    }
+    return at(ang, dist);                              // nowhere clear: the spot asked for (Rapier pushes them out)
+  }
+  /** A climber came down to the ground (D99): the lanyard comes off and they are put down standing, clear
+   *  of the tree, on the side they were climbing, with no fall. Switching a kinematic climber that is pressed into the
+   *  ground or the trunk to a dynamic body made Rapier fling them out of it, which read as a fatal impact. */
+  land(p, s) {
+    const sim = this.sim, ax = sim.segToWorld(s, lerp3(s.a, s.b, p.cl.t), _c), t = p.body.translation();
+    const c = this.safeSpot(p, ax.x, ax.z, Math.atan2(t.z - ax.z, t.x - ax.x), CFG.LAND_DIST);
+    this.toGround(p);
+    p.body.setTranslation({ x: c[0], y: c[1], z: c[2] }, true);
+    p.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    p.vPre.set(0, 0, 0); p.hit = 0;
+    sim.toast('Back on the ground: the lanyard is off', p.id);
   }
 
   /** New ground: anyone standing where it now rises is lifted onto it. */
@@ -578,7 +609,7 @@ export class Players {
       } else if (t < 0) {
         if (s.parent < 0) {
           // the bottom of the wood: stepping off onto the ground, or off the end of a hanging piece
-          if (sim.segToWorld(s, s.a, _b).y < sim.groundY(_b.x, _b.z) + 0.6) { this.toGround(p); return; }
+          if (sim.segToWorld(s, s.a, _b).y < sim.groundY(_b.x, _b.z) + 0.6) { this.land(p, s); return; }
           if (endStop(-1)) t = 0; else { this.offTheEnd(p, s, fixed); return; }
         } else {
           const up = w.stemNext(s.parent), block = w.kids(s.parent).some((k) => k !== s.id && w.isRealBranch(k));
@@ -592,6 +623,10 @@ export class Players {
     // pose derived from (segment, t, side)
     const c = lerp3(s.a, s.b, cl.t), d = segRadius(s, cl.t) + CFG.STANDOFF;
     const pos = sim.segToWorld(s, [c[0] + cl.side[0] * d, c[1] + cl.side[1] * d, c[2] + cl.side[2] * d], _a);
+    // feet on the ground, getting closer to it as the climber moves (down the stem, or round it on a slope): landed
+    const gap = pos.y - CFG.P_HALF - CFG.P_RADIUS - sim.groundY(pos.x, pos.z), gap0 = cl.gap;
+    cl.gap = gap;
+    if (held && control && (inp.mx || inp.my) && gap < 0.05 && gap0 !== undefined && gap < gap0 - 1e-4) { this.land(p, s); return; }
     p.body.setNextKinematicTranslation(pos);
     if (held) {
       // the climber's weight goes into whatever wood the spurs are in; moving bounces it
