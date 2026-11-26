@@ -68,9 +68,8 @@ export const CFG = {
   CONTACT_TAU: 0.04,       // s, low-pass on contact-force loads
   CONTACT_MIN: 150,        // N, contact-force event threshold
   ROLL_RESIST: 0.02,       // m, rolling resistance of loose wood on the ground: lever arm of the normal force
-  GROUND_PUSH_K: 1000,     // 1/s^2: wood inside the ground (D88) is pushed out like a spring: this x its share of the body's mass per m it is in (1000: about 1 cm under its own weight)...
-  GROUND_PUSH_MAX: 0.05,   // m: ...counting at most this depth...
-  GROUND_PUSH_DAMP: 40,    // 1/s: ...less this per m/s it is moving out of the ground (more per m/s into it)
+  GROUND_LIFT_V: 0.6,      // m/s: wood found inside the ground (D88, D96) rises at least this fast (the feed rollers' CHIP_FEED_V)...
+  GROUND_LIFT_TIME: 0.2,   // s: ...for this long at a time, again while it is still in
   DEBRIS_MASS: 2,          // kg, pieces lighter than this are removed...
   DEBRIS_LIFE: 10,         // ...this many seconds after creation
 
@@ -200,6 +199,7 @@ export const CFG = {
   CHIP_BREAK_F: 120000,    // N of contact force in one step, from wood or a structure's parts, that crumples it
   CHIP_CARRY: 0.04,        // m3 of chips a player can carry (an armful, about 40 L)
   CHIP_CAPACITY: 150,      // kg: the heaviest contiguous piece the rollers take; heavier wood seizes them until it is sawn
+  CHIP_MAX: 6,             // most chippers in the world at once ("Buy a new chipper" stops there; each is a 350 kg body with its own tyres and feed)
   CHIP_SWELL: 2.5,         // m3 of loose chips per m3 of wood chipped
   // --- chip bins (sim/bin.js): 96 gal wheeled bins with no bottom; chips in them are gone ---
   BIN_MASS: 15,            // kg, the bin without its lid
@@ -247,7 +247,8 @@ export const CFG = {
   SHED_COST: 2500,         // the shed broken apart
   HOUSE_COST: 20000,       // one room of a house broken apart
   CHIPPER_COST: 45000,     // the chipper truck wrecked
-  // the other trees in the yards (not the job's), once woken into wood (D96)
+  CHIPPER_PRICE: 5000,     // $ for another chipper from the Tab menu (placeholder, unreviewed)
+  // the other trees in the yards (not the job's), once woken into wood (D97)
   YARD_CUT_COST: 3000,     // $ per m2 of wood sawn through (a 20 cm limb sawn right through: about $95)
   YARD_CUT_QUIET: 1.5,     // s the saw is out of a yard tree before what it sawed is charged (one toast per cut)
   YARD_LOSS_COST: 3,       // $ per kg of wood and leaves that comes off a yard tree for good

@@ -4,7 +4,7 @@
 // wrecked chipper add their price (the *_COST settings) to world.damage
 // through a 'damage' event, with a toast to everyone.
 //
-// The other trees in the yards are not the job's (D96). Once one has woken into wood, sawing into it costs
+// The other trees in the yards are not the job's (D97). Once one has woken into wood, sawing into it costs
 // YARD_CUT_COST per m2 of wood sawn through (added up and charged once the saw has been out of it for
 // YARD_CUT_QUIET s), wood that comes off it for good (no longer held to it by any fibre) costs YARD_LOSS_COST
 // per kg (with the sawing that took it off on the same bill), and the first time half its wood has come off it counts as felled: YARD_FELL_COST more.

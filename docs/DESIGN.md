@@ -653,7 +653,7 @@ kinematic climber: contact force × dt / body mass).
 | < 4 m/s | ok | — |
 | 4–7 | `shaken` | 2 s stagger |
 | 7–11 | `hurt` | limps, cannot climb, for the rest of the job |
-| > 11 | `down` | incapacitated → job failure (prototype: respawn key) |
+| > 11 | `down` | incapacitated until someone gives them a tube salad (D95); the Tab menu's "Respawn player" also brings them back |
 
 Tool misuse feeds the same states (later tasks): rope running through
 gripping hands, saw pinch release, cutting your own lanyard.
@@ -780,8 +780,23 @@ never sleeps (Rapier would stop it rolling slowly off its roof).
   comes free. Players, the ground and chips do not count toward the hit. A
   chipper that has just been put down cannot crumple for its first second,
   while it is pushed out of anything it was placed in.
-- **Respawn.** The Tab menu's "Respawn chipper" (host only) frees a fed rope,
-  takes away the chipper or its wreck, and parks a new one. Chip piles stay.
+- **Buy a new chipper (D95).** The Tab menu's "Buy a new chipper" (any player:
+  it is an input counter, `buyChip`) parks one more chipper at the nearest
+  clear spot around where the first was parked (a grid 6 m along x 3.2 m
+  across, tested with a box the size of the chassis and cage), and charges
+  `CHIPPER_PRICE` (a `buy` event into `world.spent`). The ones already there,
+  whole or wrecked, stay. At most `CHIP_MAX`. `world.chipper` is
+  `{piles, units: [{p, q, wreck}]}`; `sim.chipper` is a `Chippers` holding a
+  `Chipper` per unit (body id `CHIPPER_BODY_ID + k`, `aux.chip[k]`, rope anchor
+  `{chip: 1, k}`, a grip held as `grab {chip: 1, k}`, aux `gk`).
+- **Salad rack (D95).** `SHAPE.RACK` on the side away from the chute (-z),
+  inside the cage, with three tube salads (`SHAPE.SALADS`). No collider: the
+  look ray is tested against its box. {interact} at it puts a salad in the
+  player's hand (`p.held = 'salad'`, aux `hd`); the rack never runs out.
+  {eat} (the {throttle} press, saw not planted) eats it; {interact} on another
+  player within reach gives it to them. Either way the eater is set to `ok`
+  with no shaken pause, even from `down`. A downed player cannot eat their own.
+  The rack is one of the wreck's parts when the chipper crumples.
 - **Reset.** A new tree re-lays the pavers fresh and re-parks the chipper
   (`chipper` event): default pose, brakes on, nothing feeding, no chips.
 
@@ -992,7 +1007,9 @@ The HUD and lobby name controls for whichever device was touched last
 | Press the bar forward (chain runs) | left mouse | RT |
 | On the rope tail: ease grip / haul in / wraps | left mouse / right mouse / ↑ ↓ | RT / LT / D-pad ↑ ↓ |
 | Settings menu | Tab | Back |
-| Respawn (prototype) | Enter | Start |
+| Take a tube salad (at a chipper's rack) / give it (looking at a player) | R | X |
+| Eat the tube salad in hand | left mouse | RT |
+| Respawn player | Tab menu button | Tab menu button |
 
 **Touch** (`src/touch.js`, D61): a floating stick under the left thumb;
 drag on the right to look (or pivot the planted bar); one big context
@@ -1000,7 +1017,7 @@ button for interact, labelled with what it will do now (hold it to spur in
 or move the lanyard); Rig, Punch, Let go (hold) and Saw appear only while
 the prompt offers them; Saw is a toggle, and Cut (hold) appears on the left
 while it is on; on the rope tail a spring-centred slider hauls (up) and
-eases (down), with Wrap + / − beside it; ⚙ and ↺ top right. On by default
+eases (down), with Wrap + / − beside it; ⚙ top right (Respawn player is in its menu); Eat salad while holding one. On by default
 on touch-first screens; `?touch` / `?touch=0` force it.
 
 There are no tools to switch between: the chainsaw, the rigging and the

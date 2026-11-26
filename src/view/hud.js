@@ -14,8 +14,9 @@ const NAMES = {
   interact: ['R', 'X', 'Action'], drop: ['C', 'B', 'Let go'], jump: ['Space', 'A', 'Jump'],
   rig: ['W', 'Y', 'Rig'], punch: ['G', 'RB', 'Punch'],
   raise: ['Right mouse', 'LT', 'Saw'], throttle: ['Left mouse', 'RT', 'Cut'],
+  eat: ['Left mouse', 'RT', 'Eat salad'],          // {throttle} with a tube salad in hand and the saw not planted
   wraps: ['Up / Down arrows', 'D-pad up / down', 'Wrap + / −'],
-  menu: ['Tab', 'Back', '⚙'], respawn: ['Enter', 'Start', '↺'],
+  menu: ['Tab', 'Back', '⚙'],
 };
 // on the rope tail the saw's buttons are not shown: the slider does their work
 const TOUCH_ROPE = { raise: 'Slider up', throttle: 'Slider down' };
@@ -98,12 +99,13 @@ export class Hud {
     const cash = this.world.cash();
     if (cash !== null) s += `  |  cash ${cash < 0 ? '-' : ''}${money(Math.abs(cash))}, ${wageMath(aux ? aux.pl.length : 1)}`;
     if (a && a.ck > 0) s += `  |  carrying ${qty('vol', a.ck * 1000, 0)} of chips`;
+    if (a && a.hd) s += '  |  holding a tube salad';
     if (a) s += `  |  ${a.m === MODE.CLIMB ? 'on spurs, lanyard on' : a.m === MODE.ROPE ? 'on the rope' : 'on the ground'}  |  ${INJ_NAME[a.inj]}`;
     this.status.textContent = s;
     this.progress();
     this.prompt.textContent = a ? describe(a.pr, device, device === 'touch' && a.m === MODE.ROPE ? TOUCH_ROPE : null) : '';
     this.keys.style.display = device === 'touch' ? 'none' : '';
-    this.keys.textContent = describe('{move} move   {look} look   {interact} lanyard (hold)   {rig} block / tie   {punch} punch   {raise} saw   {drop} let go (hold)   {menu} settings   {respawn} respawn', device);
+    this.keys.textContent = describe('{move} move   {look} look   {interact} lanyard (hold)   {rig} block / tie   {punch} punch   {raise} saw   {drop} let go (hold)   {menu} settings', device);
     const ch = a ? a.ch || 0 : 0;
     this.ring.style.display = ch > 0 ? '' : 'none';
     if (ch > 0) this.ring.setAttribute('stroke-dashoffset', String(100 * (1 - ch)));

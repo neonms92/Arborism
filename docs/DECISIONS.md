@@ -1437,7 +1437,50 @@ host, client and a late joiner agree on all 40 frozen poses (local PeerJS
 server). Smoke 18 / 22 (FM-05, 12, 13, 20 fail as on main; engine tests have
 no builds).
 
-**D96 — Damaging the neighbours' trees costs money.** Owner (2026-11-26):
+**D95 — Tube salads, buying chippers, respawn only in the menu.** Owner
+(2026-11-26): the chipper reset button becomes "Buy a new chipper" and keeps
+the ones there; a small rack of three green "tube salads" on the non-chute
+side; interact takes one into the hand (endless supply); left mouse eats it,
+interact gives it to another player; either restores full health, even DOWN;
+no "job failed" with DOWN; no key or phone button for respawn, a Respawn
+player button in the Tab menu. How: several chippers (`world.chipper.units`,
+`sim.chipper` a manager, each with its own feed and tyres); the menu buttons
+are input counters (`buyChip`, `respawn`, as D93's `buyBin`) so joined players
+can press them; the salad is `{eat}` in prompts so touch shows an "Eat salad"
+button (keyboard and pad: left mouse / RT). Healing sets `ok` and clears the
+shaken pause; it is not physics, there is nothing to derive it from. Choices
+the owner hasn't reviewed: price $5,000 (`CHIPPER_PRICE`; the wreck still costs
+`CHIPPER_COST` $45,000), at most 6 (`CHIP_MAX`), where a bought one parks
+(nearest clear spot round the first one's spot, rack side first; dropped in
+from 2.5 m beside it if nowhere is clear), a downed player cannot eat a salad
+they hold (someone else has to), the rack sits inside the roll cage and has no
+collider, one salad in hand at a time, the salad drawn low right in first
+person.
+
+**D96 — Wood in the ground is lifted at a fixed speed, not sprung out.**
+Owner (2026-11-26): the push out of the ground (D88) is too aggressive.
+Instead, wood found inside the ground should get a fixed upward velocity for
+a set time, starting at the chipper rollers' speed for 0.2 s at a time, as
+needed. So the spring and its three tunables are gone. When a body has a
+segment inside the ground, its upward velocity is raised to at least
+`GROUND_LIFT_V` (0.6 m/s, `CHIP_FEED_V`) for `GROUND_LIFT_TIME` (0.2 s). If it
+is still in when that time ends, another lift starts. Its spin and sideways
+velocity are left alone. A first try raised only the sunk point to 0.6 m/s,
+correcting for the body's spin. On a pivoting branch that drove the body up at
+2.9 m/s and spun it at 18 rad/s, so the whole body is lifted instead. The
+sunk segment still stops colliding with the ground until its axis is back
+above it (D88).
+
+Headless, with a 25 kg branch put down with its butt 0.3 m under:
+- It is out within 3 s and drags as on open ground.
+- Its upward speed peaked at 0.44 to 0.86 m/s; the spring gave 0.57 to 0.6.
+- Its overall speed peaked at 1.4 to 1.7 m/s as it fell flat; the spring
+  gave about 0.6.
+
+Felling whole trees on two seeds, the 11.6 t tree got two lifts in 40 s and
+came to rest.
+
+**D97 — Damaging the neighbours' trees costs money.** Owner (2026-11-26):
 enact a monetary penalty for damage to non-target trees. Built in
 sim/damage.js, through the same `damage` event and toasts as the structures.
 Only a yard tree that has woken into wood (D74) can be damaged; a dormant one
@@ -1455,5 +1498,4 @@ yard log costs nothing more. Damage from any cause counts (a job tree landing
 on an awake yard tree and breaking a limb is charged too). Toast wording
 says "a neighbour's tree". At defaults a 12 m yard tree felled costs about
 $12,000 of a $30,000 budget. Not done: twigs swept away as debris within the
-same quarter second they broke off are not charged; wood that comes off with
-no fibres tested (live-bundle snaps) is charged by its mass when it parts.
+same quarter second they broke off are not charged.
