@@ -1456,3 +1456,19 @@ from 2.5 m beside it if nowhere is clear), a downed player cannot eat a salad
 they hold (someone else has to), the rack sits inside the roll cage and has no
 collider, one salad in hand at a time, the salad drawn low right in first
 person.
+
+**D96 — A far tree line round the horizon.** Owner asked for darkness low in
+the sky, about as high as trees grow, so the yard reads as a forest valley
+rather than a mountaintop. It is drawing only (`view/sky.js`): a ring round
+the eye just inside the far plane, carrying a silhouette of overlapping crowns
+(pointed and round, about one per 7 m) `FOREST_HEIGHT` (25 m) tall at
+`FOREST_DIST` (300 m), over a hazier, taller ridge of hillside wood behind.
+Its colour is the sky's colour darkened by `FOREST_DARK` (0.65), plus a touch
+of green by day, so it follows dusk, cloud and night and can never glow. The
+lowest `FOREST_MIST` (0.45) of it fades back into the sky's colour, which is
+also the fog's, so the fogged ground meets it without a seam and the valley
+floor reads as haze. It is placed by the eye's height above y = 0, so climbing
+lowers it. Sun, moon and stars are drawn first so they set behind it, and the
+stars low in the sky are hidden by it at night. Unreviewed choices: all four
+numbers, the crown spacing, the ridge shape (fixed sines, the same for every
+seed), and that it is a picture at a fixed distance rather than geometry.
