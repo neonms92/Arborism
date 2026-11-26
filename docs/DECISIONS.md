@@ -1400,7 +1400,7 @@ the bin is knocked, tipped or bumped by a player. The handle is held like the
 chipper's grip; pulled back, the bin tips onto its wheels and rolls (a scripted
 tow: 9 m in 6 s). Chips go into a bin when the point they land on (the
 chipper's discharge point, or where a player puts down what they carry) is
-within its mouth plus `BIN_CATCH` (0.15 m), with the bin upright and its lid
+within its mouth plus `BIN_CATCH` (0.15 m; 1 m from 2026-11-26, owner), with the bin upright and its lid
 more than 1.2 rad open. They are gone (`world.prog.gone`). Progress lives in
 the model (`world.prog`), counted by `world.apply` on every machine: the job
 tree's mass when it grows (wood and leaves); every chipped segment that is not
