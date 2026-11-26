@@ -279,6 +279,7 @@ export class Builds {
       other: other && other.isDynamic() ? other : null, otherPre,
     };
     const { loose } = regroup(b, m.body, mi);
+    sim.awards.broke(m.shape === 'shed' ? 'shed' : m.shape === 'room' || m.shape === 'found' ? 'house' : 'fence', hit.o);   // a sticker for whoever sent it (D107)
     sim.emit({
       t: 'smash', b: bid, m: mi, at, parts: m.parts.map(() => w.newId()),
       loose: loose.map((mods) => ({ body: w.newId(), mods, p: at.p, q: at.q })),

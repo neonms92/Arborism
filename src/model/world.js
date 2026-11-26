@@ -275,7 +275,7 @@ export class World {
       }
       case 'ate': this.awards.ate[ev.id] = (this.awards.ate[ev.id] || 0) + 1; break;   // player id ate a tube salad (theirs or one handed to them)
       case 'work':                                                       // who sawed (m² cut) and fed (kg chipped) since the last of these
-        for (const k of ['chop', 'chip']) { const W = this.awards.work[k]; for (const id in ev[k] || {}) W[id] = (W[id] || 0) + ev[k][id]; }
+        for (const k of ['chop', 'chip', 'bin']) { const W = this.awards.work[k] || (this.awards.work[k] = {}); for (const id in ev[k] || {}) W[id] = (W[id] || 0) + ev[k][id]; }
         break;
       case 'toast': break;
     }
@@ -443,6 +443,6 @@ const EMPTY = [];
  * the chippers; gone: m3 of chips that went into bins. */
 /** job: id of this job ('' before one, as in the engine tests: nothing is handed out); got: kind -> {player id:
  * highest tier handed to them}; ate: player id -> tube salads eaten this job; work: {chop: id -> m² of the job tree
- * sawn through, chip: id -> kg of it they fed that was chipped}. In the world so a host taking over (D104) carries on. */
-function newAwards() { return { job: '', got: {}, ate: {}, work: { chop: {}, chip: {} } }; }
+ * sawn through, chip: id -> kg of it they fed that was chipped, bin: id -> m³ of chips they put in bins}. In the world so a host taking over (D104) carries on. */
+function newAwards() { return { job: '', got: {}, ate: {}, work: { chop: {}, chip: {}, bin: {} } }; }
 function newProg() { return { M: 0, chipped: 0, lost: 0, made: 0, gone: 0 }; }

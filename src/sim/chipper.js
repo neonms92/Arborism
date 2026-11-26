@@ -310,6 +310,7 @@ export class Chipper {
     this.burst = { self: sim.builds.preVel(b), other: other && other.isDynamic() ? other : null, otherPre: other ? sim.builds.preVel(other) : null };
     if (sim.chipper.fedUnit() === this) sim.rope.swallow('The chipper is wrecked: the rope came free');
     sim.chipper.letGo(this.k);
+    sim.awards.broke('wreck', hit.o);             // a sticker for whoever sent the wood (D107)
     sim.emit({ t: 'chipwreck', k: this.k, at, ids: WRECK.map(() => sim.world.newId()) });
   }
 
@@ -685,6 +686,7 @@ export class Chipper {
     const out = this.toWorld([SHAPE.DISCHARGE[0], -SHAPE.BODY_Y, SHAPE.DISCHARGE[1]], _a);
     const bin = sim.bins.catchAt(out.x, out.z);       // landing in an open bin's mouth, they go into it (sim/bin.js)
     sim.emit({ t: 'chip', segs: ids, V: +V.toFixed(5), x: +out.x.toFixed(2), z: +out.z.toFixed(2), ...(bin === undefined ? {} : { bin }) });
+    if (bin !== undefined) sim.awards.credit('bin', f.by, job / CFG.DENSITY * CFG.CHIP_SWELL);   // the job tree's chips, into a bin (stickers)
     this.busy = 40;
     if (ids.includes(f.seg)) f.seg = -1;
     f.F = 0;                          // the wood that held the motor back is gone: it starts again from nothing

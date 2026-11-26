@@ -177,6 +177,7 @@ export class Sim {
     this.builds.onEvent(ev, info);
     this.stands.onEvent(ev, info);
     this.damage.onEvent(ev, info);
+    this.awards.onEvent(ev, info);
     if (ev.t === 'tree') {
       const body = this.rapier.createRigidBody(RAPIER.RigidBodyDesc.fixed());
       this.bodies.set(ev.piece, body);
