@@ -24,10 +24,16 @@ const CSS = `
 #touch .tb.dim { opacity: .4; }
 #touch .tb.small { border-radius: 12px; font-size: 18px; }
 #touch .act, #touch .rig { font-size: 12px; }
-/* the bottom of the screen belongs to the thumbs: prompt, rope line and toasts go up top */
-body.touchui #prompt { bottom: auto; top: calc(34px + env(safe-area-inset-top)); left: 90px; right: 130px; font-size: 15px; }
-body.touchui #rope { bottom: auto; top: calc(80px + env(safe-area-inset-top)); left: 90px; right: 130px; font-size: 13px; }
-body.touchui #toasts { top: calc(110px + env(safe-area-inset-top)); font-size: 15px; }
+/* the bottom of the screen belongs to the thumbs: prompt, rope line and toasts go up top, into the top-left column
+   under the status lines (hud.js moves them there), so a line that wraps pushes the rest down; clear of the gear */
+body.touchui #top { top: calc(6px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left)); right: calc(62px + env(safe-area-inset-right)); }
+body.touchui #status { font-size: 12px; }
+body.touchui #prog { font-size: 13px; }
+body.touchui #top > #prompt, body.touchui #top > #rope, body.touchui #top > #toasts, body.touchui #top > #net { position: static; align-self: stretch; }
+body.touchui #prompt { font-size: 15px; margin-top: 4px; }
+body.touchui #rope { font-size: 13px; }
+body.touchui #toasts { font-size: 15px; }
+body.touchui #net { text-align: left; font-size: 11px; white-space: pre-wrap; }
 #touch .stick { position: absolute; width: 0; height: 0; display: none; pointer-events: none; }
 #touch .stick .base { position: absolute; border-radius: 50%; border: 2px solid rgba(255,255,255,.45); background: rgba(0,0,0,.18); }
 #touch .stick .knob { position: absolute; width: 56px; height: 56px; margin: -28px; border-radius: 50%; background: rgba(255,255,255,.55); }

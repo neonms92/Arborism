@@ -264,7 +264,7 @@ function frame(now) {
   }
 
   view.update(dt, sim ? hostSource : interp, aux, me, inp);
-  let info = role === 'solo' ? 'solo' : role === 'host' ? `HOST  room ${room}  (${net.clients.size} joined)` : `joined ${room}  ${stats.short()}`;
+  let info = role === 'solo' ? 'solo' : role === 'host' ? `HOST  room ${room}  (${net.clients.size} joined)` : `joined ${room}${CFG.NET_STATS ? `  ${stats.short()}` : ''}`;
   if (role === 'host') for (const c of net.clients.values()) if (c.st) info += `  P${c.pid} ${c.st.r} ms ${Math.round(Math.max(c.st.l, upLoss(c)) * 100)}%${c.st.via === 'relay' ? ' RELAY' : ''}`;
   hud.net(role === 'client' && CFG.NET_STATS ? stats.lines(performance.now()) : null);
   hud.update(dt, aux, me, info, input.device);
