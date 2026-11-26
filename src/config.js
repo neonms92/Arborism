@@ -59,6 +59,11 @@ export const CFG = {
   CLOUD_CHANGE: 120,       // s of play for the cover to go all the way from clear to overcast
   CLOUD_DIM: 0.85,         // fraction of sunlight and moonlight that full cover blocks
   CLOUD_WIND: 0.6,         // m/s the cloud layer drifts overhead
+  // the far tree line: a dark band of crowns round the horizon, so the yard reads as a clearing in a wooded valley (view/sky.js)
+  FOREST_HEIGHT: 25,       // m, how tall the distant trees stand (0 = no tree line)
+  FOREST_DIST: 300,        // m, how far away they stand: with the height this sets how high the band reaches (25 m at 300 m is about 5 degrees)
+  FOREST_DARK: 0.65,       // how much darker than the sky the nearest trees are (0 = invisible, 1 = black); it follows the sky, so it is dark at night
+  FOREST_MIST: 0.45,       // fraction of the tree height, from the foot up, that fades into the haze (and the fog on the ground)
 
   // --- wood (green hardwood) ---
   DENSITY: 900,            // kg/m^3
