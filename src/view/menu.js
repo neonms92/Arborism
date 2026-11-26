@@ -147,6 +147,8 @@ export const ROWS = [
   ['YARD_LOT_MIN', 'Lot width at density 1 (m)', 8, 60, 1, 1, true],
   ['YARD_EXTENT', 'Yards reach this far from the tree (m; 0 = only the tree\'s yard)', 0, 90, 1, 1, true],
   ['YARD_STREET', 'Street width between blocks (m)', 3, 30, 0.5, 1, true],
+  ['STREET_SMOOTH', 'Street grade: ground averaged this far along it (m; bigger = flatter)', 0, 100, 1, 1, true],
+  ['STREET_BLEND', 'Street edge blends into the ground over (m)', 0, 10, 0.5, 1, true],
   ['YARD_FENCE', 'Chance a yard is fenced', 0, 1, 0.05, 1, true],
   ['YARD_TREE_CLEAR', 'Clear ground round the trunk (m; no house, shed or chipper)', 0, 10, 0.5, 1, true],
   ['YARD_TREES', 'Other trees per yard (average)', 0, 6, 0.1, 1, true],

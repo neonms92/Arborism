@@ -45,7 +45,7 @@ export class Builds {
    * gets none of it.
    */
   plan() {
-    if (this.sim.flat) return (this.planned = { builds: [], areas: [], pads: [], chipper: null, trees: [], front: [0, 1] });
+    if (this.sim.flat) return (this.planned = { builds: [], areas: [], pads: [], streets: [], chipper: null, trees: [], front: [0, 1] });
     const S = CHIP_SHAPE;
     const P = planYards({
       seed: CFG.YARD_SEED, density: CFG.YARD_DENSITY, lotMax: CFG.YARD_LOT_MAX, lotMin: CFG.YARD_LOT_MIN, extent: CFG.YARD_EXTENT,

@@ -1,11 +1,13 @@
 // Draws the ground (model/terrain.js): one mesh over the same grid and the
 // same two triangles per cell as the heightfield collider, so what is drawn
 // is what things stand on. Grass on gentle ground, bare earth on steep
-// slopes and ledge faces. Flat ground (world.terrain null) is a plain disc.
+// slopes and ledge faces, asphalt on streets with a dashed centre line.
+// Flat ground (world.terrain null) is a plain disc.
 
 import * as THREE from 'three';
 
 const GRASS = [0.36, 0.54, 0.28], GRASS2 = [0.42, 0.58, 0.3], EARTH = [0.45, 0.36, 0.25];
+const ASPHALT = [0.2, 0.2, 0.21], ASPHALT2 = [0.26, 0.26, 0.27], LINE = [0.78, 0.66, 0.24];   // street surface, its centre line
 const STEEP0 = 0.45, STEEP1 = 0.75;         // rad: grass gives way to earth between these slopes
 
 export class TerrainView {
@@ -38,6 +40,13 @@ function gridGeo(t) {
     const dx = (t.at(i, j + 1) - t.at(i, j - 1)) / (2 * c), dz = (t.at(i + 1, j) - t.at(i - 1, j)) / (2 * c);
     const s = Math.atan(Math.hypot(dx, dz)), e = Math.min(1, Math.max(0, (s - STEEP0) / (STEEP1 - STEEP0)));
     const v = (Math.imul(i * 7919 + 13, j * 104729 + 7) >>> 0) / 4294967296, g = v * 0.6;   // a little speckle in the grass
+    if (t.streetAt(x, z)) {
+      // asphalt; the centre line is the grid row nearest the middle, dashed 3 m on, 3 m off
+      const st = t.streets.find((q) => z >= q.z0 && z <= q.z1), zm = (st.z0 + st.z1) / 2;
+      const line = Math.abs(z - zm) < c / 2 && ((x + 300) % 6) < 3;
+      for (let a = 0; a < 3; a++) col[k + a] = line ? LINE[a] : ASPHALT[a] + (ASPHALT2[a] - ASPHALT[a]) * v;
+      continue;
+    }
     for (let a = 0; a < 3; a++) col[k + a] = (GRASS[a] + (GRASS2[a] - GRASS[a]) * g) * (1 - e) + EARTH[a] * e;
   }
   let w = 0;
