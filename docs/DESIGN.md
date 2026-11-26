@@ -163,6 +163,8 @@ is moved by the host from the client's input and comes back in snapshots like
 every other body. The one exception is the camera: look angles are applied
 locally, immediately, and *sent to* the host, so aiming never feels laggy.
 (Decision D3; client-side prediction for walking is a later, optional task.)
+The one exception (D103): a client predicts **its own climbing**, with the
+host's rule from `model/climb.js`, and corrects to the host's state in aux.
 
 ### 2.3 Breaking branches, and why this is easy
 

@@ -1591,3 +1591,25 @@ ramps: 30°, 40°, 44° drift 0.000 m in 4 s; walking across a 40° ramp drifts
 nothing downhill; 50° still slides. A downed or shaken player (no control)
 still slides as before. Same change: saw defaults `CUT_RATE` 0.065 m²/s
 (650 cm²/s) and `BAR_LEN` 0.6 m, the owner's values.
+
+**D103 — A joined client predicts its own climbing.** Owner (2026-11-26)
+chose this over rollback netcode (every machine simulating and rewinding:
+the physics is not bit-identical across browsers, a rewind would re-step
+the whole Rapier world and the fibres, and every future rule would have to
+be rollback-safe) and before a "Continue as host" button. The rule that
+moves a climber along and round the wood (ends, unions, too thin, the
+end-of-wood stop) moved from `players.climb` into `model/climb.js`; the
+host runs it as before. A client keeps each frame's stick tagged with the
+input packet that carries it; aux now carries the climber's
+`[seg, t, side, end, armed, riding]` and the newest input number the host
+used (`n`). The client draws itself (and its camera, and its lanyard) at
+the host's state with the newer frames replayed through the same rule; a
+correction fades in (`PREDICT_BLEND`, 12/s) instead of jumping, more than
+1 m snaps. Not predicted: walking, the rope, riding a falling piece,
+lanyard moves (they appear when the host says), landing or climbing off
+the end (the prediction stops there and waits for the host). Tab menu:
+"Climbing answers at once when joined" to switch it off. Headless, 150 ms
+added each way: climbing started on the next frame (6 frames before) and
+stopped 7 cm past where the stick was let go (33 cm before); holding up at
+the top of a limbless stem the drawn climber never passed the host's.
+

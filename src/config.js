@@ -10,6 +10,8 @@ export const CFG = {
   INTERP_DELAY: 0.1,       // s, client render delay
   INPUT_HZ: 30,
   PING_EVERY: 0.5,         // s between pings from a joined client (net/stats.js)
+  PREDICT: true,           // a joined client draws its own climber ahead of the host's word (D103)
+  PREDICT_BLEND: 12,       // 1/s: how fast a correction from the host fades in
   NET_STATS: false,        // network and debug figures: the network box when joined, ping, fps, wage math
   NET_QUEUE_MAX: 64,       // kB: snapshots / aux / inputs are skipped while more than this waits to be sent (D89)
   NET_LAG_MAX: 0.25,       // s: ...or while what waits would take longer than this to go out at the link's pace
