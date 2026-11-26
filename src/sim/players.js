@@ -6,6 +6,7 @@ import * as THREE from '../../vendor/three/three.module.js';
 import { CFG, INJ, MODE } from '../config.js';
 import { segLen, segAxis, segRadius, segParam, lerp3, perp, cleanName, cleanColor, playerName } from '../model/world.js';
 import { sawStep, sawOff } from './saw.js';
+import { climbMove, climbSign } from '../model/climb.js';
 
 // respawn, buyChip and buyBin are the Tab menu's "Respawn player", "Buy a new chipper" and "Buy a new chip bin" buttons (no key or button of their own)
 const COUNTERS = ['jump', 'interact', 'drop', 'rig', 'punch', 'wrapUp', 'wrapDn', 'respawn', 'buyChip', 'buyBin'];
@@ -61,7 +62,8 @@ export class Players {
     this.list.delete(id);
     this.sim.emit({ t: 'player', id, leave: 1 });
   }
-  setInput(id, inp) { const p = this.list.get(id); if (p) p.input = inp; }
+  /** n: the client's input sequence number, echoed in aux so a client predicting itself knows what the host has used (D103). */
+  setInput(id, inp, n) { const p = this.list.get(id); if (p) { p.input = inp; if (n !== undefined) p.inN = n; } }
 
   say(p, msg) { if (p.toastT <= 0) { this.sim.toast(msg, p.id); p.toastT = 1.5; } }
 
@@ -599,48 +601,14 @@ export class Players {
     }
 
     if (control && !p.ride) {
-      let ax = segAxis(s), L = segLen(s);
-      const axW = sim.segDirToWorld(s, ax, _a);
-      const look = _b.set(-Math.sin(inp.yaw), 0, -Math.cos(inp.yaw));
-      const sign = axW.dot(_c.copy(UP).addScaledVector(look, 0.6)) >= 0 ? 1 : -1;
-      // around the stem
-      const r = segRadius(s, cl.t);
-      const ang = inp.mx * sign * CFG.AROUND * dt / (r + CFG.STANDOFF);
-      if (ang) cl.side = rotateAbout(cl.side, ax, ang);
-      // along the stem
-      let t = cl.t + inp.my * sign * CFG.CLIMB * dt / L;
-      // The end of the wood stops you once (D85): to climb off it, let go of {move} and push on again. A late
-      // view (a joined client sees itself ~0.1-0.2 s behind) can then never carry anyone off the top unawares.
-      const push = Math.sign(inp.my * sign);
-      if (cl.end && push !== cl.end) cl.armed = true;
-      if (cl.end && (cl.end > 0 ? t < 1 - 0.3 / L : t > 0.3 / L)) cl.end = cl.armed = 0;
-      const endStop = (dir) => {
-        if (cl.end === dir && cl.armed) return false;
-        cl.end = dir; cl.armed = false;
-        this.say(p, 'The end of the wood. Let go of {move} and push on again to climb off it');
-        return true;
-      };
-      if (t > cl.t && segRadius(s, Math.min(1, t)) < CFG.SPUR_MIN_R) { t = cl.t; this.say(p, 'Too thin for spurs'); }
-      if (t > 1) {
-        // the lanyard only slides on along the same stem; onto a branch it has to be thrown ({interact})
-        const next = w.stemNext(s.id), block = w.kids(s.id).some((k) => k !== next && w.isRealBranch(k));
-        if (!w.kids(s.id).length) { if (endStop(1)) t = 1; else { this.offTheEnd(p, s, fixed); return; } }
-        else if (!next) { t = 1; this.say(p, 'The stem ends here. Look at a branch and hold {interact} to move the lanyard onto it'); }
-        else if (w.segs.get(next).r0 < CFG.SPUR_MIN_R) { t = 1; this.say(p, 'Too thin for spurs'); }
-        else if (block) { t = 1; this.say(p, 'The lanyard stops at the union. Look at the stem you want and hold {interact} to move it'); }
-        else { s = w.segs.get(next); cl.seg = next; t = 0.01; cl.side = perp(cl.side, segAxis(s)); }
-      } else if (t < 0) {
-        if (s.parent < 0) {
-          // the bottom of the wood: stepping off onto the ground, or off the end of a hanging piece
-          if (sim.segToWorld(s, s.a, _b).y < sim.groundY(_b.x, _b.z) + 0.6) { this.land(p, s); return; }
-          if (endStop(-1)) t = 0; else { this.offTheEnd(p, s, fixed); return; }
-        } else {
-          const up = w.stemNext(s.parent), block = w.kids(s.parent).some((k) => k !== s.id && w.isRealBranch(k));
-          if (up !== s.id || block) { t = 0; this.say(p, 'The lanyard stops at the union. Look at the stem you want and hold {interact} to move it'); }
-          else { s = w.segs.get(s.parent); cl.seg = s.id; t = 0.99; cl.side = perp(cl.side, segAxis(s)); }
-        }
-      }
-      cl.t = t;
+      // the movement rule is shared with a client predicting its own climber (model/climb.js, D103)
+      const axW = sim.segDirToWorld(s, segAxis(s), _a);
+      const r = climbMove(w, cl, inp.my, inp.mx, climbSign([axW.x, axW.y, axW.z], inp.yaw), dt,
+        (rs) => { sim.segToWorld(rs, rs.a, _b); return _b.y < sim.groundY(_b.x, _b.z) + 0.6; });
+      if (r.msg) this.say(p, r.msg);
+      if (r.out === 'land') { this.land(p, r.s); return; }
+      if (r.out === 'off') { this.offTheEnd(p, r.s, fixed); return; }
+      s = r.s;
     }
 
     // pose derived from (segment, t, side)
@@ -706,7 +674,8 @@ export class Players {
       const s = p.saw;
       out.push({
         id: p.id, m: p.mode, inj: p.inj, sk: p.shakenT > 0 ? 1 : 0, ck: +(p.chips || 0).toFixed(4), hd: p.held ? 1 : 0, gk: p.grab && p.grab.chip ? p.grab.k || 0 : 0, gr: p.grab ? [p.grab.chip ? -1 : p.grab.bin !== undefined ? -2 - p.grab.bin : p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pt: +p.input.pitch.toFixed(2), pr: p.prompt, tg: p.target >= 0 && !p.grab ? p.target : -1,
-        cl: p.cl ? [p.cl.seg, +p.cl.t.toFixed(3), p.cl.side.map((x) => +x.toFixed(3))] : 0,
+        // [seg, t, side, end stop, armed, riding]: enough for a client to carry on climbing from (net/predict.js)
+        cl: p.cl ? [p.cl.seg, +p.cl.t.toFixed(5), p.cl.side.map((x) => +x.toFixed(4)), p.cl.end || 0, p.cl.armed ? 1 : 0, p.ride ? 1 : 0] : 0, n: p.inN || 0,
         saw: s.on ? [...s.A.toArray(), ...s.b.toArray(), ...s.f.toArray(), s.stuck ? 1 : 0, s.cutting ? 1 : 0, CFG.BAR_LEN].map((x) => +x.toFixed(3)) : 0,
       });
     }
@@ -714,8 +683,3 @@ export class Players {
   }
 }
 
-function rotateAbout(v, ax, ang) {
-  const c = Math.cos(ang), s = Math.sin(ang), d = v[0] * ax[0] + v[1] * ax[1] + v[2] * ax[2];
-  const cr = [ax[1] * v[2] - ax[2] * v[1], ax[2] * v[0] - ax[0] * v[2], ax[0] * v[1] - ax[1] * v[0]];
-  return perp([v[0] * c + cr[0] * s + ax[0] * d * (1 - c), v[1] * c + cr[1] * s + ax[1] * d * (1 - c), v[2] * c + cr[2] * s + ax[2] * d * (1 - c)], ax);
-}

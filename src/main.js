@@ -11,6 +11,7 @@ import { LeaveGuard } from './leave.js';
 import { Net } from './net/net.js';
 import { encodeSnapshot, Interp } from './net/snapshot.js';
 import { NetStats, upCount, upLoss } from './net/stats.js';
+import { ClimbPredict } from './net/predict.js';
 import { randomSeed, seedNumbers } from './model/seed.js';
 import { cleanName, cleanColor, playerName } from './model/world.js';
 
@@ -47,7 +48,7 @@ const leaveGuard = new LeaveGuard((open) => { input.active = !open; });
 const net = new Net();
 
 let sim = null, interp = null, me = -1, aux = null, room = '', role = '', running = false;
-let nextPid = 1, acc = 0, last = performance.now(), inputTimer = 0, inSeq = 0, stats = null;
+let nextPid = 1, acc = 0, last = performance.now(), inputTimer = 0, inSeq = 0, stats = null, predict = null;
 
 world.on((ev, info) => {
   if ((ev.t === 'terrain' || ev.t === 'load') && menu.open) menu.showSeed();
@@ -126,7 +127,7 @@ function wireHost() {
     // inputs arrive unordered: one older than an input already used is dropped, so a late "still climbing" cannot undo a stop
     if (m.t === 'in' && Number.isFinite(m.n) && !upCount(c, m.n, performance.now())) return;
     const i = m.i;
-    if (m.t === 'in' && i && i.c && ['mx', 'my', 'yaw', 'pitch', 'sy', 'sp', 'rt', 'lt'].every((k) => Number.isFinite(i[k]))) sim.players.setInput(c.pid, i);
+    if (m.t === 'in' && i && i.c && ['mx', 'my', 'yaw', 'pitch', 'sy', 'sp', 'rt', 'lt'].every((k) => Number.isFinite(i[k]))) sim.players.setInput(c.pid, i, Number.isFinite(m.n) ? m.n : undefined);
   };
 }
 
@@ -141,7 +142,7 @@ async function startJoin(code) {
   room = code.toUpperCase().trim();
   if (room.length < 3) { msg('Enter the host\'s room code'); return; }
   running = true; msg('Connecting to ' + room + '...');
-  interp = new Interp(); stats = new NetStats();
+  interp = new Interp(); stats = new NetStats(); predict = new ClimbPredict(world);
   net.onHostData = (d) => {
     const now = performance.now();
     stats.packet(typeof d === 'string' ? d.length : d.byteLength, now);
@@ -258,12 +259,21 @@ function frame(now) {
   } else {
     interp.advance();
     inputTimer += dt;
-    if (inputTimer >= 1 / CFG.INPUT_HZ) { inputTimer = 0; net.sendFast({ t: 'in', n: ++inSeq, i: inp }); }
+    let sent = false;
+    if (inputTimer >= 1 / CFG.INPUT_HZ) { inputTimer = 0; net.sendFast({ t: 'in', n: ++inSeq, i: inp }); sent = true; }
+    // your own climber, drawn where the host will put it rather than where it last said (net/predict.js, D103)
+    predict.frame(dt, inp, sent ? inSeq : inSeq + 1, mine, (id) => interp.pose(id), view.flexNow);
     const pm = stats.ping(performance.now()); if (pm) net.sendFast(pm, true);
     stats.routeCheck(performance.now(), () => Net.route(net.fast));
   }
 
-  view.update(dt, sim ? hostSource : interp, aux, me, inp);
+  let src = sim ? hostSource : interp, auxV = aux;
+  if (!sim && predict.pos) {
+    const P = predict.pos, pid = 60000 + me;
+    src = { pose: (id) => (id === pid ? { p: { x: P[0], y: P[1], z: P[2] }, q: interp.pose(id)?.q || { x: 0, y: 0, z: 0, w: 1 } } : interp.pose(id)) };
+    auxV = { ...aux, pl: aux.pl.map((a) => (a.id === me ? predict.patch(a) : a)) };
+  }
+  view.update(dt, src, auxV, me, inp);
   let info = role === 'solo' ? 'solo' : role === 'host' ? `HOST  room ${room}  (${net.clients.size} joined)` : `joined ${room}${CFG.NET_STATS ? `  ${stats.short()}` : ''}`;
   if (role === 'host') for (const c of net.clients.values()) if (c.st) info += `  P${c.pid} ${c.st.r} ms ${Math.round(Math.max(c.st.l, upLoss(c)) * 100)}%${c.st.via === 'relay' ? ' RELAY' : ''}`;
   hud.net(role === 'client' && CFG.NET_STATS ? stats.lines(performance.now()) : null);

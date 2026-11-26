@@ -39,6 +39,8 @@ export const ROWS = [
   ['NET_STATS', 'Network and debug info on the HUD (fps, ping, loss, wage math; network box when joined)'],
   ['NET_QUEUE_MAX', 'Most data queued for a player before stale updates are skipped (kB; caps network lag)', 4, 512, 4, 1, true],
   ['NET_LAG_MAX', 'Most delay a slow link may queue before stale updates are skipped (ms)', 50, 2000, 10, 0.001, true],
+  ['PREDICT', 'Climbing answers at once when joined (predicted, corrected by the host)'],
+  ['PREDICT_BLEND', 'How fast a correction from the host is taken up (per second)', 1, 60, 1, 1],
   ['INTERP_DELAY', 'Render delay when joined (ms; lower answers sooner, too low stutters)', 0, 300, 5, 0.001],
   ['BARK_OPACITY', 'Bark visibility', 0, 1, 0.05, 1],
   ['SHOW_FIBRES', 'Draw fibres'],
