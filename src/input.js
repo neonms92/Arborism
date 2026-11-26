@@ -13,8 +13,8 @@ const dz = (v) => (Math.abs(v) < DEAD ? 0 : (v - Math.sign(v) * DEAD) / (1 - DEA
 
 // standard gamepad button index -> counter name
 // Movement is ESDF (E forward, S left, D back, F right). There are no tools: what a button does depends on what is looked at.
-const PAD = { 0: 'jump', 1: 'drop', 2: 'interact', 3: 'rig', 5: 'punch', 12: 'wrapUp', 13: 'wrapDn', 9: 'respawn' };
-const KEYS = { Space: 'jump', KeyC: 'drop', KeyR: 'interact', KeyW: 'rig', KeyG: 'punch', ArrowUp: 'wrapUp', ArrowDown: 'wrapDn', Enter: 'respawn' };
+const PAD = { 0: 'jump', 1: 'drop', 2: 'interact', 3: 'rig', 5: 'punch', 12: 'wrapUp', 13: 'wrapDn' };
+const KEYS = { Space: 'jump', KeyC: 'drop', KeyR: 'interact', KeyW: 'rig', KeyG: 'punch', ArrowUp: 'wrapUp', ArrowDown: 'wrapDn' };
 // held buttons for actions that take time (hold to channel, let go to cancel): state field -> [key, pad button]
 const HOLD = { hi: ['KeyR', 2], hd: ['KeyC', 1] };
 

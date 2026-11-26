@@ -1436,3 +1436,23 @@ piece came to rest. Checked headless: a smashed shed (40 boards) dropped from
 host, client and a late joiner agree on all 40 frozen poses (local PeerJS
 server). Smoke 18 / 22 (FM-05, 12, 13, 20 fail as on main; engine tests have
 no builds).
+
+**D95 — Tube salads, buying chippers, respawn only in the menu.** Owner
+(2026-11-26): the chipper reset button becomes "Buy a new chipper" and keeps
+the ones there; a small rack of three green "tube salads" on the non-chute
+side; interact takes one into the hand (endless supply); left mouse eats it,
+interact gives it to another player; either restores full health, even DOWN;
+no "job failed" with DOWN; no key or phone button for respawn, a Respawn
+player button in the Tab menu. How: several chippers (`world.chipper.units`,
+`sim.chipper` a manager, each with its own feed and tyres); the menu buttons
+are input counters (`buyChip`, `respawn`, as D93's `buyBin`) so joined players
+can press them; the salad is `{eat}` in prompts so touch shows an "Eat salad"
+button (keyboard and pad: left mouse / RT). Healing sets `ok` and clears the
+shaken pause; it is not physics, there is nothing to derive it from. Choices
+the owner hasn't reviewed: price $5,000 (`CHIPPER_PRICE`; the wreck still costs
+`CHIPPER_COST` $45,000), at most 6 (`CHIP_MAX`), where a bought one parks
+(nearest clear spot round the first one's spot, rack side first; dropped in
+from 2.5 m beside it if nowhere is clear), a downed player cannot eat a salad
+they hold (someone else has to), the rack sits inside the roll cage and has no
+collider, one salad in hand at a time, the salad drawn low right in first
+person.

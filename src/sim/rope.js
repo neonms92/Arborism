@@ -13,7 +13,7 @@ export class Rope {
   constructor(sim) { this.sim = sim; this.reset(); }
   reset() { this.L0 = 0; this.T = 0; this.wraps = 2; this.holder = -1; this.prev = 0; this.lastForce = null; this.slack = 0; }
 
-  node(n) { return n.chip ? this.sim.chipper.infeed() : this.sim.segToWorld(this.sim.world.segs.get(n.seg), n.p); }
+  node(n) { return n.chip ? this.sim.chipper.unit(n.k).infeed() : this.sim.segToWorld(this.sim.world.segs.get(n.seg), n.p); }
   /** The chipper's feed rollers have the rope: they reel it in until it is cut, the block comes down or a reset. */
   fed() { const r = this.sim.world.rope; return r.state === 2 && !!r.anchor.chip; }
 
@@ -74,10 +74,11 @@ export class Rope {
 
   /** The rope comes free while the chipper has it: whatever is left is pulled in and chipped. */
   swallow(msg) {
+    const u = this.sim.chipper.fedUnit();
     this.sim.emit({ t: 'rope', rope: { state: 0 } });
     this.sim.toast(msg);
     this.reset();
-    this.sim.chipper.busy = 40;
+    if (u) u.busy = 40;
   }
 
   nearDevice(p) {
@@ -110,10 +111,10 @@ export class Rope {
     const s = pa.distanceTo(pb) + pb.distanceTo(pd);
     const fed = !!r.anchor.chip;
     if (fed && !sim.structure.isHeld(w.segs.get(r.block.seg).piece)) { this.swallow('The block\'s wood tore free: the chipper took the rope'); return; }
-    if (fed && !sim.chipper.seized()) this.L0 = Math.max(0.3, this.L0 - CFG.CHIP_FEED_V * dt);     // the feed rollers reel it in (not while seized)
+    if (fed && !sim.chipper.fedUnit().seized()) this.L0 = Math.max(0.3, this.L0 - CFG.CHIP_FEED_V * dt);     // the feed rollers reel it in (not while seized)
     let stretch = s - this.L0;
     const aSeg = fed ? null : w.segs.get(r.anchor.seg), aPiece = fed ? null : w.pieces.get(aSeg.piece);
-    const m = fed ? sim.chipper.mass() : aPiece.fixed ? 500 : sim.bodies.get(aSeg.piece).mass();
+    const m = fed ? sim.chipper.fedUnit().mass() : aPiece.fixed ? 500 : sim.bodies.get(aSeg.piece).mass();
     const k = Math.min(CFG.ROPE_EA / this.L0, CFG.ROPE_KCAP * m / (dt * dt));
     const c = 2 * CFG.ROPE_DAMP * Math.sqrt(k * m);
     let rate = (stretch - this.prev) / dt;
@@ -142,7 +143,7 @@ export class Rope {
     }
     // anchor: pulled toward the block
     const fa = _a.copy(pb).sub(pa).normalize().multiplyScalar(T);
-    if (fed) sim.chipper.body.applyImpulseAtPoint({ x: fa.x * dt, y: fa.y * dt, z: fa.z * dt }, pa, true);
+    if (fed) sim.chipper.fedUnit().body.applyImpulseAtPoint({ x: fa.x * dt, y: fa.y * dt, z: fa.z * dt }, pa, true);
     else sim.applyForce(r.anchor.seg, pa, fa);
     if (!fed && !aPiece.fixed) this.lastForce = { piece: aSeg.piece, p: pa, f: fa.clone() };
     // block: both legs pull on it
