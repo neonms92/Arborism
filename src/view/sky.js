@@ -45,6 +45,13 @@ const GREY_DAY = new THREE.Color(0xa3aab2), GREY_NIGHT = new THREE.Color(0x0b0d1
 const _c = new THREE.Color(), _g = new THREE.Color();
 const EAST = new THREE.Vector3(1, 0, 0), UP_S = new THREE.Vector3(0, Math.cos(TILT), Math.sin(TILT));   // sunrise, and noon
 
+// Sun, moon, stars and tree line are backdrop: blended like transparent things, but sorted with the opaque ones
+// (transparent false, so by renderOrder, before anything else) with no depth test, so the whole scene draws over
+// them however near the far plane it stands. (Marked transparent, they would come after the scene and cover
+// houses further out than they sit.) Custom blending, because three turns plain alpha blending off on opaques.
+const BACKDROP = { transparent: false, depthTest: false, depthWrite: false, blending: THREE.CustomBlending,
+  blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor };
+
 export const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 /** Phase of the moon on the night around `days`: { k: index 0..n-1 (0 = full), lit: fraction of its face lit }. */
@@ -68,7 +75,7 @@ export class Sky {
     this.sunUp = 1; this.lamps = 0; this.phase = moonPhase(this.days);
 
     const disc = (tex, size) => {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: tex, transparent: true, fog: false, depthWrite: false }));
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: tex, fog: false, ...BACKDROP }));
       m.frustumCulled = false; m.renderOrder = -3; scene.add(m); return m;
     };
     this.sunMesh = disc(glowTexture(), 1);
@@ -88,7 +95,7 @@ export class Sky {
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    this.starMat = new THREE.PointsMaterial({ size: 2, sizeAttenuation: false, vertexColors: true, transparent: true, fog: false, depthWrite: false });
+    this.starMat = new THREE.PointsMaterial({ size: 2, sizeAttenuation: false, vertexColors: true, fog: false, ...BACKDROP });
     this.stars = new THREE.Points(g, this.starMat); this.stars.frustumCulled = false; this.stars.renderOrder = -3; scene.add(this.stars);   // drawn first: furthest, behind the tree line
 
     this.cloud = CFG.CLOUDS >= 0 ? CFG.CLOUDS : 0.25; this.drift = new THREE.Vector2(Math.random() * 1000, Math.random() * 1000);
@@ -174,7 +181,7 @@ export class Sky {
     u.uShade.value.copy(this.color).multiplyScalar(0.6 + 0.2 * (1 - c)).lerp(_g, 0.3);
     this.clouds.visible = c > 0.01;
 
-    // the tree line, a little nearer than the sun and moon so they set behind it
+    // the tree line, drawn after the sun and moon so they set behind it
     const D = Math.max(1, CFG.FOREST_DIST), f = this.forestMat.uniforms, Rf = R * 0.85;
     this.forest.visible = CFG.FOREST_HEIGHT > 0;
     this.forest.position.copy(cam.position); this.forest.scale.setScalar(Rf);
@@ -219,7 +226,7 @@ function cloudMaterial() {
 // the haze). Each is the sky darkened, with a touch of green by day, fading to the sky at its foot.
 function forestMaterial() {
   return new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false,
+    side: THREE.DoubleSide, fog: false, ...BACKDROP,
     uniforms: { uH: { value: 0.08 }, uBase: { value: 0 }, uN: { value: 270 }, uDark: { value: 0.5 }, uMist: { value: 0.4 }, uSky: { value: new THREE.Color() }, uDay: { value: 1 } },
     vertexShader: `varying vec3 vP;
       void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,

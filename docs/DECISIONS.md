@@ -1521,8 +1521,11 @@ of green by day, so it follows dusk, cloud and night and can never glow. The
 lowest `FOREST_MIST` (0.45) of it fades back into the sky's colour, which is
 also the fog's, so the fogged ground meets it without a seam and the valley
 floor reads as haze. It is placed by the eye's height above y = 0, so climbing
-lowers it. Sun, moon and stars are drawn first so they set behind it, and the
-stars low in the sky are hidden by it at night. Unreviewed choices: all four
+lowers it. Sun, moon, stars and tree line are backdrop: sorted with the opaque
+things by `renderOrder`, ahead of them, with no depth test and custom alpha
+blending, so everything in the scene draws over them however far out it
+stands (first cut sorted them as transparent, after the scene, and the band
+covered houses beyond 0.85 of the draw distance; the owner spotted it). Unreviewed choices: all four
 numbers, the crown spacing, the ridge shape (fixed sines, the same for every
 seed), and that it is a picture at a fixed distance rather than geometry.
 
