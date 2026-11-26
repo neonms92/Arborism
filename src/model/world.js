@@ -267,9 +267,16 @@ export class World {
         // joining, or changing name / shirt colour (the same event again): name and color are already cleaned by the host
         if (ev.leave) this.players.delete(ev.id); else this.players.set(ev.id, { id: ev.id, name: ev.name, color: ev.color, st: cleanStickers(ev.st) });
         break;
-      case 'job': this.awards = { job: ev.id, got: {}, ate: 0 }; break;   // a new job: no stickers handed out yet
-      case 'award': this.awards.got[ev.k] = ev.tier; break;              // everyone got sticker k at this tier (main.js hands it out)
-      case 'ate': this.awards.ate++; break;                              // a tube salad eaten (or given and so eaten)
+      case 'job': this.awards = { ...newAwards(), job: ev.id }; break;   // a new job: no stickers handed out yet
+      case 'award': {                                                    // players ev.to got sticker k at this tier (main.js hands it out)
+        const g = this.awards.got[ev.k] || (this.awards.got[ev.k] = {});
+        for (const id of ev.to || []) g[id] = ev.tier;
+        break;
+      }
+      case 'ate': this.awards.ate[ev.id] = (this.awards.ate[ev.id] || 0) + 1; break;   // player id ate a tube salad (theirs or one handed to them)
+      case 'work':                                                       // who sawed (m² cut) and fed (kg chipped) since the last of these
+        for (const k of ['chop', 'chip']) { const W = this.awards.work[k]; for (const id in ev[k] || {}) W[id] = (W[id] || 0) + ev[k][id]; }
+        break;
       case 'toast': break;
     }
     for (const fn of this.listeners) fn(ev, info);
@@ -424,7 +431,7 @@ export class World {
     this.builds = unpackBuilds(o.builds);
     this.damage = o.damage || 0; this.job = o.job || null; this.wages = o.wages || 0; this.spent = o.spent || 0;
     this.stands = o.stands || null; this.mark = o.mark || null; this.seed = o.seed || '';
-    this.bins = o.bins || []; this.prog = o.prog || newProg(); this.awards = o.awards || newAwards();
+    this.bins = o.bins || []; this.prog = o.prog || newProg(); this.awards = { ...newAwards(), ...(o.awards || {}) };
     this._dirty();
     for (const fn of this.listeners) fn({ t: 'load' }, {});
   }
@@ -434,7 +441,8 @@ const EMPTY = [];
 /** M: kg of the job tree (wood and leaves) as grown; chipped: kg of it chipped; lost: kg of it swept away as debris
  * (twigs under DEBRIS_MASS, which nobody could chip: the share chipped is of M - lost); made: m3 of chips blown out by
  * the chippers; gone: m3 of chips that went into bins. */
-/** job: id of this job ('' before one, as in the engine tests: nothing is handed out); got: kind -> highest tier
- * handed out; ate: tube salads eaten this job. Kept in the world so a host taking over (D104) carries on from it. */
-function newAwards() { return { job: '', got: {}, ate: 0 }; }
+/** job: id of this job ('' before one, as in the engine tests: nothing is handed out); got: kind -> {player id:
+ * highest tier handed to them}; ate: player id -> tube salads eaten this job; work: {chop: id -> m² of the job tree
+ * sawn through, chip: id -> kg of it they fed that was chipped}. In the world so a host taking over (D104) carries on. */
+function newAwards() { return { job: '', got: {}, ate: {}, work: { chop: {}, chip: {} } }; }
 function newProg() { return { M: 0, chipped: 0, lost: 0, made: 0, gone: 0 }; }

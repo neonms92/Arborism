@@ -3,6 +3,9 @@
 // helmets (avatar.js). Words for each sticker are here too.
 
 import * as THREE from 'three';
+import { CFG } from '../config.js';
+
+const share = () => `${Math.round(CFG.STICKER_SHARE * 100)}%`;
 
 const TREE = ['#9a6532', '#e8c23a', '#3fae4a'];          // brown, yellow, green
 const METAL = [                                          // bronze, silver, gold: [light, mid, dark]
@@ -76,17 +79,19 @@ export function stickerInfo(k, t = 0) {
   switch (k) {
     case 'tree': return {
       name: ['Brown tree', 'Yellow tree', 'Green tree'][t],
-      desc: ['The crew has cut 60% of the job tree down. Keep going this job and the sticker turns yellow at 90% and green at 99%.',
-        'The crew has cut 90% of the job tree down. Green at 99%.', 'The crew has cut 99% of the job tree down.'][t],
+      desc: [`60% of the job tree is chopped into pieces the chipper can take, and you did at least ${share()} of the sawing. It turns yellow at 90% and green at 99% this job.`,
+        `90% of the job tree is chopped into pieces the chipper can take, and you did at least ${share()} of the sawing. Green at 99%.`,
+        `99% of the job tree is chopped into pieces the chipper can take, and you did at least ${share()} of the sawing.`][t],
     };
     case 'chip': return {
       name: ['Bronze chipper', 'Silver chipper', 'Gold chipper'][t],
-      desc: ['The crew has chipped 60% of the job tree. Keep going this job: silver at 90%, gold at 99%.',
-        'The crew has chipped 90% of the job tree. Gold at 99%.', 'The crew has chipped 99% of the job tree.'][t],
+      desc: [`The crew has chipped 60% of the job tree, and you fed at least ${share()} of it. Silver at 90%, gold at 99% this job.`,
+        `The crew has chipped 90% of the job tree, and you fed at least ${share()} of it. Gold at 99%.`,
+        `The crew has chipped 99% of the job tree, and you fed at least ${share()} of it.`][t],
     };
     case 'bin': return { name: '100%', desc: '99% of the job tree went through the chipper and into the bins.' };
-    case 'skull': return { name: 'Skull', desc: 'Someone on the crew went down this job.' };
-    case 'salad': return { name: 'Salad', desc: 'The crew ate three tube salads this job.' };
+    case 'skull': return { name: 'Skull', desc: 'You went down this job.' };
+    case 'salad': return { name: 'Salad', desc: `You ate ${CFG.STICKER_SALADS} tube salads this job.` };
   }
   return { name: k, desc: '' };
 }
