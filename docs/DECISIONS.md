@@ -1331,3 +1331,38 @@ palette colour by id and "Player N". Wince follows the shaken pause (`aux.sk`),
 worry follows the HURT level; the lingering SHAKEN level shows normal eyes.
 Faces and tags are canvas textures, drawn again only when they change.
 The physics capsule is unchanged; only the drawing changed.
+
+
+**D91 — The chipper rights itself: a spiralled roll cage and a low centre
+of mass.** Owner (2026-11-26): give the chipper a dome-shaped top so it
+rolls back onto its wheels after flipping. Rule used (no righting torque, only
+shape and mass): a body on flat ground rests only where its centre of mass is
+over the contact, so the chipper's outline seen end on must have no resting
+place but its wheels. A round dome does that only if it is smooth, and its
+centre is above the centre of mass; Rapier has no curved half-cylinder, and a
+round arc laid out in flat steps (a convex hull) rests on any step it lands
+on, which the first try showed. So the dome is a spiral about the centre of
+mass instead: every 2° step toward the top lies a little farther out
+(`SHAPE.CAGE.k`, 5% per radian), and the weight is then always a few cm
+outboard of the contact, toward the wheels. With the wheels' collider balls
+reaching 1.1 m out, the dome has to be as wide as them (1.24 m half width)
+and its top is 1.15 m over the chassis centre (0.7 m over the chassis top);
+lowering the centre of mass from 0.06 to 0.19 m under the chassis centre (a
+`BALLAST` share of the mass: drum, flywheel and engine block low in the
+chassis; chassis share 0.8 → 0.45 + 0.34) keeps it from having to be taller.
+The collider is the hull of two hoops at x = ±1.25 (the chassis length,
+clear of the hopper); it is drawn as a steel roll cage (two hoops, five rails,
+struts to the chassis), so nothing invisible stands out. It is one of the
+chipper's colliders like the rest: it pushes, cracks pavers and flattens
+structures like the body. Choices the owner hasn't reviewed: the cage's look
+and size, the mass shift, and the yard plan now keeping room for the cage's
+width (`hz` 1.1 → 1.24 m), which can move where the chipper is parked on a
+given seed. Rapier put the slowly rolling chipper to sleep (below 0.5 rad/s
+for 2 s) mid-roll, so it now never sleeps (`setCanSleep(false)`; one body; its
+tyre model holds it parked). Checked headless: dropped onto its roof (0°, 20°,
+40° either way) and sides (90°, 120° either way) on open flat ground and
+across a 6° slope, 18 of 18 ended back on its wheels, in 2.5–11.5 s. Next to
+a fence or house it can come to rest leaning on it. Its chute still pokes
+into the ground while it is on its roof (the chute is drawn, not a collider).
+Not changed: stood on its hopper end (nose down) it still stays
+there, as before; a cage over the hopper would block feeding.

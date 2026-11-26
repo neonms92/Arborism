@@ -26,7 +26,29 @@ export const SHAPE = {
   WINCH: [-1.95, 0.28, 0],                // the winch drum just inside the top lip of the hopper mouth: it takes the grab rope
   DRUM_X: -1.0,
   DISCHARGE: [0.2, 3.2],                  // (x, z) on the ground where chips land
+  // The roll cage: two steel hoops arched over the chassis at x0 and x1. Its collider is the solid between them
+  // (sim/chipper.js), a dome over the chassis as wide as the wheels. Seen end on, each hoop is a gentle spiral about
+  // the centre of mass (o, the chipper-local y of it; z = 0): rf from it at its feet (tf off straight up), and
+  // farther by a factor e^(k * angle) toward the top, laid out in flat steps of `step`. A body on flat ground rests
+  // only where its weight is over the contact; on this curve the weight is always a few cm outboard of it, toward
+  // the wheels, so rolled over (onto its roof or its side) it rolls on until it is back on its wheels (D91). A round
+  // dome would do it with less margin; flat steps of a round one would each be a resting place.
+  CAGE: { x0: -1.25, x1: 1.25, o: -0.19, rf: 1.22, tf: 104, k: 0.05, step: 2 },
+  // Where the drum, flywheel and engine block sit: low in the chassis (mass only, no shape of its own). With it the
+  // centre of mass is at CAGE.o (keep them together when changing masses or shapes; a few cm either way still rolls).
+  BALLAST: { c: [0, -0.4, 0], h: [1.25, 0.05, 0.6] },
 };
+
+/** The roll cage's curve as chipper-local [y, z] points, from one foot over the top to the other (SHAPE.CAGE). */
+export function cageArc() {
+  const C = SHAPE.CAGE, n = Math.round(C.tf / C.step), d = C.step * Math.PI / 180, out = [];
+  for (let i = -n; i <= n; i++) {
+    const t = i * d, r = C.rf * Math.exp(C.k * (n - Math.abs(i)) * d);
+    out.push([C.o + r * Math.cos(t), r * Math.sin(t)]);
+  }
+  return out;
+}
+
 
 export const REPOSE = 0.65;               // rad, slope of a chip pile
 const PILE_JOIN = 1.0;                    // m: chips landing this close to a pile's centre go on that pile
@@ -82,6 +104,7 @@ function wreckParts() {
   box(SHAPE.GRIP, SHAPE.GRIP_H, 0.005, 'grip');
   box(SHAPE.JOCKEY, [SHAPE.JOCKEY_R, 0, 0.04], 0.01, 'wheel');
   box([0.2, h[1] + 0.65, 0.35], [0.13, 0.62, 0.13], 0.03);                                     // the discharge chute, straightened
+  for (const x of [SHAPE.CAGE.x0, SHAPE.CAGE.x1]) box([x, h[1] + 0.8, 0], [0.025, 0.025, 1.1], 0.005, 'steel');  // the cage's hoops, straightened
   return out;
 }
 export const WRECK = wreckParts();

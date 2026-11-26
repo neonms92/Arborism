@@ -20,7 +20,7 @@ import { CFG } from '../config.js';
 import { groundRange } from '../model/terrain.js';
 import { compose, regroup, partMass, breakForce, qrot, modProxies, SHED, FENCE } from '../model/builds.js';
 import { planYards, footprint } from '../model/yards.js';
-import { SHAPE as CHIP_SHAPE } from '../model/chipper.js';
+import { SHAPE as CHIP_SHAPE, cageArc } from '../model/chipper.js';
 
 const CONTACT_EVENT_F = 300;      // N: contact force below which Rapier does not report a pair on a module (too small to matter)
 
@@ -53,7 +53,7 @@ export class Builds {
       trees: { n: CFG.YARD_TREES, hmin: CFG.YARD_TREES_HMIN, hmax: CFG.YARD_TREES_HMAX, thick: CFG.YARD_TREES_THICK },
       tree: {
         clear: CFG.TREE_DIAMETER / 2 + CFG.YARD_TREE_CLEAR, paveMax: CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, pit: CFG.TREE_DIAMETER / 2 + CFG.PAVER_PIT,
-        chip: { x0: S.INFEED[0] - 0.2, x1: S.GRIP[0] + 0.2, hz: S.WHEELS[0][2] + S.WHEEL_R, gap: CFG.CHIP_GAP },
+        chip: { x0: S.INFEED[0] - 0.2, x1: S.GRIP[0] + 0.2, hz: Math.max(S.WHEELS[0][2] + S.WHEEL_R, ...cageArc().map(([, z]) => Math.abs(z))), gap: CFG.CHIP_GAP },
       },
     });
     const t = P.lots.find((l) => l.tree);
