@@ -146,7 +146,7 @@ export class Players {
     }
     return at(ang, dist);                              // nowhere clear: the spot asked for (Rapier pushes them out)
   }
-  /** A climber came down to the ground (D99): the lanyard comes off and they are put down standing, clear
+  /** A climber came down to the ground (D100): the lanyard comes off and they are put down standing, clear
    *  of the tree, on the side they were climbing, with no fall. Switching a kinematic climber that is pressed into the
    *  ground or the trunk to a dynamic body made Rapier fling them out of it, which read as a fatal impact. */
   land(p, s) {
