@@ -1643,3 +1643,28 @@ server: host tab closed, A took over in the same room, B came back as
 itself, A kept climbing, a limb on a live hinge still hung (3 mm sag),
 damage and pieces unchanged.
 
+**D105 — Stickers (achievements).** Owner (2026-11-26): stickers awarded for
+events, to everyone in the game at once; a glowing button (Q / tap) opens a
+dialog with the sticker on the right and you behind it on the left, Discard
+(de-emphasised) and "Stick!", a shadow and guide lines where it will go, the
+head turned to some spot on the helmet and rotate arrows to change it; stuck
+stickers visible to others, kept on the device, and shown on a new
+start-screen model that blinks and follows name and shirt. Built:
+- `sim/awards.js` checks every 0.5 s and emits `{t:'award', k, tier, job}`;
+  `{t:'job', id}` starts a job (in `grow()`, not on flat ground: the random
+  id would break FM-21), `{t:'ate'}` counts salads. What was handed out is in
+  `world.awards` (serialized), so a player taking over as host (D104)
+  continues without repeats.
+- Measures (my reading): "chop" = share of the job tree's mass no longer on
+  its rooted piece; "chip" = the HUD's chipped share; "binning 99 % of the
+  tree" = chipped share × share of chips in bins; "dying" = going DOWN (there
+  is no death); salads = eaten or handed over and eaten, by anyone.
+- Stuck stickers travel as `[kind, tier, a, e, r]` in the `'player'` event
+  (cleaned by `model/stickers.js`, at most `STICKER_MAX` 40), alongside name
+  and colour. Position: azimuth / elevation round the helmet's centre and a
+  roll; each is a 10 cm patch pressed onto the faceted helmet by rays.
+- The player body moved out of `view.js` into `view/avatar.js` so the game,
+  the start screen and the dialog draw the same one (`view/stage.js` is a
+  second small WebGL canvas).
+- A tree / chipper upgrade changes a sticker of the same job in place, stuck
+  or waiting; a discarded one comes back at the next tier.

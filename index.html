@@ -44,12 +44,30 @@
   #menu input[type=checkbox] { justify-self: start; width: 18px; height: 18px; }
   #menu button.go { margin: 8px 0 4px; background: #e8a23a; font-weight: 700; }
   #menu button { margin: 18px 0 30px; font: inherit; padding: 8px 12px; border-radius: 6px; border: 0; cursor: pointer; }
-  #lobby { position: fixed; z-index: 15; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(20,28,18,.92); }
+  /* the start screen: you on the left (or on top, on a phone held upright), the rest beside you (D105) */
+  #lobby { position: fixed; z-index: 15; inset: 0; display: flex; overflow-y: auto; background: rgba(20,28,18,.92); }
+  #lobby > .box { margin: auto; padding: 12px 0; display: grid; grid-template-columns: 290px minmax(0, 1fr); grid-template-areas: "av title" "av ctl" "help help"; column-gap: 18px; align-items: center; }
+  #lobby .title { grid-area: title; } #lobby .ctl { grid-area: ctl; } #help { grid-area: help; }
+  #lobbyAv { grid-area: av; position: relative; height: 400px; border-radius: 14px; background: radial-gradient(ellipse at 50% 60%, rgba(120,150,100,.28), rgba(0,0,0,0) 70%); }
+  #lobbyAv canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+  @media (max-aspect-ratio: 1/1) {
+    #lobby > .box { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "av" "ctl" "help"; }
+    #lobbyAv { height: min(30vh, 260px); margin: -6px 0 4px; }
+  }
+  @media (max-height: 520px) and (min-aspect-ratio: 1/1) {
+    #lobby > .box { width: min(96vw, 820px) !important; grid-template-columns: 34vw minmax(0, 1fr); padding: 6px 0; }
+    #lobbyAv { height: 88vh; }
+    #lobby h1 { font-size: 26px !important; } #lobby .title p { display: none; }
+    #lobby button, #lobby input { font-size: 16px !important; padding: 7px 12px !important; margin: 4px !important; }
+    #lobby button { min-width: 100px !important; } #lobby input#pcolor { height: 38px !important; }
+    #lobby button.alt { font-size: 14px !important; padding: 6px 10px !important; }
+  }
   #handover { position: fixed; z-index: 14; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(20,28,18,.75); }
   #handover .box { width: min(92vw, 460px); text-align: center; }
   #handover button { font: inherit; font-size: 20px; padding: 12px 16px; margin: 6px; border-radius: 8px; border: 0; background: #e8a23a; color: #201400; font-weight: 700; cursor: pointer; }
   #handover button.alt { background: #4a5d42; color: #fff; font-size: 16px; }
-  #lobby .box { width: min(92vw, 460px); text-align: center; }
+  #lobby .box { width: min(94vw, 820px); text-align: center; }
+  @media (max-aspect-ratio: 1/1) { #lobby .box { width: min(92vw, 460px); } }
   #lobby h1 { font-size: 40px; margin: 0 0 4px; letter-spacing: 2px; }
   #lobby p { opacity: .8; margin: 6px 0 18px; }
   #lobby button, #lobby input { font: inherit; font-size: 20px; padding: 12px 16px; margin: 6px; border-radius: 8px; border: 0; }
@@ -82,14 +100,15 @@
 <div id="handover"><div class="box"><h2>Host gone</h2><p id="hmsg"></p>
   <button id="bTake">Continue as host</button> <button id="bMenu" class="alt" style="display:none">Main menu</button></div></div>
 <div id="lobby"><div class="box">
-  <h1>ARBORISM</h1>
-  <p>co-op tree work &middot; physics prototype</p>
-  <div><label for="pname">Name</label> <input id="pname" maxlength="16" placeholder="your name" autocomplete="off" spellcheck="false"> <label for="pcolor">Shirt</label> <input id="pcolor" type="color" value="#e8a23a"></div>
+  <div class="title"><h1>ARBORISM</h1>
+  <p>co-op tree work &middot; physics prototype</p></div>
+  <div id="lobbyAv" title="You. Drag to turn"></div>
+  <div class="ctl"><div><label for="pname">Name</label> <input id="pname" maxlength="16" placeholder="your name" autocomplete="off" spellcheck="false"> <label for="pcolor">Shirt</label> <input id="pcolor" type="color" value="#e8a23a"></div>
   <div><label for="seed">Seed</label> <input id="seed" maxlength="32" autocomplete="off" spellcheck="false"> <button id="bSeed" class="alt" title="A new random seed">New</button></div>
   <div><button id="bHost">Host</button> <button id="bSolo">Solo</button></div>
   <div><button id="bTest" class="alt">Testing</button></div>
   <div><input id="code" maxlength="5" placeholder="CODE" autocomplete="off"> <button id="bJoin">Join</button></div>
-  <div id="msg"></div>
+  <div id="msg"></div></div>
   <div id="help"></div>
 </div></div>
 <script src="./vendor/peerjs/peerjs.min.js"></script>

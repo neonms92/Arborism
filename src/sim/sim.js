@@ -19,6 +19,7 @@ import { Chippers } from './chipper.js';
 import { Bins } from './bin.js';
 import { Builds } from './builds.js';
 import { Ground } from './ground.js';
+import { Awards } from './awards.js';
 import { CHIPPER_BODY_ID } from '../model/chipper.js';
 import { terrainSpec, groundY, groundN } from '../model/terrain.js';
 
@@ -86,6 +87,7 @@ export class Sim {
     this.damage = new Damage(this);
     this.builds = new Builds(this);    // the shed; its bodies are made by the 'builds' event (grow)
     this.stands = new Stands(this);    // the other trees in the yards while dormant; made by the 'stands' event (grow)
+    this.awards = new Awards(this);   // stickers for the crew (D105)
     this.onLoads = null;              // optional fn(dt), called each tick where point loads go in (test harness)
 
     if (opts.tree !== false) this.grow();
@@ -104,6 +106,7 @@ export class Sim {
     // from seed to seed
     const d = Math.min(1, Math.max(0, CFG.YARD_DENSITY));
     this.damage.job(this.flat ? 0 : CFG.YARD_LOT_MAX + (CFG.YARD_LOT_MIN - CFG.YARD_LOT_MAX) * d);
+    if (!this.flat) this.awards.begin();   // (not in the engine tests: the job id is random, and FM-21 wants the same events twice)
   }
 
   /** The 'stands' event for the planned trees: each stands on the lowest ground round its trunk, so it never floats. */
@@ -417,6 +420,7 @@ export class Sim {
     this.chipper.post();
 
     if (this.tick % 60 === 0) this.sweepDebris();
+    if (this.tick % 30 === 15) this.awards.check();
     if (this.tick % 30 === 0 && this.builds.born.size) this.builds.freezeDue();
   }
 
