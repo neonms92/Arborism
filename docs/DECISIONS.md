@@ -1499,3 +1499,13 @@ on an awake yard tree and breaking a limb is charged too). Toast wording
 says "a neighbour's tree". At defaults a 12 m yard tree felled costs about
 $12,000 of a $30,000 budget. Not done: twigs swept away as debris within the
 same quarter second they broke off are not charged.
+
+D93 follow-up (owner, 2026-11-26): the bin's mouth z-fought (the black rim band's
+top shared a plane with the body's top face): the body mesh now has no top face
+and the rim sits 5 mm lower. Let go of (by hand or pulled out of the hands),
+the bin stands itself back up for `BIN_RIGHT_T` (3 s): a damped spring on its
+lean (`BIN_RIGHT_K` 30 /s², at most `BIN_RIGHT_MAX` 300 N m) about the axis it
+leans over, pivoting on whatever it rests on. Headless: released tipped well
+back after a tow, it was upright (up·y 0.99) in about 4 s. Unreviewed: only
+after a release, not when knocked over by wood (it lies where it lands until
+someone grabs and lets go of it).

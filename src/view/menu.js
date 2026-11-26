@@ -106,6 +106,8 @@ export const ROWS = [
   ['CHIP_MASS', 'Mass (kg, applies at the next new tree)', 100, 5000, 50, 1, true],
   ['CHIP_SWELL', 'Chips: loose volume per volume of wood', 1, 5, 0.1, 1, true],
   ['CHIP_CARRY', 'Chips a player can carry (litres)', 1, 500, 1, 0.001, true],
+  ['BIN_RIGHT_T', 'Chip bin: seconds it is stood back up for after you let go (0 = off)', 0, 10, 0.5, 1, true],
+  ['BIN_RIGHT_K', 'Chip bin: how hard it is stood back up (1/s²)', 1, 200, 1, 1, true],
   ['BIN_CATCH', 'Chip bin: how far past its rim chips landing still go in (m)', 0, 1, 0.05, 1, true],
   ['BIN_LID_K', 'Chip bin: how hard a press swings the lid (1/s²)', 10, 1000, 10, 1, true],
   ['BIN_HINGE_DAMP', 'Chip bin: friction in the lid hinge (1/s)', 0, 20, 0.1, 1, true],
