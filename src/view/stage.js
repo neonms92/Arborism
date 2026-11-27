@@ -52,7 +52,7 @@ export class Stage {
     this.toYaw = this.toPitch = null; this.dragT = 3;
     this.yaw += dy;
     if (this.mode === 'stick') this.pitch = Math.max(P_MIN, Math.min(P_MAX, this.pitch + dp));
-    else this.elev = Math.max(this.elev0 ?? 0, Math.min(CFG.STAGE_TILT_MAX * Math.PI / 180, this.elev + dp * 0.25));
+    else this.elev = Math.max(this.elev0 ?? 0, Math.min(CFG.STAGE_TILT_MAX * Math.PI / 180, this.elev + dp * 0.5));
   }
   /** An arrow pressed: turn by this much, smoothly. */
   nudge(dy, dp) {

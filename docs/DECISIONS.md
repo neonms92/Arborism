@@ -2002,7 +2002,7 @@ when it loses it.
   and a little above; on blur it eases back to wherever the tilt was.
 - My choices, unreviewed: the tilt stays where you leave it (it does not
   drift back to the default); the tilt is kept when the sticker dialog
-  closes; drag sensitivity (about 230 px of drag covers the whole range);
+  closes; drag sensitivity (about 115 px of drag covers the whole range; owner halved it from 230 px);
   the tag close-up shows about 0.26 m of chest; the idle sway fades out
   during the tag zoom. Tunables in config.js, not in the Tab menu.
 
