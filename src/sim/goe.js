@@ -8,10 +8,15 @@
 //   - once that wood comes off the tree, eases the tail to let it down at about GOE_LOWER_V;
 //   - once it lies still, ties off, walks to the knot (A* over the ground, round fences, sheds and logs) and unties it.
 // Then, with the block still hung, he goes back to the tail for the next one.
+// And (D118): when a person goes down, he ties off if he is on the tail, takes a tube salad off the nearest
+// chipper's rack and gives it to them. A red button on his right shoulder switches him off (players.setPower):
+// then he is a box anyone can grab. Switched off when someone goes down, he switches himself on to help and
+// back off once they are up.
 
 import * as THREE from '../../vendor/three/three.module.js';
 import { CFG, INJ, MODE } from '../config.js';
 import { segRadius } from '../model/world.js';
+import { SHAPE } from '../model/chipper.js';
 import { blankInput } from './players.js';
 
 export const GOE_ID = 99;               // his player id (people are 1, 2, 3...)
@@ -33,6 +38,7 @@ export class Goe {
     this.inp = blankInput(); this.inp.yaw = yawTo(-at[0], -at[1]);
     this.path = null; this.goalKey = ''; this.planT = 0; this.stuckT = 0; this.stuckN = 0; this.from = null;
     this.grip = 1; this.restT = 0; this.wrapT = 0; this.rigT = 0; this.lowering = false;
+    this.aid = null; this.passed = new Set(); this.aidT = 0;
     return this.p;
   }
 
@@ -76,7 +82,8 @@ export class Goe {
   // ---- walking: A* on a grid over the ground ----
   /**
    * A path from where he is to any cell that goal(x, z) accepts, heading for (gx, gz). Cells are GOE_GRID square,
-   * eight ways round, a diagonal only past two free sides; a climb costs extra. null when there is none in reach.
+   * eight ways round, a diagonal only past two free sides; a climb costs extra. With no cell that goal() accepts in
+   * reach, the path to the cell nearest (gx, gz) that he can reach; null when that is where he stands.
    */
   plan(gx, gz, goal) {
     const sim = this.sim, h = CFG.GOE_GRID, t = this.p.body.translation();
@@ -84,17 +91,19 @@ export class Goe {
     const okC = new Map(), ok = (i, j) => { const k = K(i, j); let v = okC.get(k); if (v === undefined) okC.set(k, v = this.free(i * h, j * h)); return v; };
     const H = (i, j) => { const dx = Math.abs(i * h - gx), dz = Math.abs(j * h - gz); return Math.max(dx, dz) + 0.414 * Math.min(dx, dz); };
     const open = [[H(sx, sz), 0, sx, sz]], g = new Map([[K(sx, sz), 0]]), came = new Map();
-    let n = 0;
+    let n = 0, near = [sx, sz], nearH = H(sx, sz);
+    const back = (i, j) => {
+      const out = []; let k = K(i, j), c = [i, j];
+      while (c) { out.push([c[0] * h, c[1] * h]); c = came.get(k); if (c) k = K(c[0], c[1]); }
+      return out.reverse();
+    };
     while (open.length && n++ < CFG.GOE_SEARCH) {
       // a binary heap would be quicker; a few thousand cells a plan, a plan every few seconds, is cheap enough
       let bi = 0; for (let i = 1; i < open.length; i++) if (open[i][0] < open[bi][0]) bi = i;
       const [, gc, i, j] = open[bi]; open[bi] = open[open.length - 1]; open.pop();
       if (gc > g.get(K(i, j))) continue;
-      if (goal(i * h, j * h)) {
-        const out = []; let k = K(i, j), c = [i, j];
-        while (c) { out.push([c[0] * h, c[1] * h]); c = came.get(k); if (c) k = K(c[0], c[1]); }
-        return out.reverse();
-      }
+      if (goal(i * h, j * h)) return back(i, j);
+      const hc = H(i, j); if (hc < nearH) { nearH = hc; near = [i, j]; }
       const y = sim.groundY(i * h, j * h);
       for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
         if (!di && !dj) continue;
@@ -106,7 +115,9 @@ export class Goe {
         g.set(k, ng); came.set(k, [i, j]); open.push([ng + H(a, b), ng, a, b]);
       }
     }
-    return null;
+    // No way to it found (D118): the way to the nearest place to it that he can get to, so he still goes round
+    // the trunk and what lies about instead of straight at it through them. null only when he cannot move at all.
+    return near[0] === sx && near[1] === sz ? null : back(near[0], near[1]);
   }
 
   /** Walk toward (gx, gz) until goal() holds where he stands. true once there. key: re-plan when the goal changes. */
@@ -118,7 +129,7 @@ export class Goe {
       this.goalKey = key; this.planT = CFG.GOE_REPLAN;
       this.path = this.plan(gx, gz, goal);
       if (this.path) this.path.shift();
-      else this.path = [];      // no way found: straight at it (jumping when stuck) until the next plan
+      else this.path = [];      // boxed in where he stands: straight at it (jumping when stuck) until the next plan
     }
     while (this.path.length > 1 && Math.hypot(this.path[0][0] - t.x, this.path[0][1] - t.z) < CFG.GOE_GRID * 0.8) this.path.shift();
     const wp = this.path[0] || [gx, gz];
@@ -148,7 +159,15 @@ export class Goe {
     if (this.rigT > 0) this.rigT -= dt;
     if (this.wrapT > 0) this.wrapT -= dt;
     sim.players.setInput(GOE_ID, inp);
+    // a person down: off to help them, switching himself on for it if he is off
+    const down = this.aid ? null : this.downed();
+    if (down && !this.aid) {
+      this.aid = { id: down.id, woke: !!p.off };
+      if (p.off) { sim.players.setPower(p, true); sim.toast(`${GOE_NAME} switched himself on to help ${sim.players.name(down.id)}`); }
+    }
+    if (p.off) return;
     if (p.inj >= INJ.DOWN || p.shakenT > 0) return;
+    if (this.aid && this.aidStep(dt)) return;
 
     // the wood on the knot: is it off the tree, and lying still?
     const aSeg = r.state === 2 && !r.anchor.chip ? w.segs.get(r.anchor.seg) : null;
@@ -189,6 +208,67 @@ export class Goe {
       inp.yaw = yawTo(-t.x, -t.z);
       inp.pitch = r.state >= 1 ? this.pitchTo(rope.node(r.block)) : 0.25;
     }
+  }
+
+  // ---- first aid (D118) ----
+  /** The nearest person down that he can get to (on the ground or the tail, not up the tree), with a salad to be had. */
+  downed() {
+    const sim = this.sim, t = this.p.body.translation();
+    for (const id of [...this.passed]) { const o = sim.players.list.get(id); if (!o || o.inj < INJ.DOWN) this.passed.delete(id); }
+    if (!this.p.held && !this.rack()) return null;
+    let best = null, bd = Infinity;
+    for (const o of sim.players.list.values()) {
+      if (o.bot || o.inj < INJ.DOWN || o.mode === MODE.CLIMB || this.passed.has(o.id)) continue;
+      const b = o.body.translation(), d = Math.hypot(b.x - t.x, b.z - t.z);
+      if (d < bd) { bd = d; best = o; }
+    }
+    return best;
+  }
+  /** The nearest working chipper's salad rack: {u, c: its middle in the world}, or null. */
+  rack() {
+    const t = this.p.body.translation(); let best = null, bd = Infinity;
+    for (const u of this.sim.chipper.units) {
+      if (!u.body) continue;
+      const c = u.toWorld(SHAPE.RACK.c, new THREE.Vector3()), d = Math.hypot(c.x - t.x, c.z - t.z);
+      if (d < bd) { bd = d; best = { u, c }; }
+    }
+    return best;
+  }
+  /** Someone pressed his button (players.act): switched off by hand, he drops what he was doing for whoever is down. */
+  switched(p, by) {
+    if (p !== this.p) return;
+    if (p.off && this.aid) { this.passed.add(this.aid.id); this.aid = null; }
+    if (p.off) this.path = null;
+  }
+  /** One tick of helping the person in this.aid. true while that is what he is doing. */
+  aidStep(dt) {
+    const sim = this.sim, p = this.p, inp = this.inp, a = this.aid, o = sim.players.list.get(a.id);
+    if (this.aidT > 0) this.aidT -= dt;
+    if (!o || o.inj < INJ.DOWN || o.mode === MODE.CLIMB) {
+      // up again (his salad, or anyone's): back to work, or back off if he woke himself for it
+      this.aid = null; this.path = null;
+      if (a.woke) { sim.players.setPower(p, false); sim.toast(`${GOE_NAME} switched himself back off`); return true; }
+      return false;
+    }
+    if (p.mode === MODE.ROPE) { if (this.aidT <= 0) { inp.c.interact++; this.aidT = 0.3; } return true; }   // tie off first
+    if (!p.held) {
+      const rk = this.rack();
+      if (!rk) { this.passed.add(a.id); this.aid = null; return false; }        // no chipper left to take one from
+      const c = rk.c, goal = (x, z) => Math.hypot(x - c.x, z - c.z) < CFG.REACH - 1.0 && this.free(x, z);
+      if (this.walkTo('rack', c.x, c.z, goal, dt)) {
+        this.look(c);
+        const ca = sim.chipper.aim(p);
+        if (ca && ca.rack && ca.dist < CFG.REACH && this.aidT <= 0) { inp.c.interact++; this.aidT = 0.3; }
+      }
+      return true;
+    }
+    const b = o.body.translation();
+    const goal = (x, z) => { const d = Math.hypot(x - b.x, z - b.z); return d < CFG.REACH - 1.1 && d > 0.6 && this.free(x, z); };
+    if (this.walkTo('aid' + o.id, b.x, b.z, goal, dt)) {
+      this.look(_o.set(b.x, b.y, b.z));
+      if (sim.players.aimPlayer(p) === o && this.aidT <= 0) { inp.c.interact++; this.aidT = 0.3; }
+    }
+    return true;
   }
 
   pitchTo(q) { const t = this.p.body.translation(); return Math.atan2(q.y - t.y - CFG.EYE, Math.hypot(q.x - t.x, q.z - t.z)); }

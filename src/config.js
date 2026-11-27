@@ -170,6 +170,10 @@ export const CFG = {
   GOE_GRID: 0.5,           // m: the cells of his path finding
   GOE_SEARCH: 10000,        // cells looked at, at most, for one path
   GOE_REPLAN: 3,           // s between fresh paths (wood moves)
+  GOE_BOX: [0.37, 0.88, 0.16],   // m, half sizes: the box he is while switched off (arms' width, his height, the torso's depth) (D118)
+  GOE_OFF_FRICTION: 0.4,   // friction of that box on what it lies or slides on
+  GOE_BUTTON: [0.28, 0.33],      // m: his power button, on top of his right shoulder ([right, up] from his middle)
+  GOE_BUTTON_R: 0.15,      // m: looking this close to it (across his front, back or side) is looking at the button
 
   // --- player ---
   P_MASS: 85, P_RADIUS: 0.28, P_HALF: 0.6,

@@ -438,8 +438,9 @@ export class View {
       seen.add(a.id);
       const pm = this.playerMesh(a.id), pose = src.pose(60000 + a.id);
       if (pose) pm.group.position.set(pose.p.x, pose.p.y, pose.p.z);
-      pm.group.rotation.y = a.yaw;
-      pm.group.rotation.z = a.inj === INJ.DOWN ? Math.PI / 2 : 0;
+      if (a.of && pose) pm.group.quaternion.set(pose.q.x, pose.q.y, pose.q.z, pose.q.w);   // G.O.E. switched off: a box that tips (D118)
+      else { pm.group.rotation.set(0, a.yaw, a.inj === INJ.DOWN ? Math.PI / 2 : 0); }
+      pm.av.setPower(!a.of);
       pm.group.visible = a.id !== me;                 // first person: you do not see your own body
       pm.salad.visible = !!a.hd;
       this.setLook(pm);
@@ -491,7 +492,7 @@ export class View {
 
   // a headlamp shines where its wearer looks (your own from the camera, so it follows your view exactly)
   poseLamp(pm, a, mine) {
-    const on = this.sky.lamps, L = pm.lamp;
+    const on = a.of ? 0 : this.sky.lamps, L = pm.lamp;      // switched off, G.O.E.'s lamp is too
     L.intensity = CFG.HEADLAMP * on; L.angle = CFG.HEADLAMP_ANGLE;
     pm.lampMat.color.setHex(on > 0.5 ? 0xfff6c8 : 0x555555);
     if (mine) {
@@ -571,7 +572,7 @@ export class View {
 
   // wood held on the ground: a short rope from the hands to the point grabbed
   poseGrab(pm, a) {
-    const g = a.gr, W = !g ? null : g[0] === -1 ? this.chipperView.toWorld([g[1], g[2], g[3]], new THREE.Vector3(), a.gk || 0) : g[0] <= -2 ? this.binView.toWorld(-2 - g[0], [g[1], g[2], g[3]]) : this.nodeWorld({ seg: g[0], p: [g[1], g[2], g[3]] }, new THREE.Vector3());
+    const g = a.gr, gb = a.gb && this.players.get(a.gb[0]), W = gb ? _v.set(a.gb[1], a.gb[2], a.gb[3]).applyQuaternion(gb.group.quaternion).add(gb.group.position).clone() : !g ? null : g[0] === -1 ? this.chipperView.toWorld([g[1], g[2], g[3]], new THREE.Vector3(), a.gk || 0) : g[0] <= -2 ? this.binView.toWorld(-2 - g[0], [g[1], g[2], g[3]]) : this.nodeWorld({ seg: g[0], p: [g[1], g[2], g[3]] }, new THREE.Vector3());
     pm.grab.visible = !!W;
     if (!W) return;
     const H = pm.group.position.clone().addScaledVector(Y, CFG.GRAB_HEIGHT);
