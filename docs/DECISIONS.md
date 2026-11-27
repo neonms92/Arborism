@@ -1843,3 +1843,45 @@ that far off the drawn wood. Once wood goes live the end follows the loose
 body as before (implicit pull, D114). A general rule for any line on any
 standing wood, not a pole case. Headless: 16 poles on two seeds woken, and
 with every line forced awake for 7 s, no splits.
+
+**D117 — The tail is taken with {rig}; G.O.E. the groundbot.** Owner
+(2026-11-27): "Grab the tail with the rigging button, not the action
+button. While the tail is held, allow player movement without limit." and
+a groundbot with exactly these behaviours: stand by the target tree; when a
+block is set, grab the tail; when the rope is tied off, wraps to max; after
+the tied wood is released, ride the tension to lower it; once it comes to
+rest, untie the knot. Solo games only.
+- {rig} near the device takes the tail unless the wood looked at offers a
+  rigging action of its own (tie, untie, take the block down): that wins,
+  so a person looking at the trunk with a block hung still ties the rope.
+  {interact} still ties off. The tail can now be taken from the moment a
+  block is hung (state 1), not only once the knot is tied, since the owner's
+  G.O.E. takes it then; nothing pulls on it until the knot is tied.
+- On the tail the player walks and jumps exactly as on the ground
+  (`players.walk`, split out of `ground`), with no distance limit. Touch
+  shows Jump on the tail too.
+- "Tied off" in the owner's list read as "the rope tied to the wood" (the
+  knot), since G.O.E. is on the tail at that point.
+- G.O.E. (`sim/goe.js`) is an ordinary player (id 99, `bot` on the player
+  record) whose input the host writes each tick before the players move, so
+  every action goes through the same rules as a person's. Lowering: grip is
+  eased until the rope runs at `GOE_LOWER_V` (0.6 m/s) and firmed when it
+  runs faster; a wrap comes off only if no grip at all still holds the
+  wood's weight. At rest = slower than `GOE_REST_V` for `GOE_REST_T` with
+  the rope carrying under half its weight; then he ties off (so the wood is
+  not left on a held tail), walks to a spot that sees the knot within reach
+  and presses {rig} there. Walking is A* on a 0.5 m grid over the ground
+  (a cell is free if the slope is walkable and his capsule, lifted 0.3 m,
+  meets nothing but the ground or a person), replanned every 3 s, jumping
+  when stuck; with no path found he walks straight at it.
+- My choices, unreviewed: gray boxes with a darker gray for legs, arms and
+  neck, white hard hat (the players' one), "G.O.E." on the chest tag and
+  the back of the hat; he stands on the device's side (+x) a pace from the
+  bark; he works for no wage; he can be hurt and knocked down like anyone
+  (a tube salad gets him up); stickers he earns go nowhere.
+- Headless (seed maple): block hung → he took the tail; knot tied → wraps
+  4; a 449 kg limb cut free at 8.7 m → lowered to the ground in about 20 s
+  (rope running about 0.9 m/s in bursts), tied off, walked round the trunk
+  and untied it, then went back for the tail. From 14–37 m away behind
+  houses and fences he found a way back on three seeds (plans 1–7 ms).
+

@@ -81,20 +81,21 @@ export class Rope {
     if (u) u.busy = 40;
   }
 
+  /** Close enough to the friction device to take the tail: once a block is hung there is a tail to take (D117). */
   nearDevice(p) {
     const r = this.sim.world.rope;
-    if (r.state !== 2) return false;
+    if (r.state < 1) return false;
     const t = p.body.translation();
     return this.node(r.device).distanceTo(_d.set(t.x, t.y, t.z)) < CFG.DEVICE_RANGE;
   }
 
-  /** Ground worker on the tail. */
+  /** Ground worker on the tail (from the hung block on: with no knot tied yet there is just nothing on it). */
   operate(p, inp, pressed, dt) {
-    if (this.sim.world.rope.state !== 2) { this.holder = -1; p.mode = MODE.GROUND; return; }
+    if (this.sim.world.rope.state < 1) { this.holder = -1; p.mode = MODE.GROUND; return; }
     if (pressed.wrapUp) this.wraps = Math.min(CFG.WRAPS_MAX, this.wraps + 1);
     if (pressed.wrapDn) this.wraps = Math.max(0, this.wraps - 1);
     this.grip = 1 - inp.rt;
-    if (inp.lt > 0.1 && this.T < CFG.HAUL_MAX) this.L0 = Math.max(1, this.L0 - inp.lt * CFG.HAUL_SPEED * dt);
+    if (this.sim.world.rope.state === 2 && inp.lt > 0.1 && this.T < CFG.HAUL_MAX) this.L0 = Math.max(1, this.L0 - inp.lt * CFG.HAUL_SPEED * dt);
   }
 
   pathLength() {
@@ -106,7 +107,7 @@ export class Rope {
   step(dt) {
     const sim = this.sim, w = sim.world, r = w.rope;
     this.lastForce = null;
-    if (r.state !== 2) { this.T = 0; this.holder = -1; return; }
+    if (r.state !== 2) { this.T = 0; this.run = 0; if (r.state < 1) this.holder = -1; return; }
     const pa = this.node(r.anchor).clone(), pb = this.node(r.block).clone(), pd = this.node(r.device).clone();
     const s = pa.distanceTo(pb) + pb.distanceTo(pd);
     const fed = !!r.anchor.chip;

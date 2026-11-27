@@ -209,6 +209,8 @@ export const ROWS = [
   ['CLIMB_BOUNCE', 'Weight multiplier while moving on spurs', 1, 3, 0.1, 1, true],
   ['ROPE_MU', 'Friction per wrap on the lowering device', 0.02, 0.5, 0.01, 1, true],
   ['GRIP_MAX', 'Grip strength on the rope tail (N)', 50, 1000, 10, 1, true],
+  ['GOE_LOWER_V', 'G.O.E.: how fast he lets wood down on the rope (m/s)', 0.1, 3, 0.05, 1, true],
+  ['GOE_REST_T', 'G.O.E.: how long wood lies still before he unties it (s)', 0.2, 10, 0.1, 1, true],
   ['Concrete pavers'],
   ['PAVER_CRACK_E', 'Impact energy that cracks a paver (J)', 50, 10000, 50, 1, true],
   ['PAVER_GRAVEL', 'Damage at which a paver is gravel (1 = one cracking impact)', 2, 200, 1, 1],

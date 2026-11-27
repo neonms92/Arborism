@@ -22,6 +22,7 @@ import { Builds } from './builds.js';
 import { Ground } from './ground.js';
 import { Awards } from './awards.js';
 import { Lines } from './lines.js';
+import { Goe } from './goe.js';
 import { CHIPPER_BODY_ID } from '../model/chipper.js';
 import { terrainSpec, groundY, groundN } from '../model/terrain.js';
 
@@ -91,6 +92,7 @@ export class Sim {
     this.stands = new Stands(this);    // the other trees in the yards while dormant; made by the 'stands' event (grow)
     this.awards = new Awards(this);   // stickers for the crew (D105)
     this.lines = new Lines(this);     // the power lines; made by the 'lines' event (grow)
+    this.goe = new Goe(this);         // the groundbot: nobody until goe.spawn() (solo games, main.js)
     this.onLoads = null;              // optional fn(dt), called each tick where point loads go in (test harness)
 
     if (opts.tree !== false) this.grow();
@@ -432,6 +434,7 @@ export class Sim {
 
     this.rope.step(dt);          // rope first: the saw and the fibres both need this tick's rope state
     this.lines.step(dt);         // power lines: their pull is a load on standing poles, and a force on loose wood
+    this.goe.step(dt);           // G.O.E. writes his input as a person's arrives: before the players move
     this.players.pre(dt);
     this.lines.shocks(dt);       // (after the players move: a shock sets their speed)
     this.chipper.pre(dt);

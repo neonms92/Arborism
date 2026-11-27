@@ -76,6 +76,7 @@ synced by different mechanisms (section 2).
 | `src/sim/players.js` | Player bodies, walking, climbing, lanyard, injury thresholds | host |
 | `src/sim/saw.js` | The bar as a rod in the world: what it rests against, severing fibres, cutting ropes | host |
 | `src/sim/rope.js` | Rigging line: tension path, block, friction device | host |
+| `src/sim/goe.js` | G.O.E. the groundbot (solo): writes a player's input to work the rope tail and untie (D117) | host |
 | `src/net/net.js` | PeerJS transport: host/join, reliable + unreliable channels | all |
 | `src/net/snapshot.js` | Binary snapshot encode/decode, client interpolation | all |
 | `src/view/view.js` | Three.js scene, bark and per-fibre meshes, players, rope and lanyard tubes, saw, first-person camera | all |
@@ -620,7 +621,7 @@ Each player is one Rapier capsule with rotation locked.
   Stick Y moves along the stem, stick X moves around it. At a segment end the
   player continues onto the child most aligned with where they are looking.
   The player's weight is a force on whatever wood the spurs are in.
-- **rope** — on the friction device tail (ground mode, movement locked).
+- **rope** — on the friction device tail. Taken with {rig} near the device once a block is hung (D117); the holder walks and jumps as on the ground, as far as they like (the tail is not a tether).
 
 A player who is not climbing is always a plain dynamic body, so "falling" is
 not a mode: it is the ground mode with nothing underfoot.
@@ -1064,8 +1065,8 @@ The HUD and lobby name controls for whichever device was touched last
 | Move; climb along / around the stem | ESDF (E forward, S left, D back, F right) | left stick |
 | Look | mouse (click to capture) | right stick |
 | Lanyard (hold `LANYARD_TIME`, 2 s): spur in on the wood looked at, or move the lanyard there | R | X |
-| On the ground (press): grab the wood looked at / let go of it (a short rope from the hands to that point; pulled harder than `GRAB_MAX`, it tears out of the hands). Near the lowering device: grab or let go of the rope tail. At the chipper: with wood in hand, feed it in; at its grip, take hold of it to tow it | R | X |
-| Rigging (press): hang the block on the wood looked at; with a block hung, tie the rope to the wood looked at, or take the block down when looking at it; looking at the knot, untie | W | Y |
+| On the ground (press): grab the wood looked at / let go of it (a short rope from the hands to that point; pulled harder than `GRAB_MAX`, it tears out of the hands). On the rope tail: tie off (let go of it). At the chipper: with wood in hand, feed it in; at its grip, take hold of it to tow it | R | X |
+| Rigging (press): hang the block on the wood looked at; with a block hung, tie the rope to the wood looked at, or take the block down when looking at it; looking at the knot, untie. Near the lowering device, looking at no wood with a rigging action: take the rope tail (D117) | W | Y |
 | Punch the wood looked at (press; presses faster than `PUNCH_DECAY` stack up to `PUNCH_MAX`) | G | RB |
 | Let go of the tree (hold `LETGO_TIME`, 4 s) | C | B |
 | Jump | Space | A |
