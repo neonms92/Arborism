@@ -17,7 +17,7 @@ export const CHIPPER_BODY_ID = 59000;     // chipper k is CHIPPER_BODY_ID + k in
 export const SHAPE = {
   BODY_Y: 0.8,
   CHASSIS: { c: [0, 0, 0], h: [1.3, 0.45, 0.65] },
-  // The axle sits under the drum, close behind the hopper (D119): the weight of wood on the hopper lip and the winch
+  // The axle sits under the drum, close behind the hopper (D120): the weight of wood on the hopper lip and the winch
   // then has a short lever about it against a long one for the chipper's own weight, so a heavy branch does not
   // tip it onto its hopper end (with the axle at -0.3 about 45 kg on the winch did). The jockey wheel carries more.
   WHEELS: [[-1.0, -0.5, 0.8], [-1.0, -0.5, -0.8]], WHEEL_R: 0.3,
@@ -46,7 +46,7 @@ export const SHAPE = {
   // one with {interact}; the rack never runs out. It has no collider: it is reached by a ray against this box.
   RACK: { c: [0.6, 0.1, -0.74], h: [0.2, 0.14, 0.09] },
   SALADS: [[0.47, 0.09, -0.76], [0.6, 0.09, -0.76], [0.73, 0.09, -0.76]], SALAD_R: 0.045, SALAD_H: 0.11,
-  // The floodlights (D119): a pair of work lamps on the back hoop of the roll cage, one each side, aimed down past the
+  // The floodlights (D120): a pair of work lamps on the back hoop of the roll cage, one each side, aimed down past the
   // hopper at the ground beside it where the wood is fed. FLOOD_AT: where the lamp sits on the hoop (degrees from the
   // top of the arc, either side); FLOOD_AIM: the ground point each one lights (z mirrored for the -z lamp).
   FLOOD_AT: 50, FLOOD_AIM: [-2.5, -0.8, 1.35],

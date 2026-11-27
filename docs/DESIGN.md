@@ -808,14 +808,14 @@ never sleeps (Rapier would stop it rolling slowly off its roof).
   player within reach gives it to them. Either way the eater is set to `ok`
   with no shaken pause, even from `down`. A downed player cannot eat their own.
   The rack is one of the wreck's parts when the chipper crumples.
-- **Axle (D119).** The wheels sit under the drum, 1 m behind the chassis
+- **Axle (D120).** The wheels sit under the drum, 1 m behind the chassis
   centre and just ahead of the hopper (`SHAPE.WHEELS`, `AXLE`), so the weight
   of wood on the hopper lip or winch has a short lever about the axle and the
   chipper's own weight a long one: it holds about 280 kg on the winch before
   the jockey wheel lifts (with the axle at -0.3 m it tipped at about 60 kg).
   The tyre model splits the weight between axle and jockey from where the
   body's centre of mass is (about a third on the jockey now).
-- **Floodlights (D119).** Two work lamps on the back hoop of the roll cage,
+- **Floodlights (D120).** Two work lamps on the back hoop of the roll cage,
   one each side (`SHAPE.FLOOD_AT`), aimed at the ground beside the hopper
   (`FLOOD_AIM`). View only: they come on with the dark (`Sky.dark`, the same
   dusk ramp as the headlamps) at `FLOOD` candela. While the chipper is chipping
@@ -1065,6 +1065,17 @@ comes off the tree. A snap makes a big white flash with a light and a halo
 that keeps its size on screen; a touch makes a smaller one; downed ends on
 the ground spark. Damage: `LINE_COST` per line the first time it breaks,
 `POLE_FELL_COST` for a felled pole.
+
+**Lights at night (D119).** Every pole carries a streetlight (hardware
+`LAMP`, fed from its middle phase), every house a porch light by its front
+door, and a house's windows glow; each comes on at its own point of dusk
+and goes off at dawn, while the grid feeds it. The grid: each line but the
+neutral joins two nodes (`g`), power comes in at the first pole of each
+street (`lines.src`) and flows along whole lines (`powerState`); a house is
+fed while its drop is whole and its can has power. A snapped span darkens
+every light past it. Drawing is cheap on purpose (view/lamps.js): flat
+lenses, glows and additive ground pools for all of them, real lights only on
+the `LAMP_LIGHTS` nearest the eye.
 
 ## 7. Controls
 

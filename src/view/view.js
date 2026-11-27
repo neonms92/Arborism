@@ -28,6 +28,7 @@ import { SHAPE } from '../model/chipper.js';
 import { woodInto, fibreWidth } from './wood.js';
 import { StandsView } from './stands.js';
 import { LinesView } from './lines.js';
+import { LampsView } from './lamps.js';
 import { WeedsView } from './weeds.js';
 import { Avatar, PLAYER_COLORS, HEAD_Y } from './avatar.js';
 
@@ -102,6 +103,7 @@ export class View {
     this.buildsView = new BuildsView(this.scene, world);     // the shed, whole or in pieces
     this.weedsView = new WeedsView(this.scene, world);       // long grass at the foot of fences, buildings and trunks
     this.linesView = new LinesView(this.scene, world, this);       // power lines, and the flash when one snaps
+    this.lampsView = new LampsView(this.scene, world, this);       // streetlights, porch lights and windows at night
 
     this.barkMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, side: THREE.DoubleSide });
     this.leafMat = new THREE.MeshLambertMaterial({ color: 0x3f7d3a, flatShading: true, transparent: true });
@@ -159,6 +161,7 @@ export class View {
     this.buildsView.onEvent(ev);
     this.standsView.onEvent(ev);
     this.linesView.onEvent(ev);
+    this.lampsView.onEvent(ev);
     this.weedsView.onEvent(ev);
     switch (ev.t) {
       case 'reset':
@@ -480,6 +483,7 @@ export class View {
     this.adaptDraw();
     this.sky.update(dt, aux, this.camera);
     this.scene.background.copy(this.sky.color); this.fog.color.copy(this.sky.color);
+    this.lampsView.update(dt, this.camera);
     if (aux) for (const a of aux.pl) this.poseLamp(this.players.get(a.id), a, a.id === me ? inp : null);
     this.renderer.render(this.scene, this.camera);
   }

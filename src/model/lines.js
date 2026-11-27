@@ -6,10 +6,14 @@
 // that feeds houses carries a transformer can, tapped from a phase, and a service drop runs from the can to the
 // front of each house it feeds. Every line but the neutral is live.
 //
-// world.lines = {list: [line...], hw: [{e: an end, k: HW kind}]} or null (hw: the hardware drawn on the poles)
+// world.lines = {list: [line...], hw: [{e: an end, k: HW kind, g}], src: [node...]} or null (hw: the hardware drawn on the poles)
 // line = {a, b: its two ends, n: links it is simulated as, L0: m of line, kind: KIND,
 //         brk: [k...] links that have snapped (between point k and k + 1), off: [a, b] 1 where that end came away,
-//         down: host tick it first came down (from the snap event), dead: 1 once it has gone dead (a 'dead' event)}
+//         down: host tick it first came down (from the snap event), dead: 1 once it has gone dead (a 'dead' event),
+//         g: [node, node] the two points of the grid it joins (none on the neutral)}
+// The grid (powerState): node 4 * pole + k is phase k (0..2) at a pole, 4 * pole + 3 its transformer can. Power
+// comes in at the src nodes (the first pole of each street, at the edge of the ground) and flows along whole
+// lines; a house is fed while its drop is whole and its can has power, a streetlight (hw LAMP) while its node has.
 // an end is one of
 //   {st, h, o}    on dormant pole st (stand index), h m above its base, o: [dx, dz] off its axis (or none)
 //   {seg, p}      on wood: piece-local point p on segment seg (a pole that has woken; it follows splits)
@@ -23,7 +27,7 @@ import { segParam } from './world.js';
 /** Kinds of line: a phase conductor, a service drop, the neutral, the tap from a phase down to a transformer. */
 export const KIND = { PHASE: 0, DROP: 1, NEUTRAL: 2, TAP: 3 };
 /** Kinds of pole hardware (drawn only): a pin insulator, the neutral's spool, a transformer can. */
-export const HW = { PIN: 0, SPOOL: 1, CAN: 2 };
+export const HW = { PIN: 0, SPOOL: 1, CAN: 2, LAMP: 3 };
 /** Does a line of this kind carry power (shock, spark, flash)? The neutral is grounded. */
 export const isLive = (l) => l.kind !== KIND.NEUTRAL;
 
@@ -69,7 +73,27 @@ export function houseEnd(b, toward) {
 }
 
 /** A 'lines' event applied: every line whole. */
-export function newLines(list, hw = []) { return list.length ? { list: list.map((l) => ({ ...l, brk: [], off: [0, 0] })), hw: hw.map((h) => ({ ...h })) } : null; }
+export function newLines(list, hw = [], src = null) { return list.length ? { list: list.map((l) => ({ ...l, brk: [], off: [0, 0] })), hw: hw.map((h) => ({ ...h })), src: src ? src.slice() : null } : null; }
+
+/**
+ * Where there is power now: {all: no grid to go by (every light on), node: Set of nodes with power, house: Map build
+ * id -> fed}. A house with no drop is not in the map (it is fed from underground: always on).
+ */
+export function powerState(lines) {
+  const node = new Set(), house = new Map();
+  if (!lines || !lines.src) return { all: true, node, house };
+  const adj = new Map(), link = (u, v) => { let a = adj.get(u); if (!a) adj.set(u, a = []); a.push(v); };
+  for (const l of lines.list) if (l.g && l.kind !== KIND.DROP && isLive(l) && whole(l)) { link(l.g[0], l.g[1]); link(l.g[1], l.g[0]); }
+  const todo = [...lines.src];
+  for (const s of todo) node.add(s);
+  while (todo.length) { const u = todo.pop(); for (const v of adj.get(u) || []) if (!node.has(v)) { node.add(v); todo.push(v); } }
+  for (const l of lines.list) if (l.kind === KIND.DROP && l.g && l.b.b !== undefined) house.set(l.b.b, (house.get(l.b.b) || false) || (whole(l) && node.has(l.g[0])));
+  return { all: false, node, house };
+}
+/** Is house build id fed, by powerState ps? */
+export const houseFed = (ps, id) => ps.all || !ps.house.has(id) || ps.house.get(id);
+/** Is a piece of hardware with a node (a streetlight) fed? */
+export const nodeFed = (ps, g) => ps.all || g === undefined || ps.node.has(g);
 
 /** Every end on the poles: both ends of every line and every piece of hardware, as [holder, key] (holder[key] is the end). */
 function* allEnds(lines) {
