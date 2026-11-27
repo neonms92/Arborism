@@ -2072,3 +2072,8 @@ again on top without outline, so only the outer edge shows; the outline is
 drawn twice as thick there to keep its visible width. The tail join of every
 ghost uses the same trick. House, shed, fence and chipper keep their inner
 lines.
+
+**D126 — Sorry, Tree!: half-width trunk, face in the leaves.** Owner
+(2026-11-27): the ghost tree's trunk was too wide; halve it and move the face
+up into the leaves. Trunk 16 wide (x 42 to 58), face 16 units higher, tail
+fitted to the trunk (narrow, so no side wisps, like the bolt's).
