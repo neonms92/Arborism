@@ -24,6 +24,7 @@ import { Flex, frameApply, frameDir } from '../model/flex.js';
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const G = CFG.GRAVITY;
+const _pa = new THREE.Vector3(), _pb = new THREE.Vector3();
 const ELASTIC = 0, CONTACT = 1, BROKEN = 2;     // live fibre states (BROKEN = splintered: still bears on its stump)
 const OFF = 0, LIN = 1, CAP = 2;                // how a fibre is treated within one implicit step
 
@@ -36,6 +37,8 @@ export class Structure {
     this.flex = new Flex(sim.world);   // elastic bending of the standing tree
     this.parting = [];          // joints that have let go but whose bodies have not moved apart yet
     this.rootOf = new Map();    // root seg of a live distal piece -> the parent piece (they overlap at the joint)
+    this.inside = new Map();    // seg id -> Set of seg ids it was inside when they became separate bodies (D127)
+    this.born = [];             // those pairs: {a, b, piece (the distal piece, while its joint holds), d0}
   }
 
   /** Is this piece the standing tree, or still joined to it by fibres (through any number of live bundles)? */
@@ -49,7 +52,7 @@ export class Structure {
   }
 
   reset() {
-    this.beam.clear(); this.live.clear(); this.noHit.clear(); this.rootOf.clear(); this.parting.length = 0; this.flex.clear();
+    this.beam.clear(); this.live.clear(); this.noHit.clear(); this.rootOf.clear(); this.parting.length = 0; this.inside.clear(); this.born.length = 0; this.flex.clear();
   }
 
   onRemove(piece) {
@@ -60,6 +63,7 @@ export class Structure {
     const w = this.sim.world;
     for (const [id, j] of [...this.live]) this.liveStep(id, j, dt);
     if (this.parting.length) this.checkParting();
+    if (this.born.length && this.sim.tick % 3 === 0) this.checkInside();
     for (const piece of w.pieces.values()) {
       if (!piece.fixed) continue;
       this.beamPass(piece);
@@ -232,6 +236,7 @@ export class Structure {
     const fr = at > 0 ? this.flex.at(s.id, at) : this.flex.joint(s.id);
     sim.partFrame = fr ? { q: fr.q.slice(), t: fr.t.slice() } : null;      // where this wood is right now, bend included
     sim.emit({ t: 'split', seg: s.id, at, newSeg, newPiece });
+    this.findInside(newPiece, parent, newSeg, parentSeg, !!j);
     if (!j) return;
     this.live.set(newPiece, j);
     let set = this.noHit.get(parentSeg); if (!set) this.noHit.set(parentSeg, set = new Set());
@@ -278,6 +283,53 @@ export class Structure {
       }
       this.unfilter(id, j);
       return false;
+    });
+  }
+
+  // ---- wood that is inside other wood when it becomes its own body (D127) ----
+  // A grown tree's limbs can pass through its trunk or through each other: harmless while they are one rigid
+  // body. The moment such a limb becomes its own body, the contact solver would push it out of the wood it is
+  // in, and the fibres still holding it pull it back, so the contact force climbs by tens of kN a tick (360 kN
+  // in a few ticks was seen), lands on the standing wood as a load and snaps whatever it touches. Real wood
+  // cannot be inside other wood, so there is nothing real to push: every such pair ignores each other, the way
+  // the two sides of a live joint do. While the joint holds, its fibres decide; once the wood has come free
+  // they are let apart by the same rule as a parted joint (checkParting): only ever further apart, and they
+  // collide again once they are clear or sink deeper than they were.
+  findInside(piece, parent, rootSeg, parentSeg, live) {
+    const sim = this.sim, w = sim.world, lim = CFG.PART_OVERLAP;
+    const ball = (s) => {
+      const a = sim.segToWorld(s, s.a, _pa), b = sim.segToWorld(s, s.b, _pb);
+      return [(a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2, a.distanceTo(b) / 2 + Math.max(s.r0, s.r1)];
+    };
+    const other = w.segsOf(parent).map((s) => ({ s, c: sim.segCol.get(s.id), o: ball(s) })).filter((x) => x.c);
+    for (const s of w.segsOf(piece)) {
+      const c = sim.segCol.get(s.id); if (!c) continue;
+      const m = ball(s);
+      for (const x of other) {
+        if (s.id === rootSeg && x.s.id === parentSeg) continue;           // the joint itself (rootOf, checkParting)
+        const d = Math.hypot(m[0] - x.o[0], m[1] - x.o[1], m[2] - x.o[2]);
+        if (d > m[3] + x.o[3]) continue;
+        const hit = c.contactCollider(x.c, 0);
+        if (!hit || -hit.distance <= lim) continue;
+        this.born.push({ a: s.id, b: x.s.id, piece: live ? piece : null, d0: live ? undefined : -hit.distance });
+        for (const [p, q] of [[s.id, x.s.id], [x.s.id, s.id]]) { let set = this.inside.get(p); if (!set) this.inside.set(p, set = new Set()); set.add(q); }
+        c.setActiveHooks(sim.R.ActiveHooks.FILTER_CONTACT_PAIRS); x.c.setActiveHooks(sim.R.ActiveHooks.FILTER_CONTACT_PAIRS);
+      }
+    }
+  }
+  checkInside() {
+    const sim = this.sim, w = sim.world, lim = CFG.PART_OVERLAP;
+    this.born = this.born.filter((e) => {
+      const ca = sim.segCol.get(e.a), cb = sim.segCol.get(e.b), sa = w.segs.get(e.a), sb = w.segs.get(e.b);
+      let keep = !!(ca && cb && sa && sb && sa.piece !== sb.piece);
+      if (keep && !(e.piece !== null && this.live.has(e.piece))) {
+        const hit = ca.contactCollider(cb, 0), deep = hit ? -hit.distance : 0;
+        if (e.d0 === undefined) e.d0 = deep;
+        keep = deep > lim && deep <= e.d0 + lim;
+        if (keep) e.d0 = Math.min(e.d0, deep);
+      }
+      if (!keep) for (const [p, q] of [[e.a, e.b], [e.b, e.a]]) { const set = this.inside.get(p); if (set) { set.delete(q); if (!set.size) this.inside.delete(p); } }
+      return keep;
     });
   }
 

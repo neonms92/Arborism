@@ -369,7 +369,7 @@ function frame(now) {
     let sent = false;
     if (inputTimer >= 1 / CFG.INPUT_HZ) { inputTimer = 0; net.sendFast({ t: 'in', n: ++inSeq, i: inp }); sent = true; }
     // your own climber, drawn where the host will put it rather than where it last said (net/predict.js, D103)
-    predict.frame(dt, inp, sent ? inSeq : inSeq + 1, mine, (id) => interp.pose(id), view.flexNow);
+    predict.frame(dt, inp, sent ? inSeq : inSeq + 1, mine, (id) => interp.pose(id), view.flexNow, aux && aux.live);
     const pm = stats.ping(performance.now()); if (pm) net.sendFast(pm, true);
     stats.routeCheck(performance.now(), () => Net.route(net.fast));
   }

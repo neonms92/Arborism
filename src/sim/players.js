@@ -6,7 +6,7 @@ import * as THREE from '../../vendor/three/three.module.js';
 import { CFG, INJ, MODE } from '../config.js';
 import { segLen, segAxis, segRadius, segParam, lerp3, perp, cleanName, cleanColor, playerName } from '../model/world.js';
 import { sawStep, sawOff } from './saw.js';
-import { climbMove, climbSign } from '../model/climb.js';
+import { climbMove, climbSign, jointLink } from '../model/climb.js';
 import { cleanStickers } from '../model/stickers.js';
 
 // respawn, buyChip and buyBin are the Tab menu's "Respawn player", "Buy a new chipper" and "Buy a new chip bin" buttons (no key or button of their own)
@@ -663,8 +663,10 @@ export class Players {
       if (gaim && !atChip && !bn && pile < 0 && !sim.world.pieces.get(sim.world.segs.get(gaim.seg).piece).fixed) p.target = gaim.seg;
     }
     if (reach && !tail) {
-      const s = sim.world.segs.get(aim.seg), piece = sim.world.pieces.get(s.piece);
-      if (piece.fixed && p.inj < INJ.HURT) {
+      const s = sim.world.segs.get(aim.seg);
+      // the standing tree, or wood cracked off it but still held by fibres (D127): both stand, both can be climbed
+      const standing = sim.structure.isHeld(s.piece);
+      if (standing && p.inj < INJ.HURT) {
         const loc = sim.segToLocal(s, aim.point), tt = Math.min(1, Math.max(0, segParam(s, loc)));
         if (segRadius(s, tt) >= CFG.SPUR_MIN_R) {
           if (!p.chLock.has('lanyard')) first += '   hold {interact}: spur in';
@@ -678,7 +680,7 @@ export class Players {
             this.toClimb(p, s.id, tt, side);
           }
         }
-      } else if (piece.fixed) first += '   (too hurt to climb)';
+      } else if (standing) first += '   (too hurt to climb)';
     }
     if (p.ch && p.ch.kind === 'lanyard') first = 'keep holding {interact}: spur in';
     this.grabStep(p, dt);
@@ -689,7 +691,7 @@ export class Players {
     const sim = this.sim, w = sim.world, cl = p.cl;
     let s = w.segs.get(cl.seg);
     if (!s) { this.toGround(p); return; }
-    const fixed = w.pieces.get(s.piece).fixed;
+    let fixed = w.pieces.get(s.piece).fixed;
     // wood that has cracked but is still held by fibres can be climbed on; wood that has come free is a ride
     const held = sim.structure.isHeld(s.piece);
     if (!held && !p.ride) p.ride = { max: 0, still: 0, prev: null };
@@ -703,7 +705,7 @@ export class Players {
     if (control && !p.ride && aim && aim.dist < CFG.REACH) {
       // throw the lanyard round another stem within reach: the way past a union
       const s2 = w.segs.get(aim.seg), loc = sim.segToLocal(s2, aim.point), t2 = Math.min(1, Math.max(0, segParam(s2, loc)));
-      if (w.pieces.get(s2.piece).fixed && segRadius(s2, t2) >= CFG.SPUR_MIN_R && (s2.id !== s.id || Math.abs(t2 - cl.t) * segLen(s) > 0.3)) {
+      if (sim.structure.isHeld(s2.piece) && segRadius(s2, t2) >= CFG.SPUR_MIN_R && (s2.id !== s.id || Math.abs(t2 - cl.t) * segLen(s) > 0.3)) {
         first = 'hold {interact}: move lanyard';
         if (this.hold(p, 'lanyard', inp.hi, CFG.LANYARD_TIME, dt)) {
           const c = lerp3(s2.a, s2.b, t2), pl = sim.segToLocal(s2, p.body.translation());
@@ -717,12 +719,16 @@ export class Players {
       // the movement rule is shared with a client predicting its own climber (model/climb.js, D103)
       const axW = sim.segDirToWorld(s, segAxis(s), _a);
       const r = climbMove(w, cl, inp.my, inp.mx, climbSign([axW.x, axW.y, axW.z], inp.yaw), dt,
-        (rs) => { sim.segToWorld(rs, rs.a, _b); return _b.y < sim.groundY(_b.x, _b.z) + 0.6; });
+        (rs) => { sim.segToWorld(rs, rs.a, _b); return _b.y < sim.groundY(_b.x, _b.z) + 0.6; },
+        jointLink([...sim.structure.live.values()].map((j) => [j.rootSeg, j.parentSeg])));
       if (r.msg) this.say(p, r.msg);
       if (r.out === 'land') { this.land(p, r.s); return; }
       if (r.out === 'off') { this.offTheEnd(p, r.s, fixed); return; }
       s = r.s;
+      fixed = w.pieces.get(s.piece).fixed;      // (it may have crossed a live joint onto cracked wood, or back)
     }
+    // on wood that moves, the climber goes with it and does not shove it (as onSplit does when it starts moving)
+    if (held && p.col.isSensor() === fixed) p.col.setSensor(!fixed);
 
     // pose derived from (segment, t, side)
     const c = lerp3(s.a, s.b, cl.t), d = segRadius(s, cl.t) + CFG.STANDOFF;

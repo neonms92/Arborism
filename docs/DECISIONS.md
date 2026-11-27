@@ -2077,3 +2077,29 @@ lines.
 (2026-11-27): the ghost tree's trunk was too wide; halve it and move the face
 up into the leaves. Trunk 16 wide (x 42 to 58), face 16 units higher, tail
 fitted to the trunk (narrow, so no side wisps, like the bolt's).
+
+**D127 — Wood born inside other wood is let out; cracked wood stays
+climbable.** Owner (2026-11-27): fed the rigging rope to the chipper, the
+tree broke and could not be climbed any more. Found headless (seed oak, block
+at 11 m): the rope cracked a limb at its base, and that limb (generated so it
+grows back through the trunk and a sibling limb) became its own body still
+inside them. The contact solver pushed it out while its fibres held it, the
+contact rose to 360 kN in 7 ticks, landed on the standing wood as a load and
+snapped the neighbouring limb. Rule (structure.findInside / checkInside):
+when wood becomes its own body, every pair of its colliders and the parent
+piece's colliders that overlap by more than PART_OVERLAP ignore each other,
+as the two sides of a live joint do. While the joint holds, its fibres decide;
+once the wood is free, the pair collides again as soon as it is clear or sinks
+deeper than it was (checkParting's rule).
+Separately, any crack in the trunk made everything above it unclimbable:
+spurring in and moving the lanyard took only the rooted piece, and the
+climbing rule saw the cracked piece as no longer the child of the wood below,
+so a climber hit "the end of the wood" at the crack. Now wood held to the tree
+by fibres (structure.isHeld) can be spurred into and lanyarded onto, and
+climbMove crosses live joints both ways (link from structure.live on the host,
+aux.live on a client predicting). On moving wood the climber's collider is a
+sensor, as when the wood they are on starts to move. Not changed: the side
+the climber is on is carried across the joint unrotated (a crack is a small
+angle); a rope whose wraps change fast can still pump L0 out past CHIP_PULL
+(seen once at 11 m: the feed then pulled nothing), left as an open finding.
+

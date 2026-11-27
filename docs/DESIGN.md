@@ -660,7 +660,9 @@ The view is first person: the camera is `EYE` above the body centre.
   press.) Cutting a limb flush also removes the obstruction.
 - Spurs need a stem of radius ≥ 3 cm (`SPUR_MIN_R`).
 - If the wood the lanyard is on cracks but is still held by fibres, the
-  climber stays on it and can keep moving. If it comes free, they ride it
+  climber stays on it and can keep moving, across the crack too. Cracked wood
+  still held can be spurred into and lanyarded onto like the standing tree
+  (D127). If it comes free, they ride it
   down and take whatever it hits — unless they let go first.
 - A saw cuts lanyards (4.5).
 

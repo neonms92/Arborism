@@ -9,7 +9,7 @@
 // Only climbing on held wood is predicted; walking, the rope, riding a falling piece stay as they were.
 
 import { CFG, INJ, MODE } from '../config.js';
-import { climbMove, climbSign } from '../model/climb.js';
+import { climbMove, climbSign, jointLink } from '../model/climb.js';
 import { lerp3, segAxis, segRadius } from '../model/world.js';
 import { frameApply, frameDir } from '../model/flex.js';
 import { groundY } from '../model/terrain.js';
@@ -29,7 +29,8 @@ export class ClimbPredict {
    * frame's stick (the next one sent). a = this player's aux entry. pieceTf(id) -> {p, q} | null.
    * flex: the view's flex (bending) of standing wood, or null.
    */
-  frame(dt, inp, n, a, pieceTf, flex) {
+  frame(dt, inp, n, a, pieceTf, flex, live = null) {
+    this.link = live && live.length ? jointLink(live.map((l) => [l.seg, l.stub])) : null;   // cracked wood held by fibres (D127)
     this.hist.push({ n, my: inp.my, mx: inp.mx, yaw: inp.yaw, dt });
     if (this.hist.length > HIST) this.hist.shift();
     const ok = CFG.PREDICT && a && a.m === MODE.CLIMB && Array.isArray(a.cl) && !a.cl[5] && a.inj < INJ.DOWN && !a.sk;
@@ -62,7 +63,7 @@ export class ClimbPredict {
       const ax = this.dir(s, segAxis(s), ctx);
       const r = climbMove(w, cl, h.my, h.mx, climbSign(ax, h.yaw), h.dt, (rs) => {
         const p = this.point(rs, rs.a, 0, ctx); return p ? p[1] < groundY(w.terrain, p[0], p[2]) + 0.6 : true;
-      });
+      }, this.link);
       if (r.out) break;            // landing or climbing off: the host decides; stay put until it does
     }
     return cl;

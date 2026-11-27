@@ -142,12 +142,13 @@ export class World {
    * The child of segment id that carries on the same stem: the one whose axis turns least from id's, if it turns
    * no more than STEM_BEND. null where the stem ends (only branches, or nothing, go on from there).
    */
-  stemNext(id) {
+  stemNext(id, kids = this.kids(id)) {
     const s = this.segs.get(id); if (!s) return null;
     const ax = segAxis(s), minCos = Math.cos(CFG.STEM_BEND);
     let best = null, bc = -Infinity;
-    for (const k of this.kids(id)) {
-      const kx = segAxis(this.segs.get(k)), c = kx[0] * ax[0] + kx[1] * ax[1] + kx[2] * ax[2];
+    for (const k of kids) {
+      const ks = this.segs.get(k); if (!ks) continue;
+      const kx = segAxis(ks), c = kx[0] * ax[0] + kx[1] * ax[1] + kx[2] * ax[2];
       if (c >= minCos && c > bc) { bc = c; best = k; }
     }
     return best;
@@ -156,10 +157,11 @@ export class World {
    * How far the branch that starts with child segment id juts out past the bark of its parent stem, at right
    * angles to that stem: the farthest any of the branch's wood gets from the parent's axis line, less the parent's
    * radius there. A branch leaving at angle θ reaches L sin θ from the axis per metre L of its length, so a long
-   * branch lying close along the stem juts out little. Stops counting once past `stop`.
+   * branch lying close along the stem juts out little. Stops counting once past `stop`. par: the stem it leaves
+   * (its parent segment, or the one below a live joint at its base).
    */
-  jut(id, stop = Infinity) {
-    const k = this.segs.get(id), s = k && this.segs.get(k.parent); if (!s) return 0;
+  jut(id, stop = Infinity, par = this.segs.get(id)?.parent) {
+    const k = this.segs.get(id), s = k && this.segs.get(par); if (!s) return 0;
     const ax = segAxis(s), o = s.b;
     const off = (q, r) => {
       const d = sub(q, o), along = d[0] * ax[0] + d[1] * ax[1] + d[2] * ax[2];
@@ -174,7 +176,7 @@ export class World {
     return Math.max(0, far - s.r1);
   }
   /** A child that still counts as a branch (stops a lanyard): it juts out at least STUB_LEN past the bark. */
-  isRealBranch(id) { return this.jut(id, CFG.STUB_LEN) >= CFG.STUB_LEN; }
+  isRealBranch(id, par) { return this.jut(id, CFG.STUB_LEN, par) >= CFG.STUB_LEN; }
   _dirty() { this._kids = null; this._order = null; }
 
   // ---- the only mutation path ----
