@@ -9,7 +9,7 @@
 // world.lines = {list: [line...], hw: [{e: an end, k: HW kind, g}], src: [node...]} or null (hw: the hardware drawn on the poles)
 // line = {a, b: its two ends, n: links it is simulated as, L0: m of line, kind: KIND,
 //         brk: [k...] links that have snapped (between point k and k + 1), off: [a, b] 1 where that end came away,
-//         down: host tick it first came down (from the snap event), dead: 1 once it has gone dead (a 'dead' event),
+//         down: host tick it first came down (from the snap event), dead: 1 once it has stopped sparking (a 'dead' event; it still shocks),
 //         g: [node, node] the two points of the grid it joins (none on the neutral)}
 // The grid (powerState): node 4 * pole + k is phase k (0..2) at a pole, 4 * pole + 3 its transformer can. Power
 // comes in at the src nodes (the first pole of each street, at the edge of the ground) and flows along whole
@@ -109,7 +109,7 @@ export function snapLine(lines, ev) {
   if (l.down === undefined && ev.tk !== undefined) l.down = ev.tk;
 }
 
-/** A 'dead' event: line i, down for LINE_DEAD_T, no longer carries power (no sparks, no shocks). */
+/** A 'dead' event: line i, down for LINE_DEAD_T, stops sparking (it still shocks whoever touches it, D122). */
 export function deadLine(lines, ev) { const l = lines && lines.list[ev.i]; if (l) l.dead = 1; }
 
 /**

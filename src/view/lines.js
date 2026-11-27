@@ -60,7 +60,7 @@ export class LinesView {
     else if (ev.t === 'zap' && ev.p) this.flash(ev.p, 0.45);
   }
 
-  deadLine(i) { const L = this.world.lines && this.world.lines.list[i]; return !!(L && (L.dead || !isLive(L))); }
+  deadLine(i) { const L = this.world.lines && this.world.lines.list[i]; return !!(L && !isLive(L)); }
 
   rebuild() {
     if (this.mesh) { this.scene.remove(this.mesh); this.mesh.dispose(); this.mesh = null; }
