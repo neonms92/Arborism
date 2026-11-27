@@ -52,7 +52,7 @@ export class Goe {
     }
     return { r: best ? segRadius(best, 0) : 0.3 };
   }
-  /** His place by the tree before a block is hung, a pace out from the bark (the device then goes on the side under the block, rope.js D123). */
+  /** His place by the tree before a block is hung, a pace out from the bark (the device then goes on the side under the block, rope.js D125). */
   standSpot() {
     const r = this.trunk().r + 1.0;
     for (const a of [0.35, 0.8, -0.2, 1.3, -0.7, 1.9, 2.6, -1.4, 3.14]) {

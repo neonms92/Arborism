@@ -123,7 +123,7 @@ export class View {
     this.blockMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.12), new THREE.MeshLambertMaterial({ color: 0xf0c020, flatShading: true }));
     this.deviceMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.35, 6), new THREE.MeshLambertMaterial({ color: 0xc03030, flatShading: true }));
     this.knotMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.05), new THREE.MeshLambertMaterial({ color: 0xf2e9d0, flatShading: true }));
-    // the block's sling and the knot's hitch: loops of rope round the wood they hang on (D123)
+    // the block's sling and the knot's hitch: loops of rope round the wood they hang on (D125)
     this.slingMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat); this.slingMesh.frustumCulled = false;
     this.hitchMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat); this.hitchMesh.frustumCulled = false;
     this.scene.add(this.blockMesh, this.deviceMesh, this.knotMesh, this.slingMesh, this.hitchMesh);
@@ -278,7 +278,8 @@ export class View {
       }
     }
     mesh.count = k;
-    for (let i = 0; i < k; i++) mesh.setColorAt(i, _c.setRGB(NEUTRAL[0], NEUTRAL[1], NEUTRAL[2]));
+    // at least one colour, so instanceColor exists even with nothing to draw (a sliver thinner than a part): paintFibres reads it
+    for (let i = 0; i < Math.max(1, k); i++) mesh.setColorAt(i, _c.setRGB(NEUTRAL[0], NEUTRAL[1], NEUTRAL[2]));
     mesh.instanceMatrix.needsUpdate = true;
     mesh.visible = CFG.SHOW_FIBRES;
     p.fibres = mesh; p.info = info; p.fibBase = Float32Array.from(mesh.instanceMatrix.array.subarray(0, k * 16)); p.ends = Float32Array.from(ends);
@@ -634,7 +635,7 @@ export class View {
     mesh.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true, 'centripetal'), 24, 0.012, 5);
   }
 
-  // The rigging line as a real tube: anchor -> block -> device -> tail, over the wood (D123), sagging where it is slack.
+  // The rigging line as a real tube: anchor -> block -> device -> tail, over the wood (D125), sagging where it is slack.
   updateRope(aux) {
     const r = this.world.rope, st = r.state || 0;
     const A = new THREE.Vector3(), B = new THREE.Vector3(), D = new THREE.Vector3();

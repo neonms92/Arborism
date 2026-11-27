@@ -180,7 +180,7 @@ export const CFG = {
   SLIP_V0: 1.0,            // m/s slip speed at 2x capacity
   WRAPS_MAX: 4,
   DEVICE_RANGE: 2.5,       // m to grab the tail
-  // rope over the wood (model/ropepath.js, D123)
+  // rope over the wood (model/ropepath.js, D125)
   ROPE_WRAP_R: 0.03,       // m: wood thinner than this does not catch the rope (twigs bend out of the way)
   ROPE_WRAP_ITERS: 2,      // passes of the rope-over-wood solver per tick
   ROPE_PUSH_G: 3,          // rope pressing on loose wood (not the piece it is tied to) shoves it at most this many g

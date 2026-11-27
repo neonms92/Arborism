@@ -41,7 +41,7 @@ export class Rope {
     if (this.fed()) { if (this.node(r.block).distanceTo(t.point) < 0.7) this.swallow('The block came down: the chipper took the rope'); return; }
     if (r.state === 0) {
       if (!t.fixed) return;
-      // the block hangs on a short sling off the wood looked at (D123): below a limb, beside a stem
+      // the block hangs on a short sling off the wood looked at (D125): below a limb, beside a stem
       const s = w.segs.get(t.seg), ax = segAxis(s), tt = Math.min(1, Math.max(0, segParam(s, t.p))), c = lerp3(s.a, s.b, tt);
       const rad = perp([t.p[0] - c[0], t.p[1] - c[1], t.p[2] - c[2]], ax);
       const hang = perp([rad[0] * 0.3, rad[1] * 0.3 - 1, rad[2] * 0.3], ax), off = segRadius(s, tt) + CFG.BLOCK_DROP;
@@ -56,7 +56,7 @@ export class Rope {
     } else if (r.state === 1 && this.node(r.block).distanceTo(t.point) < 0.7) {
       this.clear(p);                                     // looking at the block: take it down
     } else if (r.state === 1) {
-      // the knot sits on the bark, the rope round the wood (D123)
+      // the knot sits on the bark, the rope round the wood (D125)
       const s = w.segs.get(t.seg), tt = Math.min(1, Math.max(0, segParam(s, t.p))), c = lerp3(s.a, s.b, tt);
       const rad = perp([t.p[0] - c[0], t.p[1] - c[1], t.p[2] - c[2]], segAxis(s)), off = segRadius(s, tt) + CFG.ROPE_RADIUS + 0.01;
       sim.emit({ t: 'rope', rope: { ...r, state: 2, anchor: { seg: t.seg, p: [c[0] + rad[0] * off, c[1] + rad[1] * off, c[2] + rad[2] * off] } } });
@@ -79,7 +79,7 @@ export class Rope {
     return out;
   }
 
-  // ---- the rope's path over the wood (D123): model/ropepath.js on every segment thick enough to hold it ----
+  // ---- the rope's path over the wood (D125): model/ropepath.js on every segment thick enough to hold it ----
   obstacles() {
     const sim = this.sim;
     if (this._obsTick === sim.tick && this._obs) return this._obs;

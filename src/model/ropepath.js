@@ -1,4 +1,4 @@
-// Rope that lies on wood instead of passing through it (D123).
+// Rope that lies on wood instead of passing through it (D125).
 //
 // A straight run of rope between two fixed points (a span) is routed round
 // the wood as a taut string: a list of contact points, each on the surface of

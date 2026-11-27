@@ -2012,7 +2012,28 @@ my reading in D112: after `LINE_DEAD_T` a downed line only stops sparking;
 touching it still shocks, and sawing through it still flashes and shocks.
 The event keeps its name (`dead`). The neutral still never shocks.
 
-**D123 — Rope lies on the wood.** Owner (2026-11-27): "realistic rope
+**D123 — A new spot for each sticker; ghost tails fit their bodies.** Owner
+(2026-11-27): "After applying a sticker, re-roll a random placement for the
+next one. See if you can fix the alignment of the ghostly tail." After Stick!
+the helmet now turns (eased, so you see it) to a new random spot for the next
+sticker, at least 0.8 rad of yaw from the last; Discard does not re-roll. The
+ghost tail was one fixed shape for every ghost, so it stuck out past the
+chipper wreck, the tree and the fence, and hung loose under the thin tip of
+the Electricity bolt; its outline also drew a line across the join. Each
+ghost now names its body's bottom edge (`TAIL` in view/stickers.js) and the
+tail is stretched to it, tucked up into the body and filled over the join;
+the bolt's lower tip is cut at y 60 and the tail hangs from there. The tail
+tip ends at y 92, inside the sticker's rim (it overlapped the rim before).
+Unreviewed: re-roll after Stick! only, the 0.8 rad gap, narrow tails (the
+bolt's) lose the two side wisps.
+
+**D124 — Sorry, Tree! trunk behind the leaves; wider Sorry, Chipper! body.**
+Owner (2026-11-27): put the tree ghost's trunk rectangle behind the leaf
+circles, and widen the chipper ghost's body to the right so its face is
+centred on it. The drum box is now 34 wide (x 33 to 67, centre 50, under the
+face); the tail follows it.
+
+**D125 — Rope lies on the wood.** Owner (2026-11-27): "realistic rope
 pathing that doesn't clip into wood, and wraps around branches", and the rope
 should not spawn inside the trunk.
 - General rule, not special cases: every straight run of the rigging line is

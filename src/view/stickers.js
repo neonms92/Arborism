@@ -73,18 +73,32 @@ const GHOST = {
   house: '<path d="M24 50 L50 26 L76 50 Z"/><rect x="30" y="48" width="40" height="22"/>',
   shed: '<path d="M26 44 L74 36 L74 42 L26 50 Z"/><rect x="30" y="45" width="40" height="25"/>',
   fence: '<path d="M26 70 V40 L31 33 L36 40 V70 Z M41 70 V37 L46 30 L51 37 V70 Z M56 70 V37 L61 30 L66 37 V70 Z"/><rect x="22" y="44" width="52" height="6"/><rect x="22" y="58" width="52" height="6"/>',
-  wrongtree: '<circle cx="50" cy="36" r="15"/><circle cx="37" cy="44" r="11"/><circle cx="63" cy="44" r="11"/><rect x="34" y="44" width="32" height="26"/>',
-  power: '<path d="M60 14 L22 54 L45 54 L35 80 L80 37 L57 37 L67 14 Z"/>',
-  wreck: '<path d="M20 46 L34 51 L34 63 L20 66 Z"/><rect x="33" y="45" width="26" height="25" rx="3"/><path d="M50 45 L52 31 Q54 24 63 24 L73 26 L71 32 L63 31 Q60 31 59 35 L58 45 Z"/>',
+  wrongtree: '<rect x="34" y="44" width="32" height="26"/><circle cx="50" cy="36" r="15"/><circle cx="37" cy="44" r="11"/><circle cx="63" cy="44" r="11"/>',
+  power: '<path d="M60 14 L22 54 L45 54 L42.7 60 L55.9 60 L80 37 L57 37 L67 14 Z"/>',   // the bolt's lower tip becomes the tail
+  wreck: '<path d="M20 46 L34 51 L34 63 L20 66 Z"/><rect x="33" y="45" width="34" height="25" rx="3"/><path d="M50 45 L52 31 Q54 24 63 24 L73 26 L71 32 L63 31 Q60 31 59 35 L58 45 Z"/>',
 };
 const FACE = { power: -13 };   // the face higher up, where the thing is widest
+// where the tail hangs from: the body's bottom edge [left x, right x, y, how far the tail's top tucks up into the
+// body (default 3; the fence's covers the gaps between its pickets)], so the tail joins the body it belongs to
+const TAIL = { house: [30, 70, 70], shed: [30, 70, 70], fence: [26, 66, 70, 6], wrongtree: [34, 66, 70], power: [42.7, 55.9, 60], wreck: [33, 67, 70] };
+function ghostTail([x0, x1, y, tuck = 3]) {
+  // the wavy tail drawn for a 40-wide body ending at y 67, stretched to this body's width and down to y 92 (inside
+  // the sticker's rim); its top tucks up into the body so the join is hidden under the fill pass
+  const X = (x) => (x0 + (x - 30) / 40 * (x1 - x0)).toFixed(1), Y = (v) => (v < 67 ? y - tuck : y + (v - 67) * (92 - y) / 27).toFixed(1);
+  const pts = [[30, 0], 'C', [30, 80], [42, 76], [46, 84], 'C', [50, 92], [62, 86], [62, 94], 'C', [70, 86], [58, 80], [64, 74], 'C', [68, 70], [70, 69], [70, 0]];
+  const d = pts.map((q) => (typeof q === 'string' ? q : `${X(q[0])} ${Y(q[1])}`)).join(' ');
+  const w = x1 - x0, wisps = w < 20 ? '' :
+    `<path d="M${X(36)} ${Y(74)} Q${x0 - 6 * w / 40} ${Y(82)} ${X(38)} ${Y(88)} M${X(66)} ${Y(70)} Q${x1 + 6 * w / 40} ${Y(76)} ${X(70)} ${Y(86)}" stroke="#c8d6ff" stroke-width="2" fill="none" stroke-linecap="round" opacity=".8"/>`;
+  return { shape: `<path d="M${d} Z"/>`, wisps };
+}
 function ghost(kind) {
-  const fy = FACE[kind] || 0;
-  const tail = '<path d="M30 68 C30 80 42 76 46 84 C50 92 62 86 62 94 C70 86 58 80 64 74 C68 70 70 69 70 66 Z"/>';
+  const fy = FACE[kind] || 0, { shape, wisps } = ghostTail(TAIL[kind]);
   return wrap(cut('<circle cx="50" cy="50" r="44" fill="#3a3f72"/>', 8) +
     '<circle cx="24" cy="26" r="1.6" fill="#fff" opacity=".7"/><circle cx="78" cy="22" r="1.2" fill="#fff" opacity=".6"/><circle cx="82" cy="70" r="1.4" fill="#fff" opacity=".5"/>' +
-    `<g fill="#eef4ff" opacity=".9" stroke="#c8d6ff" stroke-width="1.5" stroke-linejoin="round">${GHOST[kind]}${tail}</g>` +
-    '<path d="M36 74 Q30 82 38 88 M66 70 Q76 76 70 86" stroke="#c8d6ff" stroke-width="2" fill="none" stroke-linecap="round" opacity=".8"/>' +
+    // tail outlined first so the body covers its top edge, then the tail's fill again without outline over the
+    // body's bottom edge: one seamless ghost with the body's own inner lines kept
+    `<g opacity=".9" fill="#eef4ff"><g stroke="#c8d6ff" stroke-width="1.5" stroke-linejoin="round">${shape}${GHOST[kind]}</g>${shape}</g>` +
+    wisps +
     `<g transform="translate(0 ${fy})"><ellipse cx="43" cy="58" rx="3.2" ry="4.2" fill="#2a2d55"/><ellipse cx="57" cy="58" rx="3.2" ry="4.2" fill="#2a2d55"/><path d="M45 63.5 Q50 68.5 55 63.5" stroke="#2a2d55" stroke-width="2" fill="none" stroke-linecap="round"/><ellipse cx="38.5" cy="64" rx="2.6" ry="1.5" fill="#ff9fb8" opacity=".7"/><ellipse cx="61.5" cy="64" rx="2.6" ry="1.5" fill="#ff9fb8" opacity=".7"/></g>`);
 }
 // rigging: a block hanging from the stem, the rope down to a sawn-off log, a dashed kerf
