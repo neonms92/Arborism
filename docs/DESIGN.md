@@ -491,8 +491,10 @@ other view switches are in the Tab menu (section 7).
 ### 4.1 Plant, pivot, press
 
 There is no "cut" object and no cutting mode with its own coordinates. The
-saw is a 0.6 m bar (`BAR_LEN`) with a planted point `A` at the middle of its
-leading edge, a bar direction `b` and a feed direction `f`.
+saw is a bar with a planted point `A` at the middle of its leading edge, a
+bar direction `b` and a feed direction `f`. Its length is set when it is
+planted: `BAR_FIT` times the diameter of the wood there, never shorter than
+`BAR_LEN` (0.4 m, also the length on a rope) (D128).
 
 - **Plant** (hold right mouse / LT while looking at wood within
   `SAW_REACH`): `A` goes on the bark where the player is looking, the bar
