@@ -183,6 +183,11 @@ mass, TESTS.md section 8).
   wood under them accelerates (so it cannot be driven faster than free
   fall), which is a patch, not physics.
 - Rope spans are straight lines and pass through branches (D5).
+- 2026-11-27, a reported freeze while topping a bare stem: not reproduced headless (11 m stem topped 30 times,
+  0.25 m and 1.2 m apart, no slow ticks). One cause of a frozen screen was found and fixed: a piece with no
+  fibre long enough to draw (a sliver under 4 mm) made `paintFibres` throw every frame, so nothing was drawn again.
+  Also seen: cutting a limb off in half a second (scripted) left it wedged in the trunk, and the contact load
+  (1.5 MN for a tick) snapped the trunk at its base. Not checked with the real saw.
 - Clients feel their ping in their own movement and in the saw (D3). The network box (D86) shows how much; prediction plan under Next.
 - Host tab hidden = game paused for everyone (task P2-8).
 - **Unverified against the public PeerJS server** (blocked in the dev
