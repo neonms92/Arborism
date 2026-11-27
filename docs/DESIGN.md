@@ -76,7 +76,7 @@ synced by different mechanisms (section 2).
 | `src/sim/players.js` | Player bodies, walking, climbing, lanyard, injury thresholds | host |
 | `src/sim/saw.js` | The bar as a rod in the world: what it rests against, severing fibres, cutting ropes | host |
 | `src/sim/rope.js` | Rigging line: tension path, block, friction device | host |
-| `src/sim/goe.js` | G.O.E. the groundbot (solo): writes a player's input to work the rope tail and untie (D117) | host |
+| `src/sim/goe.js` | G.O.E. the groundbot (solo): writes a player's input to work the rope tail and untie (D117), and first aid with a tube salad; his power button is `players.setPower` (D118) | host |
 | `src/net/net.js` | PeerJS transport: host/join, reliable + unreliable channels | all |
 | `src/net/snapshot.js` | Binary snapshot encode/decode, client interpolation | all |
 | `src/view/view.js` | Three.js scene, bark and per-fibre meshes, players, rope and lanyard tubes, saw, first-person camera | all |

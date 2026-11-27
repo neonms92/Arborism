@@ -35,6 +35,10 @@ export class Avatar {
       box(0.48, 0.62, 0.3, 0, -0.0, 0);
       box(0.12, 0.56, 0.14, 0.31, 0.02, 0, dark); box(0.12, 0.56, 0.14, -0.31, 0.02, 0, dark);
       box(0.1, 0.1, 0.1, 0, 0.35, 0, dark);
+      // the power button (D118): a red one on top of his right shoulder (+x: he faces -z), in a dark collar
+      const btn = box(0.11, 0.025, 0.11, CFG.GOE_BUTTON[0], 0.3125 + 0.0125, 0, dark);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.03, 12), new THREE.MeshLambertMaterial({ color: 0xd61f1f }));
+      cap.position.y = 0.025; btn.add(cap);
       head = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.26, 0.26), new THREE.MeshLambertMaterial({ color: 0xa4a7aa, flatShading: true }));
       head.position.y = HEAD_Y - 0.03;
     } else {
@@ -59,8 +63,8 @@ export class Avatar {
     const eyeMat = new THREE.MeshLambertMaterial({ map: eyeTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
     const eyeGeo = new THREE.PlaneGeometry(0.085, 0.085), eyeGeoM = eyeGeo.clone(), uv = eyeGeoM.attributes.uv;
     for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i));
-    if (bot) {                                      // square, yellow, lit from inside: they do not change
-      const m = new THREE.MeshBasicMaterial({ color: 0xffd21a });
+    if (bot) {                                      // square, yellow, lit from inside; dark gray while he is switched off (setPower)
+      const m = this.botEyes = new THREE.MeshBasicMaterial({ color: 0xffd21a });
       for (const x of [0.06, -0.06]) {
         const eye = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.06), m);
         eye.position.set(x, HEAD_Y - 0.01, -0.133); eye.rotation.y = Math.PI;
@@ -112,6 +116,9 @@ export class Avatar {
     this.backTex.needsUpdate = true;
     return true;
   }
+
+  /** G.O.E. on or switched off: his eyes lit yellow or dark gray. */
+  setPower(on) { if (this.botEyes) this.botEyes.color.setHex(on ? 0xffd21a : 0x3a3c3e); }
 
   /** The eyes: 'open', 'blink', 'wince', 'worry' or 'x'. tick(dt) says whether a blink is due. */
   blinking(dt) {

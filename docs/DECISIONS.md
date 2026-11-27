@@ -1885,3 +1885,43 @@ rest, untie the knot. Solo games only.
   and untied it, then went back for the tail. From 14–37 m away behind
   houses and fences he found a way back on three seeds (plans 1–7 ms).
 
+**D118 — G.O.E.'s power button, first aid, and a path that goes round.**
+Owner (2026-11-27): "Put a red power button on top of his right shoulder
+that turns him off: his eyes turn dark gray, he becomes a rigid rectangle
+with collision, and he can be grabbed and moved around." "If a player goes
+down, he grabs a salad and administers it to the player. If he's turned off
+when it happens, he turns himself on so he can do it, and then turns himself
+off when he's done." And: he walked through the tree to get to the wood;
+check for an obvious oversight only. Also: his headlamp goes off with him.
+- The button: {interact} looking at G.O.E. within reach, close to the button
+  (`GOE_BUTTON`, within `GOE_BUTTON_R` across his front, back or side, since
+  the capsule and the box have no shoulder top to aim at), switches him off,
+  and on again. Switched off (`players.setPower`): his capsule is swapped for
+  a box `GOE_BOX` (arms' width × his height × the torso's depth, his own mass,
+  friction `GOE_OFF_FRICTION`), free to turn, so he stands, tips and lies like
+  a plank; his input does nothing; impacts do not hurt him. {interact} on him
+  anywhere else grabs him like a chip bin (`holdBody`) and he can be towed.
+  Switched back on, he stands up at the nearest clear spot and anyone holding
+  him lets go. aux `of` tells the view: the box's own rotation, dark gray eyes,
+  lamp off. aux `gb` is a grab on him (bot id + his local point).
+- First aid (`goe.aidStep`): a person who is DOWN and not up the tree (he cannot
+  climb) is helped before anything else. On the tail he ties off first, then
+  takes a tube salad off the nearest working chipper's rack, walks to them and
+  gives it ({interact} looking at them), all as a person's input. He switches
+  himself on for it if he was off and back off once they are up (by his salad
+  or anyone's). Someone switching him off mid-way is respected for that
+  downing; he answers the next one. No chipper and no salad in hand: nothing.
+- Pathing: the plan was found fine round the trunk on maple and oak. The
+  oversight: when A* found no cell that met the goal (the knot seen from
+  nowhere, a goal boxed in by a fallen limb, a house), he fell back to walking
+  straight at the target, through the tree. Now the plan goes to the reachable
+  cell nearest the target instead, round what is in the way, and replans as
+  before. Checked: an unreachable goal past the trunk from 4 m behind it now
+  routes round at 1 m from its axis (search 40 ms, as the failed search was
+  already).
+- Headless (seed maple): button switched him off, he toppled onto his back
+  and was towed; a player knocked DOWN → he switched on, took a salad, healed
+  them in about 9 s and switched back off. Unreviewed: the box shape and
+  friction, the button aim area, he leaves the tail tied off for first aid,
+  climbers down up the tree are not helped, the toasts' words.
+

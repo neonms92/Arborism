@@ -18,7 +18,7 @@ export function blankInput() {
   return { mx: 0, my: 0, yaw: 0, pitch: 0, sy: 0, sp: 0, rt: 0, lt: 0, hi: 0, hd: 0, c };
 }
 const UP = new THREE.Vector3(0, 1, 0);
-const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
+const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _q = new THREE.Quaternion();
 
 export class Players {
   constructor(sim) { this.sim = sim; this.list = new Map(); }
@@ -64,6 +64,57 @@ export class Players {
     this.list.delete(id);
     this.sim.emit({ t: 'player', id, leave: 1 });
   }
+  // ---- G.O.E.'s power (D118): switched off, a bot is a rigid box that tips, slides and can be grabbed ----
+  /** Switch bot p off (on = false) or back on. Off: his capsule becomes a box the size of him, free to turn; on: he
+   *  stands back up, upright, at the nearest clear spot where he lay. Anyone holding him lets go when he wakes. */
+  setPower(p, on) {
+    if (!p.bot || !!p.off === !on) return;
+    const sim = this.sim, R = sim.R, body = p.body;
+    if (!on) { sawOff(sim, p); if (p.mode === MODE.ROPE) this.leaveRope(p); this.toGround(p); p.grab = null; p.ch = null; }
+    sim.colPlayer.delete(p.col.handle);
+    sim.rapier.removeCollider(p.col, false);
+    if (on) {
+      for (const o of this.list.values()) if (o.grab && o.grab.bot === p.id) o.grab = null;
+      const r = body.rotation(), yaw = Math.atan2(2 * (r.w * r.y + r.x * r.z), 1 - 2 * (r.y * r.y + r.x * r.x));   // the way his front faced, if upright
+      p.col = sim.rapier.createCollider(R.ColliderDesc.capsule(CFG.P_HALF, CFG.P_RADIUS).setMass(CFG.P_MASS)
+        .setFriction(0).setFrictionCombineRule(R.CoefficientCombineRule.Min).setActiveEvents(R.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(300), body);
+      body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true); body.setAngvel({ x: 0, y: 0, z: 0 }, true); body.lockRotations(true, true);
+      const t = body.translation(), c = this.safeSpot(p, t.x, t.z, 0, 0.3);   // (a distance of 0 there would be no angle step)
+      body.setTranslation({ x: c[0], y: c[1], z: c[2] }, true); body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      p.input.yaw = yaw; p.vPre.set(0, 0, 0); p.hit = 0; p.off = false;
+    } else {
+      const H = CFG.GOE_BOX;
+      p.col = sim.rapier.createCollider(R.ColliderDesc.cuboid(H[0], H[1], H[2]).setMass(CFG.P_MASS).setFriction(CFG.GOE_OFF_FRICTION), body);
+      // the box turns with the way he faced (the capsule never turns: his facing was only his look yaw)
+      const y = p.input.yaw / 2;
+      body.lockRotations(false, true); body.setRotation({ x: 0, y: Math.sin(y), z: 0, w: Math.cos(y) }, true);
+      p.off = true;
+    }
+    sim.colPlayer.set(p.col.handle, p.id);
+  }
+  /** The point world w on bot o, in his own frame (x his right, y up, -z his front). */
+  botLocal(o, w) {
+    const t = o.body.translation(), r = o.body.rotation();
+    const q = o.off ? _q.set(r.x, r.y, r.z, r.w) : _q.setFromAxisAngle(UP, o.input.yaw);
+    return _a.set(w.x - t.x, w.y - t.y, w.z - t.z).applyQuaternion(q.invert()).toArray();
+  }
+  botWorld(o, l, out) {
+    const t = o.body.translation(), r = o.body.rotation();
+    const q = o.off ? _q.set(r.x, r.y, r.z, r.w) : _q.setFromAxisAngle(UP, o.input.yaw);
+    return out.set(l[0], l[1], l[2]).applyQuaternion(q).add(t);
+  }
+  /** Is bot-local point l on (or by) his power button, on top of his right shoulder? */
+  onButton(l) { const b = CFG.GOE_BUTTON; return Math.hypot(l[0] - b[0], l[1] - b[1]) < CFG.GOE_BUTTON_R && Math.abs(l[2]) < 0.35; }
+  /** The bot p is looking at within reach: {o, point, local, button} or null. */
+  aimBot(p) {
+    const sim = this.sim, { o, d } = sim.eye(p);
+    const hit = sim.rapier.castRay(new sim.R.Ray(o, d), CFG.REACH, true, undefined, undefined, undefined, p.body);
+    const id = hit ? sim.colPlayer.get(hit.collider.handle) : undefined, b = id === undefined ? null : this.list.get(id);
+    if (!b || !b.bot) return null;
+    const point = o.clone().addScaledVector(d, hit.timeOfImpact), local = this.botLocal(b, point);
+    return { o: b, point, local, button: this.onButton(local) };
+  }
+
   /** n: the client's input sequence number, echoed in aux so a client predicting itself knows what the host has used (D103). */
   setInput(id, inp, n) { const p = this.list.get(id); if (p) { p.input = inp; if (n !== undefined) p.inN = n; } }
 
@@ -273,6 +324,12 @@ export class Players {
   }
   grabStep(p, dt) {
     const g = p.grab, sim = this.sim; p.pull = 0; if (!g) return;
+    if (g.bot !== undefined) {
+      // switched-off G.O.E., anywhere on his box: held like a bin
+      const o = this.list.get(g.bot);
+      if (!o || !o.off) { p.grab = null; return; }
+      return this.holdBody(p, g, o.body, this.botWorld(o, g.p, _b), Math.min(CFG.P_MASS, o.body.mass()), dt, `${this.name(o.id)} pulled out of your hands`);
+    }
     const ch = g.chip ? sim.chipper.unit(g.k) : null, bin = g.bin !== undefined ? sim.bins.unit(g.bin) : null;
     if (g.bin !== undefined) {
       // a chip bin by its handle: held like the chipper's grip (below), with arms as stiff as its weight allows
@@ -379,6 +436,12 @@ export class Players {
     const sim = this.sim, inp = p.input, w = sim.world;
     const pressed = {};
     p.body.resetForces(true);          // the legs' hold on a slope (ground) is set again each tick it applies
+    if (p.off) {                       // switched off (G.O.E.): a box with no legs, no hands and no say
+      for (const k of COUNTERS) p.last[k] = inp.c[k];
+      p.prompt = ''; p.target = -1; p.grab = null; p.walk = null;
+      const v = p.body.linvel(); p.vPre.set(v.x, v.y, v.z);
+      return;
+    }
     for (const k of COUNTERS) { pressed[k] = p.primed && inp.c[k] !== p.last[k]; p.last[k] = inp.c[k]; }
     p.primed = true;
     if (p.replay) { for (const k in p.replay) pressed[k] = pressed[k] || p.replay[k]; p.replay = null; }   // a press that woke a tree (below)
@@ -536,7 +599,17 @@ export class Players {
     const reach = aim && aim.dist < CFG.REACH;
     // a tube salad in hand goes first: {interact} on another player gives it to them (it takes the press)
     const sal = this.salad(p, inp, pressed);
-    if (tail) {
+    // G.O.E. (D118): {interact} on the red button on his right shoulder switches him off or on; switched off, anywhere else grabs him
+    const bot = !tail && !p.grab && !p.chips && !p.bot ? this.aimBot(p) : null;
+    if (bot && (bot.button || bot.o.off)) {
+      const nm = this.name(bot.o.id);
+      if (pressed.interact) {
+        p.chLock.add('lanyard');
+        if (bot.button) { this.setPower(bot.o, !!bot.o.off); this.sim.goe.switched(bot.o, p); }
+        else p.grab = { bot: bot.o.id, p: bot.local, L0: Math.max(0.2, this.hands(p, _a).distanceTo(bot.point)), prev: 0 };
+      }
+      first = bot.button ? (bot.o.off ? `{interact}: switch ${nm} on` : `{interact}: switch ${nm} off`) : `{interact}: grab ${nm}`;
+    } else if (tail) {
       first = '{rig}: take tail';
     } else if (p.chips > 0 && !p.grab) {
       // hands full of chips: {interact} takes more off the pile looked at, while there is room, or puts them all down
@@ -578,7 +651,7 @@ export class Players {
       // the weight of the wood in hand, or of loose wood looked at, goes on the button (nothing for wood still on the tree)
       const kg = (piece) => { const m = sim.weightOf(piece); return isFinite(m) ? ` {mass:${Math.round(m)}}` : ''; };
       if (wood && atChip) first = loose ? '{interact}: feed' + kg(wood.piece) : 'Only loose wood can go in the chipper';
-      else if (p.grab) first = p.grab.chip || p.grab.bin !== undefined ? '{interact}: let go   {move}: tow' : '{interact}: let go' + (wood ? kg(wood.piece) : '');
+      else if (p.grab) first = p.grab.chip || p.grab.bin !== undefined || p.grab.bot !== undefined ? '{interact}: let go   {move}: tow' : '{interact}: let go' + (wood ? kg(wood.piece) : '');
       else if (atRack) first = p.held ? '' : '{interact}: take salad';
       else if (atChip && ca.u.seized()) first = 'The chipper\'s rollers have seized on wood too heavy for it: saw it smaller';
       else if (atChip) first = ca.grip ? '{interact}: grab chipper' : 'Chipper: grab a limb, then {interact|feed} here to feed it in. Its grip is at the front';
@@ -701,6 +774,7 @@ export class Players {
     for (const p of this.list.values()) {
       if (p.mode === MODE.CLIMB) continue;
       const v = p.body.linvel();
+      if (p.off) { const t = p.body.translation(); if (t.y < this.sim.groundY(t.x, t.z) - 20) this.setPower(p, true); continue; }   // a switched-off box feels nothing
       const dv = Math.hypot(v.x - p.vPre.x, v.y - p.vPre.y, v.z - p.vPre.z);
       if (dv > CFG.DV_SHAKEN) this.impact(p, dv);
       const t = p.body.translation();
@@ -713,7 +787,7 @@ export class Players {
     for (const p of this.list.values()) {
       const s = p.saw;
       out.push({
-        id: p.id, m: p.mode, inj: p.inj, sk: p.shakenT > 0 ? 1 : 0, ck: +(p.chips || 0).toFixed(4), hd: p.held ? 1 : 0, gk: p.grab && p.grab.chip ? p.grab.k || 0 : 0, gr: p.grab ? [p.grab.chip ? -1 : p.grab.bin !== undefined ? -2 - p.grab.bin : p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pt: +p.input.pitch.toFixed(2), pr: p.prompt, tg: p.target >= 0 && !p.grab ? p.target : -1,
+        id: p.id, m: p.mode, inj: p.inj, sk: p.shakenT > 0 ? 1 : 0, ck: +(p.chips || 0).toFixed(4), hd: p.held ? 1 : 0, gk: p.grab && p.grab.chip ? p.grab.k || 0 : 0, gr: p.grab && p.grab.bot === undefined ? [p.grab.chip ? -1 : p.grab.bin !== undefined ? -2 - p.grab.bin : p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, gb: p.grab && p.grab.bot !== undefined ? [p.grab.bot, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, of: p.off ? 1 : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pt: +p.input.pitch.toFixed(2), pr: p.prompt, tg: p.target >= 0 && !p.grab ? p.target : -1,
         // [seg, t, side, end stop, armed, riding]: enough for a client to carry on climbing from (net/predict.js)
         cl: p.cl ? [p.cl.seg, +p.cl.t.toFixed(5), p.cl.side.map((x) => +x.toFixed(4)), p.cl.end || 0, p.cl.armed ? 1 : 0, p.ride ? 1 : 0] : 0, n: p.inN || 0,
         saw: s.on ? [...s.A.toArray(), ...s.b.toArray(), ...s.f.toArray(), s.stuck ? 1 : 0, s.cutting ? 1 : 0, CFG.BAR_LEN].map((x) => +x.toFixed(3)) : 0,
