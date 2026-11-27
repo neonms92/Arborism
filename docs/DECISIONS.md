@@ -2063,3 +2063,12 @@ should not spawn inside the trunk.
   solver passes a tick, sling length, device on the block's side, push cap.
   `ROPE_WRAP_R` and `BLOCK_DROP` are in the Tab menu.
 
+
+**D125 — Ghost outlines go round the whole shape.** Owner (2026-11-27): union
+the three leaf circles of Sorry, Tree! before outlining, so no outline shows
+in the middle. Ghosts in `UNION` (view/stickers.js: the tree, and the
+Electricity bolt, whose tail join showed a notch) are outlined, then filled
+again on top without outline, so only the outer edge shows; the outline is
+drawn twice as thick there to keep its visible width. The tail join of every
+ghost uses the same trick. House, shed, fence and chipper keep their inner
+lines.

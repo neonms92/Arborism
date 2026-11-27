@@ -77,7 +77,9 @@ const GHOST = {
   power: '<path d="M60 14 L22 54 L45 54 L42.7 60 L55.9 60 L80 37 L57 37 L67 14 Z"/>',   // the bolt's lower tip becomes the tail
   wreck: '<path d="M20 46 L34 51 L34 63 L20 66 Z"/><rect x="33" y="45" width="34" height="25" rx="3"/><path d="M50 45 L52 31 Q54 24 63 24 L73 26 L71 32 L63 31 Q60 31 59 35 L58 45 Z"/>',
 };
-const FACE = { power: -13 };   // the face higher up, where the thing is widest
+const FACE = { power: -13 };
+// bodies drawn as one shape: outlined, then filled again without outline so no line shows inside (the tree's leaves, the bolt's tip)
+const UNION = new Set(['wrongtree', 'power']);   // the face higher up, where the thing is widest
 // where the tail hangs from: the body's bottom edge [left x, right x, y, how far the tail's top tucks up into the
 // body (default 3; the fence's covers the gaps between its pickets)], so the tail joins the body it belongs to
 const TAIL = { house: [30, 70, 70], shed: [30, 70, 70], fence: [26, 66, 70, 6], wrongtree: [34, 66, 70], power: [42.7, 55.9, 60], wreck: [33, 67, 70] };
@@ -96,8 +98,9 @@ function ghost(kind) {
   return wrap(cut('<circle cx="50" cy="50" r="44" fill="#3a3f72"/>', 8) +
     '<circle cx="24" cy="26" r="1.6" fill="#fff" opacity=".7"/><circle cx="78" cy="22" r="1.2" fill="#fff" opacity=".6"/><circle cx="82" cy="70" r="1.4" fill="#fff" opacity=".5"/>' +
     // tail outlined first so the body covers its top edge, then the tail's fill again without outline over the
-    // body's bottom edge: one seamless ghost with the body's own inner lines kept
-    `<g opacity=".9" fill="#eef4ff"><g stroke="#c8d6ff" stroke-width="1.5" stroke-linejoin="round">${shape}${GHOST[kind]}</g>${shape}</g>` +
+    // body's bottom edge: one seamless ghost with the body's own inner lines kept. What is filled over twice is
+    // outlined twice as thick, since the fill hides the inner half of the line.
+    `<g opacity=".9" fill="#eef4ff"><g stroke="#c8d6ff" stroke-width="1.5" stroke-linejoin="round"><g stroke-width="3">${shape}${UNION.has(kind) ? GHOST[kind] : ''}</g>${UNION.has(kind) ? '' : GHOST[kind]}</g>${shape}${UNION.has(kind) ? GHOST[kind] : ''}</g>` +
     wisps +
     `<g transform="translate(0 ${fy})"><ellipse cx="43" cy="58" rx="3.2" ry="4.2" fill="#2a2d55"/><ellipse cx="57" cy="58" rx="3.2" ry="4.2" fill="#2a2d55"/><path d="M45 63.5 Q50 68.5 55 63.5" stroke="#2a2d55" stroke-width="2" fill="none" stroke-linecap="round"/><ellipse cx="38.5" cy="64" rx="2.6" ry="1.5" fill="#ff9fb8" opacity=".7"/><ellipse cx="61.5" cy="64" rx="2.6" ry="1.5" fill="#ff9fb8" opacity=".7"/></g>`);
 }
