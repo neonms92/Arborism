@@ -233,7 +233,7 @@ export class Builds {
   /** Does a push from collider o count against the module collider h? Wood, builds and the chipper (whole or wrecked) do; players do not. A loose group also breaks on the ground. */
   hurts(h, o) {
     const sim = this.sim;
-    if (sim.colSeg.has(o) || this.partCol.has(o) || sim.chipper.solid(o)) return true;
+    if (sim.colSeg.has(o) || this.partCol.has(o) || sim.chipper.solid(o) || sim.loader.solid(o)) return true;
     const om = this.colMod.get(o), hm = this.colMod.get(h);
     if (om) return true;
     if (o === sim.groundCol.handle) { const b = sim.world.builds.find((x) => x.id === hm[0]); return !!b && b.mods[hm[1]].body !== b.id; }

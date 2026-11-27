@@ -178,15 +178,17 @@ export class Awards {
     const c = tierOf(chipped);
     if (c >= 0) this.give('chip', c, this.workers('chip'));
     // the 100%: gold if the job still has money left when it is reached (it stays gold whatever happens after)
-    if (P.made > 0 && chipped * Math.min(1, P.gone / P.made) >= CFG.STICKER_BIN) this.give('bin', w.cash() > 0 ? 1 : 0, this.workers('bin'));
+    // (wood hauled away on the log truck is as good as chipped and binned)
+    const hauled = P.M > (P.lost || 0) ? (P.hauled || 0) / (P.M - (P.lost || 0)) : 0;
+    if ((P.made > 0 || hauled > 0) && chipped * (P.made > 0 ? Math.min(1, P.gone / P.made) : 0) + hauled >= CFG.STICKER_BIN) this.give('bin', w.cash() > 0 ? 1 : 0, this.workers('bin'));
     // bankrupt: everyone here when the cash first goes below zero, once a job
     if (!A.got.broke && w.cash() !== null && w.cash() < 0) this.give('broke', 0, [...sim.players.list.keys()]);
   }
 
-  /** Share of the job tree chipped, swept away as debris, or lying in loose sections the chipper could take whole. */
+  /** Share of the job tree chipped, hauled away on the log truck, swept away as debris, or lying in loose sections the chipper could take whole. */
   chopped() {
     const sim = this.sim, w = sim.world, P = w.prog;
-    let done = P.chipped + (P.lost || 0);
+    let done = P.chipped + (P.hauled || 0) + (P.lost || 0);
     for (const pc of w.pieces.values()) {
       if (pc.fixed) continue;
       let m = 0;

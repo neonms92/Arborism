@@ -77,6 +77,7 @@ synced by different mechanisms (section 2).
 | `src/sim/saw.js` | The bar as a rod in the world: what it rests against, severing fibres, cutting ropes | host |
 | `src/sim/rope.js` | Rigging line: tension path, block, friction device | host |
 | `src/model/ropepath.js` | Rope over wood: a span routed round segments as a taut string (D125) | all |
+| `src/sim/loader.js` | The grapple loader (tyres, boom, claw, driver on its platform) and the log truck that hauls wood away (D129) | host |
 | `src/sim/goe.js` | G.O.E. the groundbot (solo): writes a player's input to work the rope tail and untie (D117), and first aid with a tube salad; his power button is `players.setPower` (D118) | host |
 | `src/net/net.js` | PeerJS transport: host/join, reliable + unreliable channels | all |
 | `src/net/snapshot.js` | Binary snapshot encode/decode, client interpolation | all |
@@ -854,6 +855,53 @@ lost (swept debris), made and gone (m³ of chips)}, kept by `world.apply` so
 every machine agrees; the HUD shows tree chipped = chipped / (M − lost) and
 chips in bins = gone / made, coloured by `pctColour` (hud.js).
 
+### 6.5b Grapple loader and log truck (D129)
+
+`model/loader.js` (shapes), `sim/loader.js` (host), `view/loader.js`. For wood
+too heavy for the chipper (a round of the trunk, a big log). With every new
+tree (not on flat ground: the engine tests) the host parks a **log truck**
+along the kerb of the street in front of the job's lot, on the lot's side, and
+a **grapple loader** in the middle of the street behind it facing the lot, at
+the first spot along the street where both fit (`'loader'` event; `world.loader`
+= {p, q, truck: {p, q}, kg, n}).
+
+- **The loader** is one heavy dynamic body (`LOADER_MASS`, most of it a
+  counterweight over the back axle; snapshot id 59800) on four frictionless
+  wheel balls. The tyres are modelled as the chipper's: each wheel touching
+  the ground grips sideways up to `LOADER_GRIP` × its share of the weight and
+  drives along its heading toward throttle × `LOADER_SPEED` (with no throttle,
+  toward standing still: the brakes, `LOADER_BRAKE`), all four sharing
+  `LOADER_DRIVE_F`. The front two steer (`LOADER_STEER`). Like the chipper it
+  breaks fences and cracks pavers it hits hard enough.
+- **The driver** ({interact} anywhere on it, `MODE.DRIVE`) stands on the
+  platform at the back: a kinematic body moved with it that does not push it.
+  {move} drives and steers, {raise} / {throttle} raise and lower the boom,
+  {interact} opens and shuts the claw, {jump} gets off (put down behind it).
+  The view turns with the loader. A jolt on the platform over `DV_SHAKEN` is
+  an impact like any other; hurt, or with the loader past 66° on its side, the
+  driver comes off. One driver at a time; too hurt to drive at `HURT`.
+- **Boom and claw.** The boom is an angle (`LOADER_BOOM_RATE`). The claw
+  (grapple, 59801, `LOADER_GRAPPLE_MASS`) is its own dynamic body hung from
+  the boom tip by a ball joint whose anchor on the loader follows the boom, so
+  it swings and all it carries pulls on the loader: a log held far out tips it
+  forward. A swing brake at the tip damps the swinging (`LOADER_SWING_DAMP`),
+  a rotator keeps the claw square to the loader. The hydraulics stall rather
+  than doing what no real one could: raising when (claw + load) × reach would
+  take more than `LOADER_BOOM_T` (wood still joined to the tree counts as
+  too heavy), or with the back wheels off the ground; lowering with the front
+  wheels off the ground (the claw is pushing the loader up). Shutting the
+  claw takes hold of the loose wood whose bark is within `LOADER_JAW_REACH`
+  of the middle of the jaws (no thicker than `JAW_R`, 0.65 m): a fixed joint,
+  where it is. Sawn through while held, it keeps the part between its jaws.
+- **The truck** is a fixed body (cab, frame, a steel bed with sides). Loose
+  wood not in the claw and not joined to the tree whose centre of mass lies
+  still (under `TRUCK_REST_V`) in the bed for `TRUCK_TAKE_T` is hauled away
+  (`'haul'` event: removed like swept debris, but its job-tree mass goes into
+  `world.prog.hauled`, and `world.loader.kg` / `n` count it). The bed never
+  fills; the view stacks a log per 250 kg hauled, up to the brim. The HUD's
+  tree share counts hauled wood with chipped wood ("Tree cleared" once any is
+  hauled), and so do the tree sticker's chopped share and the 100 % sticker.
+
 ### 6.6 Breakable structures: sheds, fences and houses
 
 Structures (`model/builds.js`, `sim/builds.js`, `view/builds.js`) are built
@@ -1116,6 +1164,8 @@ The HUD and lobby name controls for whichever device was touched last
 | Take a tube salad (at a chipper's rack) / give it (looking at a player) | R | X |
 | Eat the tube salad in hand | left mouse | RT |
 | Respawn player | Tab menu button | Tab menu button |
+| Get on the grapple loader (looking at it) | R | X |
+| On the loader: drive and steer / claw up / claw down / open or shut the claw / get off | ESDF / right mouse / left mouse / R / Space | left stick / LT / RT / X / A |
 
 **Touch** (`src/touch.js`, D61): a floating stick under the left thumb;
 drag on the right to look (or pivot the planted bar); one big context
@@ -1123,7 +1173,7 @@ button for interact, labelled with what it will do now (hold it to spur in
 or move the lanyard); Rig, Punch, Let go (hold) and Saw appear only while
 the prompt offers them; Saw is a toggle, and Cut (hold) appears on the left
 while it is on; on the rope tail a spring-centred slider hauls (up) and
-eases (down), with Wrap + / − beside it; ⚙ top right (Respawn player is in its menu); Eat salad while holding one. On by default
+eases (down), with Wrap + / − beside it; on the grapple loader the same slider raises (up) and lowers (down) the claw; ⚙ top right (Respawn player is in its menu); Eat salad while holding one. On by default
 on touch-first screens; `?touch` / `?touch=0` force it.
 
 There are no tools to switch between: the chainsaw, the rigging and the

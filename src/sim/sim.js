@@ -23,6 +23,7 @@ import { Ground } from './ground.js';
 import { Awards } from './awards.js';
 import { Lines } from './lines.js';
 import { Goe } from './goe.js';
+import { Loader } from './loader.js';
 import { CHIPPER_BODY_ID } from '../model/chipper.js';
 import { terrainSpec, groundY, groundN } from '../model/terrain.js';
 
@@ -93,6 +94,7 @@ export class Sim {
     this.stands = new Stands(this);    // the other trees in the yards while dormant; made by the 'stands' event (grow)
     this.awards = new Awards(this);   // stickers for the crew (D105)
     this.lines = new Lines(this);     // the power lines; made by the 'lines' event (grow)
+    this.loader = new Loader(this);   // the grapple loader and the log truck; made by the 'loader' event (grow)
     this.goe = new Goe(this);         // the groundbot: nobody until goe.spawn() (solo games, main.js)
     this.onLoads = null;              // optional fn(dt), called each tick where point loads go in (test harness)
 
@@ -115,6 +117,7 @@ export class Sim {
     // the budget goes by the lots' width for the yard density (each lot is that within 15%), so it does not jump about
     // from seed to seed
     const d = Math.min(1, Math.max(0, CFG.YARD_DENSITY));
+    this.loader.place(plan);             // the loader and the log truck in the street in front of the lot (not on flat ground)
     this.damage.job(this.flat ? 0 : CFG.YARD_LOT_MAX + (CFG.YARD_LOT_MIN - CFG.YARD_LOT_MAX) * d);
     if (!this.flat) this.awards.begin();   // (not in the engine tests: the job id is random, and FM-21 wants the same events twice)
   }
@@ -202,6 +205,7 @@ export class Sim {
   onEvent(ev, info) {
     if (ev.t === 'terrain') { this.makeGround(); this.players.onTerrain(); return; }
     this.chipper.onEvent(ev, info);
+    this.loader.onEvent(ev, info);     // (before wood bodies go: the claw lets go of them first)
     this.bins.onEvent(ev, info);
     this.builds.onEvent(ev, info);
     this.stands.onEvent(ev, info);
@@ -255,7 +259,7 @@ export class Sim {
         this.bodies.delete(pc); this.born.delete(pc); this.structure.onRemove(pc);
       }
       if (info.ropeLost) this.rope.reset();
-    } else if (ev.t === 'rmpiece') {
+    } else if (ev.t === 'rmpiece' || ev.t === 'haul') {
       const body = this.bodies.get(ev.piece);
       for (const [id, col] of [...this.segCol]) if (!this.world.segs.has(id)) { this.colSeg.delete(col.handle); this.segCol.delete(id); }
       if (body) this.rapier.removeRigidBody(body);
@@ -437,6 +441,7 @@ export class Sim {
     this.lines.step(dt);         // power lines: their pull is a load on standing poles, and a force on loose wood
     this.goe.step(dt);           // G.O.E. writes his input as a person's arrives: before the players move
     this.players.pre(dt);
+    this.loader.pre(dt);         // (after the players: the driver's controls)
     this.lines.shocks(dt);       // (after the players move: a shock sets their speed)
     this.chipper.pre(dt);
     this.bins.pre(dt);
@@ -452,6 +457,7 @@ export class Sim {
     this.chipper.crumpleCheck(); // so does this
     this.pavers.post();
     this.chipper.post();
+    this.loader.post(dt);
 
     if (this.tick % 60 === 0) this.sweepDebris();
     if (this.tick % 30 === 15) this.awards.check();
@@ -527,10 +533,11 @@ export class Sim {
     for (const p of this.players.list.values()) fn(PLAYER_BODY_ID + p.id, p.body.translation(), p.body.rotation(), true);
     this.chipper.eachBody(fn);
     this.bins.eachBody(fn);
+    this.loader.eachBody(fn);
     this.builds.eachBody(fn);
   }
   pose(id) {
-    const b = id >= PLAYER_BODY_ID ? this.players.list.get(id - PLAYER_BODY_ID)?.body : (id >= CHIPPER_BODY_ID && id < CHIPPER_BODY_ID + 1000 && this.chipper.bodyOf(id)) || this.bodies.get(id) || this.builds.body(id) || this.chipper.partBody(id) || this.bins.body(id);
+    const b = id >= PLAYER_BODY_ID ? this.players.list.get(id - PLAYER_BODY_ID)?.body : (id >= CHIPPER_BODY_ID && id < CHIPPER_BODY_ID + 1000 && this.chipper.bodyOf(id)) || this.bodies.get(id) || this.builds.body(id) || this.chipper.partBody(id) || this.bins.body(id) || this.loader.bodyOf(id);
     return b ? { p: b.translation(), q: b.rotation() } : null;
   }
   /** Jump the clock to the next sunrise, noon, sunset or midnight (the Tab menu). */
@@ -554,6 +561,6 @@ export class Sim {
 
   aux() {
     // sky: [days, s per day, cloud cover] so a client can run its clock smoothly between packets
-    return { t: 'aux', tick: this.tick, sky: [+this.days.toFixed(6), CFG.DAY_LENGTH, +this.cloud.toFixed(3)], pl: this.players.aux(), rope: this.rope.aux(), chip: this.chipper.aux(), ln: this.lines.aux(), ...this.structure.aux() };
+    return { t: 'aux', tick: this.tick, sky: [+this.days.toFixed(6), CFG.DAY_LENGTH, +this.cloud.toFixed(3)], pl: this.players.aux(), rope: this.rope.aux(), chip: this.chipper.aux(), ld: this.loader.aux(), ln: this.lines.aux(), ...this.structure.aux() };
   }
 }

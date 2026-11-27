@@ -1,7 +1,7 @@
 // Boot, lobby, main loop. The only file that knows about every module.
 // See docs/DESIGN.md 1.3.
 
-import { CFG } from './config.js';
+import { CFG, MODE } from './config.js';
 import { World } from './model/world.js';
 import { View } from './view/view.js';
 import { Hud, describe } from './view/hud.js';
@@ -66,7 +66,7 @@ let nextPid = 1, acc = 0, last = performance.now(), inputTimer = 0, inSeq = 0, s
 world.on((ev, info) => {
   if ((ev.t === 'terrain' || ev.t === 'load') && menu.open) menu.showSeed();
   if (ev.t === 'toast' && (ev.to < 0 || ev.to === me)) hud.toast(ev.msg);
-  if (ev.t === 'rmpiece' && interp) interp.drop(ev.piece);
+  if ((ev.t === 'rmpiece' || ev.t === 'haul') && interp) interp.drop(ev.piece);
   if (ev.t === 'chip' && interp) for (const id of info.gone) interp.drop(id);
   if (ev.t === 'award' && Array.isArray(ev.to) && ev.to.includes(me)) { const line = book.award(ev); if (line) hud.toast(line); }   // the players who earned it (sim/awards.js)
 });
@@ -318,12 +318,14 @@ const HELP = '{move} move / climb   {look} look   hold {interact}: spur in / mov
   '{rig}: hang the block, then tie the rope to the wood looked at, or untie at the knot; near the base of the tree it takes the rope tail (walk anywhere with it)   {punch}: punch the wood (press again and again to push harder)   ' +
   '{raise} plant the saw on the wood you are looking at, then {look} pivots the bar and {throttle} presses it in   ' +
   'salad rack on the chipper: {interact} takes a tube salad, {eat} eats it, {interact} on another player gives it (heals, even when DOWN)   ' +
+  'grapple loader (parked in the street by the log truck): {interact} on it gets on, {move} drives, {raise} / {throttle} raise and lower the claw, {interact} opens and shuts it, {jump} gets off; logs left in the truck are hauled away   ' +
   'on the rope tail: {throttle} ease, {raise} haul, {wraps} wraps   {menu} settings (Respawn player is in there)';
 const TOUCH_HELP = '{move} move / climb   {look} look   the big button does what the prompt says (hold it to spur in or move the lanyard)   ' +
   'hold {drop} to let go of the tree   {rig}, {punch} and {raise} appear when they can be used; with the saw planted, {look} pivots the bar and hold {throttle} to press it in   ' +
   'at the chipper\'s salad rack the big button takes a tube salad; Eat salad eats it, and the big button gives it to a player you look at   ' +
+  'on the grapple loader: {move} drives, the slider raises and lowers the claw, the big button opens and shuts it, {jump} gets off   ' +
   'on the rope tail: the slider hauls (up) and eases (down), {wraps}   {menu} settings (Respawn player is in there)';
-let helpDevice = '';
+let helpDevice = '', driveYaw = null;
 
 function frame(now) {
   requestAnimationFrame(frame);
@@ -343,6 +345,10 @@ function frame(now) {
   const covered = menu.open || stk.open;            // the settings menu or the sticker dialog has the mouse and keyboard
   if (covered) { input.mouse.l = input.mouse.r = false; }
   const inp = input.poll(dt);
+  // driving the loader, the view turns with it (as your head would, standing on it)
+  const ly = mine && mine.m === MODE.DRIVE ? view.loaderView.yaw() : null;
+  if (ly !== null && driveYaw !== null) { const d = ly - driveYaw; inp.yaw += Math.atan2(Math.sin(d), Math.cos(d)); }
+  driveYaw = ly;
   if (input.menuToggled) { input.menuToggled = false; menu.toggle(); }
   input.menuOpen = menu.open || stk.open;          // the menu's Close button shuts it too
 
