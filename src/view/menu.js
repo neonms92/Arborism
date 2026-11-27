@@ -218,6 +218,8 @@ export const ROWS = [
   ['STEM_BEND', 'Sharpest turn the lanyard slides round on its own, along one stem (degrees)', 0, 90, 1, Math.PI / 180, true],
   ['CLIMB_BOUNCE', 'Weight multiplier while moving on spurs', 1, 3, 0.1, 1, true],
   ['ROPE_MU', 'Friction per wrap on the lowering device', 0.02, 0.5, 0.01, 1, true],
+  ['ROPE_WRAP_R', 'Thinnest wood the rope catches on (m)', 0, 0.3, 0.005, 1, true],
+  ['BLOCK_DROP', 'Block sling: bark to block (m)', 0.1, 1, 0.01, 1, true],
   ['GRIP_MAX', 'Grip strength on the rope tail (N)', 50, 1000, 10, 1, true],
   ['GOE_LOWER_V', 'G.O.E.: how fast he lets wood down on the rope (m/s)', 0.1, 3, 0.05, 1, true],
   ['GOE_REST_T', 'G.O.E.: how long wood lies still before he unties it (s)', 0.2, 10, 0.1, 1, true],

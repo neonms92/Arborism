@@ -180,6 +180,12 @@ export const CFG = {
   SLIP_V0: 1.0,            // m/s slip speed at 2x capacity
   WRAPS_MAX: 4,
   DEVICE_RANGE: 2.5,       // m to grab the tail
+  // rope over the wood (model/ropepath.js, D125)
+  ROPE_WRAP_R: 0.03,       // m: wood thinner than this does not catch the rope (twigs bend out of the way)
+  ROPE_WRAP_ITERS: 2,      // passes of the rope-over-wood solver per tick
+  ROPE_PUSH_G: 3,          // rope pressing on loose wood (not the piece it is tied to) shoves it at most this many g
+  BLOCK_DROP: 0.18,        // m from the bark to the middle of the block, on its sling
+  DEVICE_OFF: 0.085,       // m from the bark to the middle of the friction device
   // G.O.E., the groundbot on solo games (sim/goe.js, D117)
   GOE_LOWER_V: 0.6,        // m/s: how fast he lets the rope run through the device when lowering wood
   GOE_REST_V: 0.15,        // m/s: wood slower than this (and off the rope's weight) is lying still...

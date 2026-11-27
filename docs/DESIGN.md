@@ -76,6 +76,7 @@ synced by different mechanisms (section 2).
 | `src/sim/players.js` | Player bodies, walking, climbing, lanyard, injury thresholds | host |
 | `src/sim/saw.js` | The bar as a rod in the world: what it rests against, severing fibres, cutting ropes | host |
 | `src/sim/rope.js` | Rigging line: tension path, block, friction device | host |
+| `src/model/ropepath.js` | Rope over wood: a span routed round segments as a taut string (D125) | all |
 | `src/sim/goe.js` | G.O.E. the groundbot (solo): writes a player's input to work the rope tail and untie (D117), and first aid with a tube salad; his power button is `players.setPower` (D118) | host |
 | `src/net/net.js` | PeerJS transport: host/join, reliable + unreliable channels | all |
 | `src/net/snapshot.js` | Binary snapshot encode/decode, client interpolation | all |
@@ -580,9 +581,18 @@ rigging points). `T > ROPE_BREAK` snaps the rope.
 Why not a particle rope: pulleys and friction wraps are exactly the things
 particle ropes do badly, and exactly the things this game is about. A
 tension path is cheap, unconditionally controllable, and trivially synced.
-The cost is that rope spans are straight lines that do not collide with
-branches. Natural-crotch rigging is added later as an explicit high-friction
-node type, not as collision (task P2-5).
+Rope over wood (D125): each run between nodes is laid over the wood as a
+taut string (`model/ropepath.js`): contact points on segment surfaces that
+slide the way that shortens the rope, let go when the rope pulls off, pass to
+the next segment at a crotch, and get added where a run passes through wood.
+The geometric length `s` is over those points, and each point is pulled by
+`T` toward both neighbours (on the tree: rigging loads; on loose wood other
+than the tied piece: capped at `ROPE_PUSH_G` g). Contacts are frictionless;
+friction over a natural crotch is still task P2-5. The host's contact points
+go out in aux (piece-local); clients relax them each frame and route the
+tail themselves. The block hangs `BLOCK_DROP` off the bark on a sling (below
+a limb, beside a stem); the knot sits on the bark; the device on the bark of
+the trunk under the block. No end of the rope is drawn inside wood.
 
 ### 5.2 The friction device (port-a-wrap)
 
