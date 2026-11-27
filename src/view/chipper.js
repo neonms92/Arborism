@@ -1,14 +1,17 @@
 // Draws the wood chippers (shape from model/chipper.js; one or more, world.chipper.units),
 // their salad racks, the chip piles, and chips flying out of a chute while it is
-// chipping. No game rules.
+// chipping, and its two floodlights (on at night; dim and flicker while it chips,
+// out with the wreck). No game rules.
 
 import * as THREE from 'three';
-import { SHAPE, CHIPPER_BODY_ID, pileShape, chipToWorld, WRECK, cageArc } from '../model/chipper.js';
+import { SHAPE, CHIPPER_BODY_ID, pileShape, chipToWorld, WRECK, cageArc, floodLamps } from '../model/chipper.js';
+import { CFG } from '../config.js';
 import { compose } from '../model/builds.js';
 import { groundY } from '../model/terrain.js';
 
 const CHUTE = [[0.2, 0.45, 0.3], [0.2, 1.45, 0.35], [0.2, 1.75, 0.8], [0.2, 1.55, 1.35]];   // discharge chute, chipper-local
 const SPRAY = 48;
+const _lit = new THREE.Color(0xfff6dc);    // a floodlight's lens when it is on
 
 export class ChipperView {
   constructor(scene, world) {
@@ -59,6 +62,20 @@ export class ChipperView {
     this.saladMat = lam(0x3fae3a);
     for (const c of S.SALADS) { const m = new THREE.Mesh(this.saladGeo, this.saladMat); m.position.set(...c); rack.push(m); }
     parts.push(...rack);
+    // the floodlights: a dark housing on a short bracket from the back hoop, its lens toward FLOOD_AIM. The lens is
+    // named so each chipper's clone gets its own material (it glows with that chipper's lamps)
+    this.lensOff = new THREE.Color(0x555555);
+    const lensMat = new THREE.MeshBasicMaterial({ color: this.lensOff });
+    for (const L of floodLamps()) {
+      const aim = [SHAPE.FLOOD_AIM[0], SHAPE.FLOOD_AIM[1], Math.sign(L[2]) * SHAPE.FLOOD_AIM[2]];
+      const lamp = new THREE.Group(); lamp.position.set(...L);
+      lamp.lookAt(new THREE.Vector3(...aim));           // a group's +z looks at the target
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.13, 0.08), dark);
+      const lens = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.1), lensMat); lens.position.z = 0.041; lens.name = 'floodLens';
+      lamp.add(body, lens); this.group.add(lamp);
+      body.castShadow = true;
+      parts.push(tube([new THREE.Vector3(S.CAGE.x0, L[1], L[2]), new THREE.Vector3(L[0] + 0.03, L[1], L[2])]));   // bracket
+    }
     for (const m of parts) { m.castShadow = true; m.receiveShadow = true; this.group.add(m); }
     this.group.add(liner);
     this.units = [];                // per world.chipper.units[k]: {group, spray, t, posed, wreckRoot, wreckParts}
@@ -81,14 +98,26 @@ export class ChipperView {
     const c = new THREE.Color();
     for (let i = 0; i < SPRAY; i++) spray.setColorAt(i, c.setHSL(0.09 + (i % 5) * 0.008, 0.5, 0.55 + (i % 3) * 0.08));
     const wreckRoot = new THREE.Group();
+    // its floodlights: spotlights in the scene (posed from the group each frame), and its own lens material
+    const lensMat = new THREE.MeshBasicMaterial({ color: this.lensOff });
+    group.traverse((o) => { if (o.name === 'floodLens') o.material = lensMat; });
+    const floods = floodLamps().map((L) => {
+      const s = new THREE.SpotLight(0xfff2d8, 0, 0, CFG.FLOOD_ANGLE, 0.5, 2);
+      s.userData.at = L; s.userData.aim = [SHAPE.FLOOD_AIM[0], SHAPE.FLOOD_AIM[1], Math.sign(L[2]) * SHAPE.FLOOD_AIM[2]];
+      this.scene.add(s, s.target); return s;
+    });
     this.scene.add(group, spray, wreckRoot);
-    u = this.units[k] = { k, group, spray, t: 0, posed: false, wreckRoot, wreckParts: new Map() };   // wreckParts: part body id -> {m, rest}
+    u = this.units[k] = { k, group, spray, t: 0, posed: false, wreckRoot, wreckParts: new Map(),   // wreckParts: part body id -> {m, rest}
+      floods, lensMat, load: 0, fl: 0, dip: 0 };
     return u;
   }
   /** Units beyond what the world has (after a new tree) go. */
   trim() {
     const n = this.world.chipper ? this.world.chipper.units.length : 0;
-    while (this.units.length > n) { const u = this.units.pop(); this.scene.remove(u.group, u.spray, u.wreckRoot); u.spray.dispose(); }
+    while (this.units.length > n) {
+      const u = this.units.pop(); this.scene.remove(u.group, u.spray, u.wreckRoot); u.spray.dispose();
+      for (const s of u.floods) this.scene.remove(s, s.target);
+    }
   }
 
   syncWreck(k) {
@@ -167,10 +196,36 @@ export class ChipperView {
     return out.set(l[0], l[1], l[2]).applyQuaternion(g.quaternion).add(g.position);
   }
 
-  update(dt, src, aux) {
+  /** dark: 0 by day to 1 at night (Sky.dark); the floodlights come on with it. */
+  update(dt, src, aux, dark = 0) {
     const us = this.world.chipper ? this.world.chipper.units : [];
     this.trim();
-    us.forEach((ch, k) => this.updateUnit(this.unit(k), ch, dt, src, aux && aux.chip && Array.isArray(aux.chip) ? aux.chip[k] : null));
+    us.forEach((ch, k) => {
+      const u = this.unit(k), ax = aux && aux.chip && Array.isArray(aux.chip) ? aux.chip[k] : null;
+      this.updateUnit(u, ch, dt, src, ax);
+      this.updateFloods(u, ch, dt, ax, dark);
+    });
+  }
+
+  // The floodlights run off the chipper's engine: on at night while it is whole; while it chips the engine bogs and
+  // they sag to FLOOD_DIM and flicker below it (random steps, smoothed, with now and then a deeper dip). A wreck's
+  // lamps are dead.
+  updateFloods(u, ch, dt, ax, dark) {
+    const whole = !!ch && !ch.wreck && u.group.visible;
+    u.load += ((ax && ax.on ? 1 : 0) - u.load) * Math.min(1, dt / 0.15);
+    u.fl += (Math.random() - u.fl) * Math.min(1, dt * 30);
+    if (Math.random() < dt * 2.5 * u.load) u.dip = 0.5 + Math.random() * 0.5;
+    u.dip *= Math.exp(-dt * 12);
+    const flick = Math.max(0, 1 - CFG.FLOOD_FLICKER * u.load * (u.fl + u.dip));
+    const level = whole ? dark * (1 - u.load * (1 - CFG.FLOOD_DIM)) * flick : 0;
+    u.lensMat.color.copy(this.lensOff).lerp(_lit, Math.min(1, level * 1.2));
+    for (const s of u.floods) {
+      s.intensity = CFG.FLOOD * level; s.angle = CFG.FLOOD_ANGLE;
+      if (!level) continue;     // (kept in the scene at 0, like the headlamps: adding and removing lights recompiles shaders)
+      this.toWorld(s.userData.at, s.position, u.k);
+      this.toWorld(s.userData.aim, s.target.position, u.k);
+      s.target.updateMatrixWorld();
+    }
   }
 
   updateUnit(u, ch, dt, src, ax) {

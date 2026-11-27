@@ -429,7 +429,7 @@ export class View {
     this.flexNow = flex;
     if (flex) for (const p of this.pieces.values()) this.bendPiece(p, flex);
     if (aux && CFG.SHOW_FIBRES && aux.tick !== this.lastAuxTick && (CFG.STRESS_COLORS || !this.painted)) { this.lastAuxTick = aux.tick; this.painted = true; this.paintFibres(aux); }
-    this.chipperView.update(dt, src, aux);
+    this.chipperView.update(dt, src, aux, this.sky.dark || 0);
     this.binView.update(src);
     this.poseWinch(aux);
     this.buildsView.update(src);

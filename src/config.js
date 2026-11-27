@@ -56,6 +56,10 @@ export const CFG = {
   HEADLAMPS: true,         // players switch headlamps on when the sun goes down
   HEADLAMP: 14,            // candela: brightness of a headlamp (lights a surface 1 m away with this, 3 m away with a ninth)
   HEADLAMP_ANGLE: 0.45,    // rad, half-width of a headlamp's beam
+  FLOOD: 45,               // candela: each of the chipper's two floodlights (on at night, D120)
+  FLOOD_ANGLE: 0.75,       // rad, half-width of a floodlight's beam
+  FLOOD_DIM: 0.55,         // share of its light a floodlight keeps while the chipper is chipping (the engine bogs down)
+  FLOOD_FLICKER: 0.35,     // how far it flickers below that while chipping (0 = steady, 1 = to black)
   LAMPS: true,             // streetlights, porch lights and windows come on at night (view/lamps.js), while the power lines feed them
   STREETLIGHT: 60,         // candela: a streetlight's real light (about 1.3 lx on the road under its 6.7 m high head)
   STREETLIGHT_REACH: 26,   // m: how far a streetlight's real light reaches

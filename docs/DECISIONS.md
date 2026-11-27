@@ -1960,3 +1960,29 @@ on at night and go out if the power is cut.
   darkens everything east of it), houses with no drop always lit, the
   brightness numbers, the windows all-or-nothing per house apart from the
   hash, no flicker when the power goes.
+**D120 — Chipper floodlights; the axle moves under the drum.** Owner
+(2026-11-27): "Add a pair of flood lights to the chipper that illuminate the
+area beside the hopper. These lights should dim and flicker while chipping,
+and go out if the chipper is broken. Move the chipper wheels closer to the
+hopper; heavy branches are causing it to tip."
+- Tipping is a lever: the axle was 0.2 m behind the centre of mass and 1.65 m
+  from the winch, so about 45 kg on the winch (60 kg measured) lifted the
+  jockey wheel. The axle now sits at x = -1.0 (under the drum, its wheels just
+  clear of the hopper): 0.86 m to the centre of mass and 0.95 m to the winch.
+  Measured headless (seed maple, a steady downward force at the winch): holds
+  280 kg, tips at 340 kg; `CHIP_CAPACITY` is 150 kg and the winch carries
+  only part of a piece's weight. No special rule: it is still an ordinary
+  body, so a rope or a falling log can still tip it.
+- The tyre model took the axle's share of the weight from the chassis centre;
+  it now uses the body's real centre of mass (a third is on the jockey wheel
+  now, about 120 kg; towing needs only `CHIP_ROLL` of it).
+- Floodlights are view only (no sim state): on with `Sky.dark`, dimmed and
+  flickered from aux `on`, out when `ch.wreck`. They run off the chipper's own
+  engine, so cutting the power lines does not touch them. Kept in the scene at
+  zero intensity by day (adding and removing lights makes three.js recompile
+  shaders).
+- My choices, unreviewed: `FLOOD` 45 cd (headlamp 14), beam 43°, `FLOOD_DIM`
+  0.55, `FLOOD_FLICKER` 0.35, the lamps on the back hoop's shoulders aimed
+  1.35 m out from the centre line beside the hopper, no shadows from them,
+  the lamps are not among the wreck's parts. Tunables in the Tab menu by the
+  headlamps.

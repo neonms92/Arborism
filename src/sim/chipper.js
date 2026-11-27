@@ -569,7 +569,8 @@ export class Chipper {
     // the parking brake is on unless someone has hold of the grip (the hand brake is on the drawbar); parked, the jockey
     // wheel is clamped too
     const towed = this.sim.chipper.towed(this.k);
-    const S = SHAPE, share = (S.JOCKEY[0] - S.CHASSIS.c[0]) / (S.JOCKEY[0] - S.AXLE[0]);
+    // the axle's share of the weight, from where the centre of mass is between it and the jockey wheel
+    const S = SHAPE, share = Math.max(0, Math.min(1, (S.JOCKEY[0] - b.localCom().x) / (S.JOCKEY[0] - S.AXLE[0])));
     // directions along the ground under a point (its tangent plane)
     const flat = (d, n) => d.addScaledVector(n, -d.dot(n)).normalize();
     const sim = this.sim, gn = (P) => { const n = sim.groundN(P.x, P.z); return new THREE.Vector3(n[0], n[1], n[2]); };
