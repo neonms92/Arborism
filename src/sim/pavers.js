@@ -59,7 +59,8 @@ export class Pavers {
       const v = b.linvel(), vx = v.x, vy = v.y, vz = v.z, w = b.angvel();
       this.vel.set(b.handle, [vx, vy, vz, w.x, w.y, w.z]);
     }
-    sim.chipper.eachRigid((b) => {
+    const heavy = (f) => { sim.chipper.eachRigid(f); sim.loader.eachRigid(f); };
+    heavy((b) => {
       if (b.isSleeping()) return;
       const v = b.linvel(), vx = v.x, vy = v.y, vz = v.z, w = b.angvel();
       this.vel.set(b.handle, [vx, vy, vz, w.x, w.y, w.z]);
@@ -70,7 +71,7 @@ export class Pavers {
     const sim = this.sim, col = sim.rapier.getCollider(h); if (!col) return;
     const body = col.parent(); if (!body || !body.isDynamic()) return;
     const pid = sim.colPlayer.get(h), pl = pid !== undefined ? sim.players.list.get(pid) : null;
-    const chip = sim.chipper.solid(h);
+    const chip = sim.chipper.solid(h) || sim.loader.solid(h);
     if (pid === undefined && sim.colSeg.get(h) === undefined && !chip) return;
     if (pl && pl.mode === MODE.CLIMB) return;
 

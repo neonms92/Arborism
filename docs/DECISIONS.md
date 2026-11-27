@@ -2103,3 +2103,30 @@ the climber is on is carried across the joint unrotated (a crack is a small
 angle); a rope whose wraps change fast can still pump L0 out past CHIP_PULL
 (seen once at 11 m: the feed then pulled nothing), left as an open finding.
 
+**D128 — A grapple loader and a log truck for wood too big to chip.** Owner
+(2026-11-27): a drivable grapple loader you stand in the back of, lower a claw
+while driving, grab heavy logs (800 lb and more), and drop them into a truck
+in the street with no capacity. Built as physics, not as states (DESIGN.md
+6.5b): the loader is a dynamic body with modelled tyres like the chipper's;
+the claw is its own body on a ball joint at the boom tip, so loads swing and
+tip the loader by their weight; the boom's limits are a torque cap and the
+wheels lifting, not a weight table. Judgment calls the owner has not seen:
+- Stand-on loader with a front boom and a two-tine claw, no slewing: you aim
+  by driving. Front-wheel steering. 2.8 t, 3 m/s, boom 4.4 m, 80 kN m (the
+  boom would lift about 1.6 t held straight out, but the loader tips first,
+  at about 950 kg that far out; closer in it holds well over a tonne). It lifted a 436 kg (960 lb) round off the street and set it in
+  the bed in a scripted run.
+- Parked in the street in front of the lot (truck on the lot's kerb, loader
+  behind it), re-parked with every new tree, not on flat ground (tests).
+- The truck is fixed (does not move, cannot be damaged or pushed). Hauling is
+  free and pays nothing: like chipping, it only moves the job's progress.
+  "Tree chipped" reads "Tree cleared" once anything is hauled.
+- Wood is taken from the bed after 1.5 s lying still in it; the bed is drawn
+  filling up to the brim and then stays full.
+- The loader breaks fences, sheds and house rooms and cracks pavers like the
+  chipper (it counts as heavy), so driving through a fence costs its price.
+- The driver cannot saw, punch or eat while driving; G.O.E. does not drive.
+- The view turns with the loader while driving (main.js adds its heading
+  change to the look yaw).
+Also fixed on the way: resume (D104) handed bins (59500+) to the chipper's
+id range and never put them back where they were.

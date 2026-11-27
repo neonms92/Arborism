@@ -208,7 +208,8 @@ export class Touch {
     document.body.classList.toggle('touchui', vis);
     if (!vis) { if (this.fingers.size || this.mx || this.my) this.releaseAll(); return; }
     const pr = (a && a.pr) || '', has = (tok) => pr.includes('{' + tok + '}');
-    const rope = !!(a && a.m === MODE.ROPE), sawOut = !!(a && a.saw);
+    // on the loader the rope's slider works the boom (up raises the claw, down lowers it)
+    const tail = !!(a && a.m === MODE.ROPE), drive = !!(a && a.m === MODE.DRIVE), rope = tail || drive, sawOut = !!(a && a.saw);
     this.ropeMode = rope;
     if (rope) this.saw = false;
     const act = actionLabel(pr);
@@ -230,7 +231,7 @@ export class Touch {
     const eat = !rope && !sawOut && !this.saw && a && a.hd ? actionLabel(pr, 'eat') : '';
     show1(b.eat, !!eat); if (eat) b.eat.textContent = eat;
     if (!eat) this.eating = false;
-    show1(b.wup, rope); show1(b.wdn, rope);
+    show1(b.wup, tail); show1(b.wdn, tail);
     this.slider.style.display = rope ? 'block' : 'none';
     if (rope) this.sliderKnob.style.top = `${50 - this.rope * (50 - 24 / 1.7)}%`;
     if (!rope && b.cut.style.display === 'none') this.cutting = false;

@@ -24,6 +24,7 @@ import { TerrainView } from './terrain.js';
 import { groundY } from '../model/terrain.js';
 import { ChipperView, saladGeometry } from './chipper.js';
 import { BinView } from './bin.js';
+import { LoaderView } from './loader.js';
 import { BuildsView } from './builds.js';
 import { SHAPE } from '../model/chipper.js';
 import { woodInto, fibreWidth } from './wood.js';
@@ -101,6 +102,7 @@ export class View {
     this.paverView = new PaverView(this.scene, world);   // concrete pavers round the tree, and their cracks
     this.chipperView = new ChipperView(this.scene, world);   // the wood chipper and its chip piles
     this.binView = new BinView(this.scene, world);           // the chip bins
+    this.loaderView = new LoaderView(this.scene, world);     // the grapple loader and the log truck
     this.buildsView = new BuildsView(this.scene, world);     // the shed, whole or in pieces
     this.weedsView = new WeedsView(this.scene, world);       // long grass at the foot of fences, buildings and trunks
     this.linesView = new LinesView(this.scene, world, this);       // power lines, and the flash when one snaps
@@ -163,6 +165,7 @@ export class View {
     this.paverView.onEvent(ev);
     this.chipperView.onEvent(ev);
     this.binView.onEvent(ev);
+    this.loaderView.onEvent(ev);
     this.buildsView.onEvent(ev);
     this.standsView.onEvent(ev);
     this.linesView.onEvent(ev);
@@ -194,7 +197,7 @@ export class View {
         break;
       }
       case 'cut': case 'divide': case 'rip': { const s = this.world.segs.get(ev.seg); if (s) this.buildPiece(s.piece); break; }
-      case 'rmpiece': this.dropPiece(ev.piece); break;
+      case 'rmpiece': case 'haul': this.dropPiece(ev.piece); break;
       case 'chip':
         for (const id of info.touched || []) { if (this.world.pieces.has(id)) this.buildPiece(id); else this.dropPiece(id); }
         break;
@@ -437,6 +440,7 @@ export class View {
     if (aux && CFG.SHOW_FIBRES && aux.tick !== this.lastAuxTick && (CFG.STRESS_COLORS || !this.painted)) { this.lastAuxTick = aux.tick; this.painted = true; this.paintFibres(aux); }
     this.chipperView.update(dt, src, aux, this.sky.dark || 0);
     this.binView.update(src);
+    this.loaderView.update(dt, src, aux);
     this.poseWinch(aux);
     this.buildsView.update(src);
     this.linesView.update(dt, src);

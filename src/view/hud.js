@@ -81,16 +81,16 @@ export class Hud {
     while (this.toasts.children.length > 5) this.toasts.firstChild.remove();
   }
 
-  /** How far the job has got: the job tree chipped, and of the chips made, how many went into a bin (world.prog). */
+  /** How far the job has got: the job tree chipped or hauled away on the log truck, and of the chips made, how many went into a bin (world.prog). */
   progress() {
     const P = this.world.prog, el = this.progEl || (this.progEl = $('prog'));
-    const tree = P.M > (P.lost || 0) ? Math.min(1, P.chipped / (P.M - (P.lost || 0))) : 0, bin = P.made > 0 ? P.gone / P.made : null;
+    const tree = P.M > (P.lost || 0) ? Math.min(1, (P.chipped + (P.hauled || 0)) / (P.M - (P.lost || 0))) : 0, bin = P.made > 0 ? P.gone / P.made : null;
     const key = `${tree.toFixed(4)} ${bin === null ? '-' : bin.toFixed(4)}`;
     if (key === this.progKey) return;
     this.progKey = key;
     // to a tenth of a percent, rounded down (a big tree moves slowly; 99.96 % is not yet 100 %)
     const span = (f) => `<span style="color:${pctColour(f)}">${(Math.floor(f * 1000 + 1e-6) / 10).toFixed(1)}%</span>`;
-    el.innerHTML = `Tree chipped ${span(tree)}  ·  Chips in bins ${bin === null ? '<span style="opacity:.7">none yet</span>' : span(bin)}`;
+    el.innerHTML = `Tree ${P.hauled > 0 ? 'cleared' : 'chipped'} ${span(tree)}  ·  Chips in bins ${bin === null ? '<span style="opacity:.7">none yet</span>' : span(bin)}`;
   }
 
   /** The network box (net/stats.js), top right on a joined client; null hides it. */
@@ -113,10 +113,10 @@ export class Hud {
     if (cash !== null) s += `  |  cash ${cash < 0 ? '-' : ''}${money(Math.abs(cash))}${dbg ? `, ${wageMath(aux ? aux.pl.length : 1)}` : ''}`;
     if (a && a.ck > 0) s += `  |  carrying ${qty('vol', a.ck * 1000, 0)} of chips`;
     if (a && a.hd) s += '  |  holding a tube salad';
-    if (a) s += `  |  ${a.m === MODE.CLIMB ? 'on spurs, lanyard on' : a.m === MODE.ROPE ? 'on the rope' : 'on the ground'}  |  ${INJ_NAME[a.inj]}`;
+    if (a) s += `  |  ${a.m === MODE.CLIMB ? 'on spurs, lanyard on' : a.m === MODE.ROPE ? 'on the rope' : a.m === MODE.DRIVE ? 'driving the loader' : 'on the ground'}  |  ${INJ_NAME[a.inj]}`;
     this.status.textContent = s;
     this.progress();
-    this.prompt.textContent = a ? describe(a.pr, device, device === 'touch' && a.m === MODE.ROPE ? TOUCH_ROPE : null) : '';
+    this.prompt.textContent = a ? describe(a.pr, device, device === 'touch' && (a.m === MODE.ROPE || a.m === MODE.DRIVE) ? TOUCH_ROPE : null) : '';
     this.keys.style.display = device === 'touch' ? 'none' : '';
     this.keys.textContent = describe('{move} move   {look} look   {interact} lanyard (hold)   {rig} block / tie   {punch} punch   {raise} saw   {drop} let go (hold)   {menu} settings', device);
     const ch = a ? a.ch || 0 : 0;

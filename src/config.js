@@ -262,6 +262,23 @@ export const CFG = {
   CHIP_CAPACITY: 150,      // kg: the heaviest contiguous piece the rollers take; heavier wood seizes them until it is sawn
   CHIP_MAX: 6,             // most chippers in the world at once ("Buy a new chipper" stops there; each is a 350 kg body with its own tyres and feed)
   CHIP_SWELL: 2.5,         // m3 of loose chips per m3 of wood chipped
+  // --- grapple loader and log truck (sim/loader.js): a stand-on loader with a boom and claw, and a truck in the street ---
+  LOADER_MASS: 2800,       // kg, most of it the counterweight over the back axle (applies at the next new tree)
+  LOADER_GRAPPLE_MASS: 250, // kg, the claw
+  LOADER_SPEED: 3,         // m/s at full throttle, forward or back
+  LOADER_DRIVE_F: 20000,   // N, most the four driven wheels push with between them
+  LOADER_GRIP: 0.9,        // tyre grip, as a fraction of the weight on a wheel (sideways, and most the drive or brakes get)
+  LOADER_BRAKE: 0.8,       // brakes with no throttle, as a fraction of the weight on a wheel
+  LOADER_STEER: 0.6,       // rad, front wheels' steering lock
+  LOADER_STEER_RATE: 1.5,  // rad/s the steering turns
+  LOADER_BOOM_RATE: 0.35,  // rad/s the boom moves at full stick
+  LOADER_BOOM_T: 80000,    // N m: the boom lifts while the claw and its load, times how far out it is, need no more than this
+  LOADER_JAW_REACH: 0.3,   // m from the middle of the open jaws to the bark that closing still takes hold of
+  LOADER_SWING_DAMP: 2,    // 1/s: the swing brake at the boom tip (how fast the claw's swinging dies away)
+  LOADER_ROTATOR_K: 20,    // 1/s2: how hard the rotator turns the claw square to the loader
+  LOADER_ROTATOR_T: 4000,  // N m, most the rotator turns it with
+  TRUCK_TAKE_T: 1.5,       // s loose wood lies still in the log truck's bed before it is hauled away
+  TRUCK_REST_V: 0.5,       // m/s: wood slower than this is lying still
   // --- chip bins (sim/bin.js): 96 gal wheeled bins with no bottom; chips in them are gone ---
   BIN_MASS: 15,            // kg, the bin without its lid
   BIN_LID_MASS: 2,         // kg
@@ -347,4 +364,4 @@ export const TEST_DEFAULTS = Object.freeze({ ...CFG_DEFAULTS, BARK_OPACITY: 0, T
 
 export const INJ = { OK: 0, SHAKEN: 1, HURT: 2, DOWN: 3 };
 export const INJ_NAME = ['ok', 'shaken', 'HURT', 'DOWN'];
-export const MODE = { GROUND: 0, CLIMB: 1, ROPE: 2 };
+export const MODE = { GROUND: 0, CLIMB: 1, ROPE: 2, DRIVE: 3 };   // DRIVE: on the grapple loader's platform (sim/loader.js)

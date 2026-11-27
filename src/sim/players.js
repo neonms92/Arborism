@@ -248,7 +248,8 @@ export class Players {
   }
 
   toGround(p, vel) {
-    if (p.mode === MODE.CLIMB) {
+    if (p.mode === MODE.DRIVE) this.sim.loader.left(p);
+    if (p.mode === MODE.CLIMB || p.mode === MODE.DRIVE) {
       p.body.setBodyType(this.sim.R.RigidBodyType.Dynamic, true);
       p.body.setLinvel(vel || { x: 0, y: 0, z: 0 }, true);
     }
@@ -482,9 +483,9 @@ export class Players {
 
     // chainsaw (no tool to pick: it is always to hand): {raise} plants it on the wood looked at;
     // look controls pivot it, {throttle} presses it in
-    const canSaw = control && p.mode !== MODE.ROPE && !p.ride;
+    const canSaw = control && p.mode !== MODE.ROPE && p.mode !== MODE.DRIVE && !p.ride;
     sawStep(sim, p, inp, dt, canSaw, aim);
-    if (control && p.mode !== MODE.ROPE && pressed.punch) this.punchPress(p, aim);
+    if (control && p.mode !== MODE.ROPE && p.mode !== MODE.DRIVE && pressed.punch) this.punchPress(p, aim);
     this.punchStep(p, dt);
     if (p.mode !== MODE.GROUND || !control) p.grab = null;
 
@@ -496,6 +497,8 @@ export class Players {
       this.walk(p, inp, dt, control, pressed);
     } else if (p.mode === MODE.CLIMB) {
       this.climb(p, inp, dt, control, pressed, aim);
+    } else if (p.mode === MODE.DRIVE) {
+      sim.loader.drive(p, inp, dt, control, pressed);     // on the grapple loader's platform (sim/loader.js)
     } else {
       this.ground(p, inp, dt, control, pressed, aim);
     }
@@ -601,6 +604,7 @@ export class Players {
     const sal = this.salad(p, inp, pressed);
     // G.O.E. (D118): {interact} on the red button on his right shoulder switches him off or on; switched off, anywhere else grabs him
     const bot = !tail && !p.grab && !p.chips && !p.bot ? this.aimBot(p) : null;
+    const ld = !tail && !p.grab && !p.chips ? sim.loader.aim(p) : null;
     if (bot && (bot.button || bot.o.off)) {
       const nm = this.name(bot.o.id);
       if (pressed.interact) {
@@ -611,6 +615,10 @@ export class Players {
       first = bot.button ? (bot.o.off ? `{interact}: switch ${nm} on` : `{interact}: switch ${nm} off`) : `{interact}: grab ${nm}`;
     } else if (tail) {
       first = '{rig}: take tail';
+    } else if (ld && !p.chips && !p.grab) {
+      // the grapple loader: {interact} anywhere on it steps up onto its platform and takes the controls
+      if (pressed.interact) { sim.loader.mount(p); p.chLock.add('lanyard'); }
+      first = '{interact}: drive loader';
     } else if (p.chips > 0 && !p.grab) {
       // hands full of chips: {interact} takes more off the pile looked at, while there is room, or puts them all down
       // At a chip bin: open, they are tipped in (and gone: it has no bottom); shut, the press opens its lid first.
@@ -778,7 +786,7 @@ export class Players {
   // ---- after physics: read impacts on dynamic players ----
   post(dt) {
     for (const p of this.list.values()) {
-      if (p.mode === MODE.CLIMB) continue;
+      if (p.mode === MODE.CLIMB || p.mode === MODE.DRIVE) continue;    // (a driver's jolts: sim/loader.js post)
       const v = p.body.linvel();
       if (p.off) { const t = p.body.translation(); if (t.y < this.sim.groundY(t.x, t.z) - 20) this.setPower(p, true); continue; }   // a switched-off box feels nothing
       const dv = Math.hypot(v.x - p.vPre.x, v.y - p.vPre.y, v.z - p.vPre.z);

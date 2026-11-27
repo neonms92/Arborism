@@ -81,7 +81,7 @@ export class Lines {
     if (ev.t === 'lines') this.build();
     else if (ev.t === 'reset') { this.st = []; this.sphere.clear(); }
     else if (ev.t === 'snap') { const S = this.st[ev.i]; if (S) this.wake(S); }
-    if (ev.t === 'split' || ev.t === 'divide' || ev.t === 'chip' || ev.t === 'rmpiece' || ev.t === 'rip' || ev.t === 'reset') this.sphere.clear();
+    if (ev.t === 'split' || ev.t === 'divide' || ev.t === 'chip' || ev.t === 'rmpiece' || ev.t === 'haul' || ev.t === 'rip' || ev.t === 'reset') this.sphere.clear();
   }
 
   /** Solver state for every line in the world, hanging at rest, asleep. */

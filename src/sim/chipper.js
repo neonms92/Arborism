@@ -230,7 +230,7 @@ export class Chipper {
   // ---- model -> physics ----
   onEvent(ev, info) {
     if (ev.t === 'reset') this.feeding.clear();
-    else if (ev.t === 'rmpiece') this.feeding.delete(ev.piece);
+    else if (ev.t === 'rmpiece' || ev.t === 'haul') this.feeding.delete(ev.piece);
     else if (ev.t === 'split' && info.moved) {
       const f = this.feeding.get(info.oldPiece); if (!f) return;
       const moved = info.moved.includes(f.seg);
@@ -732,7 +732,7 @@ function feedR(s, p) {
 /** The mass body b presents to an impulse at world point P along unit n: 1 / (1/m + (r x n) . I^-1 (r x n)). */
 const STICK = 0.2;          // fraction of a stuck tyre's drift from where it stopped taken back each step
 
-function effMass(b, P, n) {
+export function effMass(b, P, n) {
   const m = b.mass(), c = b.worldCom(), rx = P.x - c.x, ry = P.y - c.y, rz = P.z - c.z, e = b.effectiveWorldInvInertia().elements;
   const ux = ry * n.z - rz * n.y, uy = rz * n.x - rx * n.z, uz = rx * n.y - ry * n.x;
   const q = ux * (e[0] * ux + e[1] * uy + e[2] * uz) + uy * (e[1] * ux + e[3] * uy + e[4] * uz) + uz * (e[2] * ux + e[4] * uy + e[5] * uz);

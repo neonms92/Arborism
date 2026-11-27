@@ -3,7 +3,7 @@
 //
 // What comes back: the ground, the job tree and every loose piece where it was (at rest), the wood still
 // hanging by fibres (its fibres as the last aux showed them), the chippers, bins and intact structures,
-// the other yard trees, the power lines (as last seen), players (climbers on the wood they were on), rope length and wraps, the clock.
+// the loader and log truck, the other yard trees, the power lines (as last seen), players (climbers on the wood they were on), rope length and wraps, the clock.
 // Stickers handed out so far are in the world (world.awards), so none is handed out twice.
 // What does not: speeds (everything starts still), the state of a chipper mid-feed, debris of broken
 // structures (drawn, no longer solid), someone holding the rope or wood (they let go).
@@ -31,6 +31,10 @@ export function resume(sim, st) {
     (w.chipper.piles || []).forEach((pl, i) => sim.chipper.pileCollider(i, pl));
   }
   if (w.bins && w.bins.length) on({ t: 'bins', list: w.bins.map((b) => [b.p, b.q]) });
+  if (w.loader) {                       // the loader where it was parked (moved below), its boom as last seen, claw open
+    if (aux && Array.isArray(aux.ld)) sim.loader.boom = aux.ld[2];
+    on({ t: 'loader', p: w.loader.p, q: w.loader.q, truck: w.loader.truck });
+  }
   if (w.builds && w.builds.length) on({ t: 'builds' });
   if (w.stands) on({ t: 'stands' });
   if (w.lines) { on({ t: 'lines' }); sim.lines.restore(st.lines && st.lines.m); }   // the power lines where this player last saw them
@@ -87,8 +91,8 @@ export function resume(sim, st) {
 }
 
 function bodyOf(sim, id) {
-  if (id >= CHIPPER_BODY_ID && id < CHIPPER_BODY_ID + 1000) return sim.chipper.bodyOf(id);
-  return sim.bodies.get(id) || sim.builds.body(id) || sim.chipper.partBody(id) || sim.bins.body(id) || null;
+  const ch = id >= CHIPPER_BODY_ID && id < CHIPPER_BODY_ID + 1000 ? sim.chipper.bodyOf(id) : null;
+  return ch || sim.bodies.get(id) || sim.builds.body(id) || sim.chipper.partBody(id) || sim.bins.body(id) || sim.loader.bodyOf(id) || null;
 }
 
 /** The largest id the old host handed out that this world still mentions (the next one must be new). */

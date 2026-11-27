@@ -10,6 +10,7 @@
 // terrain: the ground, model/terrain.js (null = flat at y = 0)
 // stands: the other trees in the yards, model/stands.js (null = none)
 // lines: the power lines, model/lines.js (null = none)
+// loader: the grapple loader and the log truck, model/loader.js (null = none)
 // mark: the orange X sprayed on the job tree {c:[3] on its axis, n:[3] out to the paint}, piece-local (null = none)
 
 import { makeBundle, cutFibres, packBundle, unpackBundle, gridFor, layout, bundleBasis, CUT, isGone, setGone, presence } from './fibres.js';
@@ -88,6 +89,7 @@ export class World {
     this.players = new Map();     // id -> {id, name}
     this.paving = null;           // concrete pavers round the tree (model/pavers.js)
     this.chipper = null;          // the wood chippers and their chip piles: {piles, units: [{p, q, wreck}]} (model/chipper.js)
+    this.loader = null;           // the grapple loader and the log truck: {p, q, truck: {p, q}, kg, n} (model/loader.js)
     this.bins = [];               // the chip bins: [{p, q} where each was put down] (model/bin.js)
     this.prog = newProg();        // how far the job has got: the job tree chipped, and its chips gone into bins
     this.builds = [];             // breakable structures: the shed (model/builds.js)
@@ -200,7 +202,7 @@ export class World {
         if (this.stands) for (const [i, cut] of ev.cut) if (this.stands.list[i]) this.stands.list[i].cut = cut;
         break;
       case 'reset':                 // all wood gone (a new tree follows)
-        this.segs.clear(); this.pieces.clear(); this.rope = { state: 0 }; this.damage = 0; this.wages = 0; this.spent = 0; this.job = null; this.stands = null; this.mark = null; this.lines = null;
+        this.segs.clear(); this.pieces.clear(); this.rope = { state: 0 }; this.damage = 0; this.wages = 0; this.spent = 0; this.job = null; this.stands = null; this.mark = null; this.lines = null; this.loader = null;
         this.prog = newProg();
         this._dirty();
         break;
@@ -222,6 +224,16 @@ export class World {
       case 'rmpiece': {             // swept away as debris: twigs too light to bother with (not chipped, so not counted)
         for (const s of [...this.segs.values()]) if (s.piece === ev.piece) { if (!s.yd) this.prog.lost += segMass(s) + s.leaf; this.segs.delete(s.id); }
         this.pieces.delete(ev.piece);
+        this._dirty();
+        this._ropeCheck(info);
+        break;
+      }
+      case 'loader': this.loader = { p: ev.p, q: ev.q, truck: ev.truck, kg: 0, n: 0 }; break;   // parked fresh with a new tree
+      case 'haul': {                // loose wood that came to rest in the log truck's bed is taken away (it never fills)
+        let kg = 0;
+        for (const s of [...this.segs.values()]) if (s.piece === ev.piece) { kg += segMass(s) + s.leaf; if (!s.yd) this.prog.hauled = (this.prog.hauled || 0) + segMass(s) + s.leaf; this.segs.delete(s.id); }
+        this.pieces.delete(ev.piece);
+        if (this.loader) { this.loader.kg += kg; this.loader.n++; }
         this._dirty();
         this._ropeCheck(info);
         break;
@@ -431,7 +443,7 @@ export class World {
       segs: [...this.segs.values()].map((s) => ({ ...s, f: packBundle(s.f) })), pieces: [...this.pieces.values()],
       rope: this.rope, players: [...this.players.values()], paving: packPaving(this.paving), chipper: this.chipper, builds: packBuilds(this.builds),
       terrain: this.terrain ? this.terrain.spec : null, damage: this.damage, job: this.job, wages: this.wages, spent: this.spent, stands: this.stands, mark: this.mark, seed: this.seed || '', lines: this.lines,
-      bins: this.bins, prog: this.prog, awards: this.awards,
+      bins: this.bins, prog: this.prog, awards: this.awards, loader: this.loader,
     };
   }
   load(o) {
@@ -447,18 +459,19 @@ export class World {
     this.builds = unpackBuilds(o.builds);
     this.damage = o.damage || 0; this.job = o.job || null; this.wages = o.wages || 0; this.spent = o.spent || 0;
     this.stands = o.stands || null; this.mark = o.mark || null; this.seed = o.seed || ''; this.lines = o.lines || null;
-    this.bins = o.bins || []; this.prog = o.prog || newProg(); this.awards = { ...newAwards(), ...(o.awards || {}) };
+    this.loader = o.loader || null; this.bins = o.bins || []; this.prog = o.prog || newProg(); this.awards = { ...newAwards(), ...(o.awards || {}) };
     this._dirty();
     for (const fn of this.listeners) fn({ t: 'load' }, {});
   }
 }
 
 const EMPTY = [];
-/** M: kg of the job tree (wood and leaves) as grown; chipped: kg of it chipped; lost: kg of it swept away as debris
+/** M: kg of the job tree (wood and leaves) as grown; chipped: kg of it chipped; hauled: kg of it taken away on the log
+ * truck (model/loader.js); lost: kg of it swept away as debris
  * (twigs under DEBRIS_MASS, which nobody could chip: the share chipped is of M - lost); made: m3 of chips blown out by
  * the chippers; gone: m3 of chips that went into bins. */
 /** job: id of this job ('' before one, as in the engine tests: nothing is handed out); got: kind -> {player id:
  * highest tier handed to them}; ate: player id -> tube salads eaten this job; work: {chop: id -> m² of the job tree
  * sawn through, chip: id -> kg of it they fed that was chipped, bin: id -> m³ of chips they put in bins}. In the world so a host taking over (D104) carries on. */
 function newAwards() { return { job: '', got: {}, ate: {}, work: { chop: {}, chip: {}, bin: {} } }; }
-function newProg() { return { M: 0, chipped: 0, lost: 0, made: 0, gone: 0 }; }
+function newProg() { return { M: 0, chipped: 0, hauled: 0, lost: 0, made: 0, gone: 0 }; }
