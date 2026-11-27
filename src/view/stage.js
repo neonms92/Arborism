@@ -66,12 +66,19 @@ export class Stage {
   nameFocus(on) { this.nameOn = !!on; }
 
   lobby() { this.mode = 'lobby'; this.av.group.position.set(0, 0, 0); this.pivot.quaternion.identity(); this.yaw = 0; this.setGhost(null); }
-  /** Aim sticker {k, t}: the head close up, turned to some spot on the side or top of the helmet. */
-  stick(k, t) {
+  /** Aim sticker {k, t}: the head close up, turned to some spot on the side or top of the helmet. `reroll`
+   *  (after one was just stuck): turn to a new random spot, away from the last one, so the next isn't on top of it. */
+  stick(k, t, reroll = false) {
     const fresh = this.mode !== 'stick';
     this.mode = 'stick'; this.sticker = { k, t }; this.frozen = false;
     this.av.group.position.set(0, -HELMET_Y, 0);
-    if (fresh) { this.yaw = (Math.random() < 0.5 ? -1 : 1) * (1.1 + Math.random() * 1.2); this.pitch = 0.75 + Math.random() * 0.4; this.toYaw = this.toPitch = null; }
+    const spot = () => [(Math.random() < 0.5 ? -1 : 1) * (1.1 + Math.random() * 1.2), 0.75 + Math.random() * 0.4];
+    if (fresh) { [this.yaw, this.pitch] = spot(); this.toYaw = this.toPitch = null; }
+    else if (reroll) {
+      let y, p;
+      for (let i = 0; i < 8; i++) { [y, p] = spot(); if (Math.abs(y - this.yaw) > 0.8) break; }
+      this.toYaw = y; this.toPitch = p;    // eased there in frame(), so you see the head turn
+    }
     this.ghostKey = '';
   }
   /** Just stuck: no shadow until the next sticker. */

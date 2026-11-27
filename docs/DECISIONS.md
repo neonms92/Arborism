@@ -2005,3 +2005,18 @@ when it loses it.
   closes; drag sensitivity (about 230 px of drag covers the whole range);
   the tag close-up shows about 0.26 m of chest; the idle sway fades out
   during the tag zoom. Tunables in config.js, not in the Tab menu.
+
+**D122 — A new spot for each sticker; ghost tails fit their bodies.** Owner
+(2026-11-27): "After applying a sticker, re-roll a random placement for the
+next one. See if you can fix the alignment of the ghostly tail." After Stick!
+the helmet now turns (eased, so you see it) to a new random spot for the next
+sticker, at least 0.8 rad of yaw from the last; Discard does not re-roll. The
+ghost tail was one fixed shape for every ghost, so it stuck out past the
+chipper wreck, the tree and the fence, and hung loose under the thin tip of
+the Electricity bolt; its outline also drew a line across the join. Each
+ghost now names its body's bottom edge (`TAIL` in view/stickers.js) and the
+tail is stretched to it, tucked up into the body and filled over the join;
+the bolt's lower tip is cut at y 60 and the tail hangs from there. The tail
+tip ends at y 92, inside the sticker's rim (it overlapped the rim before).
+Unreviewed: re-roll after Stick! only, the 0.8 rad gap, narrow tails (the
+bolt's) lose the two side wisps.

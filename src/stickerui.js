@@ -175,7 +175,8 @@ export class StickerUI {
     this.btn.style.display = n ? 'flex' : 'none';
     if (p) this.btn.querySelector('img').src = stickerURL(p.k, p.t);
     const c = this.btn.querySelector('.n'); c.textContent = String(n); c.style.display = n > 1 ? '' : 'none';
-    if (this.open && !this.busy) { if (!n) this.close(); else this.show(this.book.pending.includes(this.cur) ? this.cur : p); }
+    if (this.open && !this.busy) { if (!n) this.close(); else this.show(this.book.pending.includes(this.cur) ? this.cur : p, this.stuck); }
+    this.stuck = false;
   }
 
   toggle() { if (this.open) this.close(); else if (this.book.pending.length) this.openDialog(); }
@@ -189,7 +190,7 @@ export class StickerUI {
     this.show(this.book.pending[this.book.pending.length - 1]);
     this.onOpen();
   }
-  show(p) {
+  show(p, reroll = false) {
     this.cur = p;
     const info = stickerInfo(p.k, p.t);
     this.box.querySelector('.side img').src = stickerURL(p.k, p.t);
@@ -197,7 +198,7 @@ export class StickerUI {
     this.box.querySelector('.d').textContent = info.desc;
     const more = this.book.pending.length - 1;
     this.box.querySelector('.more').textContent = more > 0 ? `${more} more waiting` : '';
-    this.stage.stick(p.k, p.t);
+    this.stage.stick(p.k, p.t, reroll);
   }
   close() {
     if (!this.open) return;
@@ -216,7 +217,7 @@ export class StickerUI {
     if (c) confetti(c.reduce((a, q) => a + q.x, 0) / 4, c.reduce((a, q) => a + q.y, 0) / 4);
     for (const b of this.box.querySelectorAll('.btns button')) b.disabled = true;
     this.book.stick(p, at);              // saves, tells the host and puts it on the helmet (main.js)
-    setTimeout(() => { this.busy = false; for (const b of this.box.querySelectorAll('.btns button')) b.disabled = false; this.refresh(); }, 900);
+    setTimeout(() => { this.busy = false; this.stuck = true; for (const b of this.box.querySelectorAll('.btns button')) b.disabled = false; this.refresh(); }, 900);
   }
   discard() { if (this.cur && !this.busy) this.book.discard(this.cur); }
 
