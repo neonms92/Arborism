@@ -1052,6 +1052,17 @@ that keeps its size on screen; a touch makes a smaller one; downed ends on
 the ground spark. Damage: `LINE_COST` per line the first time it breaks,
 `POLE_FELL_COST` for a felled pole.
 
+**Lights at night (D119).** Every pole carries a streetlight (hardware
+`LAMP`, fed from its middle phase), every house a porch light by its front
+door, and a house's windows glow; each comes on at its own point of dusk
+and goes off at dawn, while the grid feeds it. The grid: each line but the
+neutral joins two nodes (`g`), power comes in at the first pole of each
+street (`lines.src`) and flows along whole lines (`powerState`); a house is
+fed while its drop is whole and its can has power. A snapped span darkens
+every light past it. Drawing is cheap on purpose (view/lamps.js): flat
+lenses, glows and additive ground pools for all of them, real lights only on
+the `LAMP_LIGHTS` nearest the eye.
+
 ## 7. Controls
 
 Vertical look is **inverted** (`INVERT_Y`): pushing the mouse or stick

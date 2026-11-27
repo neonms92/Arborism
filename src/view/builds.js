@@ -25,6 +25,7 @@ export class BuildsView {
     this.groups = new Map();      // body id -> {g, fixed}
     this.parts = new Map();       // part body id -> {m: mesh, rest: {p, q}, posed}
     this.geo = new Map();
+    this.glass = new Map();       // house build id -> the merged glass of its standing body (view/lamps.js lights it at night)
   }
 
   mat(key, color) {
@@ -68,7 +69,7 @@ export class BuildsView {
     for (const o of d.objs) { this.root.remove(o); o.traverse((x) => { if (x.isMesh && x.userData.own) x.geometry.dispose(); }); }
     for (const k of d.bodies) this.groups.delete(k);
     for (const k of d.parts) this.parts.delete(k);
-    this.drawn.delete(id);
+    this.drawn.delete(id); this.glass.delete(id);
   }
 
   /** (Re)draw one build from the model. */
@@ -99,8 +100,10 @@ export class BuildsView {
       const g = new THREE.Group(), start = body === b.id ? { p: b.p, q: b.q } : b.bodies[body];
       g.position.set(...start.p); g.quaternion.set(...start.q);
       for (const [key, e] of M) {
-        const mesh = new THREE.Mesh(mergedBoxes(e.list), this.mat(key, e.col));
+        const lit = key === 'glass' && b.kind === 'house' && body === b.id;    // a window of the house as it stands: lit at night
+        const mesh = new THREE.Mesh(mergedBoxes(e.list, lit ? windowShade(b.id) : null), this.mat(key, e.col));
         mesh.userData.own = true;
+        if (lit) { mesh.userData.day = mesh.material; this.glass.set(b.id, mesh); }
         mesh.castShadow = true; mesh.receiveShadow = true;
         g.add(mesh);
       }
@@ -126,13 +129,26 @@ export class BuildsView {
   }
 }
 
-/** One geometry of boxes: list of [part {h}, frame {p, q}] in the body's frame. */
-function mergedBoxes(list) {
+/**
+ * How bright each window of house `id` is with the lights on (its glass vertex colour, used by the night material):
+ * most lamp-lit warm, some dimmer behind curtains, about one in five dark. Same on every machine.
+ */
+function windowShade(id) {
+  return (k) => {
+    const h = (Math.imul(id * 131 + k + 1, 2654435761) >>> 0) / 4294967296;
+    const b = h < 0.2 ? 0.05 : h < 0.45 ? 0.45 : h < 0.85 ? 0.85 : 1.1;
+    return [Math.min(1, 1.0 * b), 0.78 * b, 0.45 * b];
+  };
+}
+
+/** One geometry of boxes: list of [part {h}, frame {p, q}] in the body's frame; shade(k): [r, g, b] for box k (a colour attribute). */
+function mergedBoxes(list, shade = null) {
   const up = UNIT.attributes.position, un = UNIT.attributes.normal, ui = UNIT.index, nv = up.count, ni = ui.count;
-  const pos = new Float32Array(list.length * nv * 3), nor = new Float32Array(list.length * nv * 3);
+  const pos = new Float32Array(list.length * nv * 3), nor = new Float32Array(list.length * nv * 3), col = shade ? new Float32Array(list.length * nv * 3) : null;
   const idx = new (list.length * nv > 65535 ? Uint32Array : Uint16Array)(list.length * ni);
   list.forEach(([pt, f], k) => {
     _m.compose(_p.set(...f.p), _q.set(...f.q), _s.set(pt.h[0] * 2, pt.h[1] * 2, pt.h[2] * 2));
+    if (col) { const c = shade(k); for (let i = 0; i < nv; i++) col.set(c, (k * nv + i) * 3); }
     for (let i = 0; i < nv; i++) {
       _v.fromBufferAttribute(up, i).applyMatrix4(_m); _n.fromBufferAttribute(un, i).applyQuaternion(_q);
       const o = (k * nv + i) * 3;
@@ -143,6 +159,7 @@ function mergedBoxes(list) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  if (col) g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   g.setIndex(new THREE.BufferAttribute(idx, 1));
   g.computeBoundingSphere();
   return g;

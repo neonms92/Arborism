@@ -30,25 +30,32 @@ export class Lines {
   place(plan, base) {
     const sim = this.sim, w = sim.world, list = [];
     if (!plan.poles || !plan.poles.length || !w.stands) return;     // (no event: the engine tests' flat ground has none)
-    const add = (a, b, kind, slack = CFG.LINE_SLACK) => {
+    const add = (a, b, kind, g, slack = CFG.LINE_SLACK) => {
       const A = endRest(w, a), B = endRest(w, b), c = Math.hypot(B[0] - A[0], B[1] - A[1], B[2] - A[2]);
       if (c < 0.5) return;
-      list.push({ a, b, n: Math.max(2, Math.round(c / Math.max(0.5, CFG.LINE_LINK))), L0: +(c * (1 + Math.max(0, slack))).toFixed(4), kind });
+      const l = { a, b, n: Math.max(2, Math.round(c / Math.max(0.5, CFG.LINE_LINK))), L0: +(c * (1 + Math.max(0, slack))).toFixed(4), kind };
+      if (g) l.g = g;
+      list.push(l);
     };
     const hw = [], at = (st, d) => ({ st, h: +d[1].toFixed(4), o: [+d[0].toFixed(4), +d[2].toFixed(4)] });
     const parts = (pi) => poleParts(w.stands.list[base + pi].h);
-    // every pole: its three pin insulators and the neutral's spool
+    // every pole: its three pin insulators, the neutral's spool and a streetlight (fed from the middle phase)
     plan.poles.forEach((_, pi) => {
       const P = parts(pi);
       for (const d of P.pins) hw.push({ e: at(base + pi, d), k: HW.PIN });
       hw.push({ e: at(base + pi, P.neutral), k: HW.SPOOL });
+      hw.push({ e: at(base + pi, P.lamp), k: HW.LAMP, g: 4 * pi + 1 });
     });
-    // along the street: the three phases, pin to pin, and the neutral
+    // along the street: the three phases, pin to pin, and the neutral; power comes in at the first pole of each street
+    const fed = new Set();
     for (const [i, j] of plan.spans) {
       const Pi = parts(i), Pj = parts(j);
-      Pi.pins.forEach((d, k) => add(at(base + i, d), at(base + j, Pj.pins[k]), KIND.PHASE));
+      Pi.pins.forEach((d, k) => add(at(base + i, d), at(base + j, Pj.pins[k]), KIND.PHASE, [4 * i + k, 4 * j + k]));
       add(at(base + i, Pi.neutral), at(base + j, Pj.neutral), KIND.NEUTRAL);
+      fed.add(j);
     }
+    const src = [];
+    plan.poles.forEach((_, pi) => { if (!fed.has(pi)) src.push(4 * pi, 4 * pi + 1, 4 * pi + 2); });
     // a pole that feeds houses: a transformer can, a tap down to it from the yard-side phase, and a drop from it to each house
     const cans = new Map();         // pole -> the side its can is on
     for (const [pi, bi] of plan.drops) {
@@ -60,13 +67,13 @@ export class Lines {
       const P = poleParts(s.h, cans.get(pi));
       if (first) {
         hw.push({ e: at(base + pi, P.can), k: HW.CAN, s: cans.get(pi) });
-        add(at(base + pi, P.pins[P.tap]), at(base + pi, P.bushing), KIND.TAP, 0.08);
+        add(at(base + pi, P.pins[P.tap]), at(base + pi, P.bushing), KIND.TAP, [4 * pi + P.tap, 4 * pi + 3], 0.08);
       }
       // the drop leaves the side of the can that faces the house, near its top
       const dx = he.w[0] - s.x - P.can[0], dz = he.w[2] - s.z - P.can[2], dl = Math.hypot(dx, dz) || 1, r = POLE.CAN_R + 0.03;
-      add(at(base + pi, [P.can[0] + dx / dl * r, P.can[1] + POLE.CAN_H / 2 - 0.15, P.can[2] + dz / dl * r]), { b: b.id, m: he.m, w: he.w }, KIND.DROP);
+      add(at(base + pi, [P.can[0] + dx / dl * r, P.can[1] + POLE.CAN_H / 2 - 0.15, P.can[2] + dz / dl * r]), { b: b.id, m: he.m, w: he.w }, KIND.DROP, [4 * pi + 3, -1]);
     }
-    sim.emit({ t: 'lines', list, hw });
+    sim.emit({ t: 'lines', list, hw, src });
   }
 
   onEvent(ev, info) {

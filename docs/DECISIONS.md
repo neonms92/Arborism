@@ -1925,3 +1925,38 @@ check for an obvious oversight only. Also: his headlamp goes off with him.
   friction, the button aim area, he leaves the tail tied off for first aid,
   climbers down up the tree are not helped, the toasts' words.
 
+
+**D119 — Streetlights, porch lights and lit windows, fed by the power lines.**
+Owner (2026-11-27): street lights, lighted windows and lit porches that come
+on at night and go out if the power is cut.
+- The grid is in the model: every line but the neutral carries `g`, the two
+  grid nodes it joins (4 × pole + phase, 4 × pole + 3 the can; a drop's
+  far node is the house), and `world.lines.src` lists where power comes in:
+  the three phases at the first pole of each street (the west end, at the
+  edge of the ground). `powerState` (model/lines.js) floods out from there
+  over whole lines; a house is fed while its drop is whole and its can is.
+  Nothing new goes over the network: snaps are events already, so every
+  machine works out the same power. A house with no drop (no pole within
+  `DROP_MAX`) is taken as fed from underground: always on. A world without
+  `src` (made before this) has every light on.
+- Each pole gets a cobra-head streetlight (hardware `HW.LAMP`, drawn only,
+  riding on the pole's wood like the can), fed from the middle phase, 3.3 m
+  under the crossarm, reaching 1.8 m out over the street. Each house gets a
+  porch light by its front door, which goes with the door's room (smashed or
+  shifted: gone). Windows of a fed house glow at night; about one window in
+  five stays dark and some are dimmer (a hash, the same everywhere).
+- Every light comes on at its own point of dusk (a hash) and off at dawn;
+  streetlights warm up over 2.5 s, everything goes out at once when the
+  power does.
+- Cost: lit lenses and bulbs are flat colour in instanced meshes, glows are
+  one Points cloud per kind and the pools of light on the ground are one
+  instanced additive disc mesh, so hundreds of lights are a handful of draw
+  calls. Only the `LAMP_LIGHTS` (4; `LAMP_LIGHTS_PHONE` 1 on a phone) lit
+  lamps nearest the eye shine a real SpotLight (pointing down) that lights
+  wood, players and walls; a lamp's ground disc fades out while its real
+  light fades in. The lights stay in the scene by day at zero intensity, so
+  dawn and dusk never recompile shaders.
+- Unreviewed: a light on every pole, power from the west end only (a break
+  darkens everything east of it), houses with no drop always lit, the
+  brightness numbers, the windows all-or-nothing per house apart from the
+  hash, no flicker when the power goes.
