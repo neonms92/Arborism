@@ -39,6 +39,7 @@ export const POLE = {
   PINS: [-1.07, 0.36, 1.07], PIN_H: 0.2,             // phases: z along the arm (- yard side, + street side), insulator height
   NEUTRAL: 2.4, NEUTRAL_OUT: 0.17,                   // neutral: below the arm, out from the axis on the street side
   CAN_TOP: 1.0, CAN_H: 0.8, CAN_R: 0.25, CAN_OUT: 0.41,   // transformer can: top below the arm, height, radius, out on the yard side
+  LAMP: 3.3, LAMP_OUT: 1.8, LAMP_RISE: 0.35,         // streetlight: its bracket leaves the pole this far below the arm, reaches out over the street and rises
 };
 
 /** Where the hardware of a pole h tall is, as [dx, dy, dz] from the middle of its base; its can on side `side` (-1 yard, +1 street). */
@@ -51,6 +52,7 @@ export function poleParts(h, side = -1) {
     can: [0, arm - POLE.CAN_TOP - POLE.CAN_H / 2, side * POLE.CAN_OUT],    // the can's middle
     bushing: [0, arm - POLE.CAN_TOP + 0.08, side * (POLE.CAN_OUT - 0.08)], // its primary bushing, on the lid
     tap: side > 0 ? 1 : 0,                                                  // the phase tapped: the pin nearest the can
+    lamp: [0, arm - POLE.LAMP, 0.1],                                        // the streetlight's bracket, on the street side of the pole
   };
 }
 
