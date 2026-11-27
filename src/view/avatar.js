@@ -93,6 +93,7 @@ export class Avatar {
       new THREE.MeshLambertMaterial({ map: backTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
     back.position.y = HELMET_Y;
     group.add(tag, back);
+    this.tag = tag; this.tagAt = bot ? Math.PI : tagAt;   // the stage (stage.js) zooms in on it
     this.stickers = new THREE.Group(); group.add(this.stickers);
     this.eyeState = ''; this.blinkT = 1 + Math.random() * CFG.BLINK_GAP; this.lookKey = ''; this.stKey = '';
   }
