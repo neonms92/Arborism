@@ -3,6 +3,8 @@
 // in the shirt colour, a round head, the white helmet with its headlamp, and a face of two flat eyes. A name
 // tag on the chest, the name again across the back of the helmet, and the player's stickers on the helmet.
 // The group's origin is the capsule's centre; the player faces -z.
+// G.O.E., the groundbot (sim/goe.js), is built of gray boxes instead, with a box head under the same hard hat
+// and two square yellow eyes that never blink.
 
 import * as THREE from 'three';
 import { CFG } from '../config.js';
@@ -17,13 +19,30 @@ let helmetGeo = null, probe = null;
 const ray = new THREE.Raycaster();
 
 export class Avatar {
-  constructor() {
+  /** bot: G.O.E.'s boxes and eyes. */
+  constructor(bot = false) {
     const group = this.group = new THREE.Group();
+    this.bot = bot;
     const shirt = this.shirt = new THREE.MeshLambertMaterial({ color: 0xe8a23a, flatShading: true });
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.26, 0.7, 2, 9), shirt);
-    body.position.y = -0.25;                        // feet at -0.86, shoulders at 0.36
-    const head = new THREE.Mesh(new THREE.SphereGeometry(HEAD_R, 12, 9), new THREE.MeshLambertMaterial({ color: 0xe9c29a, flatShading: true }));
-    head.position.y = HEAD_Y;
+    let body, head;
+    if (bot) {
+      // boxes: legs from the feet (-0.86) up, a torso to the shoulders, arms at its sides, a neck and a box head
+      // small enough for its corners to stay under the hard hat
+      body = new THREE.Group();
+      const box = (w, h, d, x, y, z, m = shirt) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.castShadow = true; body.add(b); return b; };
+      const dark = new THREE.MeshLambertMaterial({ color: 0x5d6064, flatShading: true });
+      box(0.17, 0.56, 0.2, 0.11, -0.58, 0, dark); box(0.17, 0.56, 0.2, -0.11, -0.58, 0, dark);
+      box(0.48, 0.62, 0.3, 0, -0.0, 0);
+      box(0.12, 0.56, 0.14, 0.31, 0.02, 0, dark); box(0.12, 0.56, 0.14, -0.31, 0.02, 0, dark);
+      box(0.1, 0.1, 0.1, 0, 0.35, 0, dark);
+      head = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.26, 0.26), new THREE.MeshLambertMaterial({ color: 0xa4a7aa, flatShading: true }));
+      head.position.y = HEAD_Y - 0.03;
+    } else {
+      body = new THREE.Mesh(new THREE.CapsuleGeometry(0.26, 0.7, 2, 9), shirt);
+      body.position.y = -0.25;                        // feet at -0.86, shoulders at 0.36
+      head = new THREE.Mesh(new THREE.SphereGeometry(HEAD_R, 12, 9), new THREE.MeshLambertMaterial({ color: 0xe9c29a, flatShading: true }));
+      head.position.y = HEAD_Y;
+    }
     const helmetMat = new THREE.MeshLambertMaterial({ color: 0xf4f4f4, flatShading: true });
     const helmet = this.helmet = new THREE.Mesh(helmetGeo || (helmetGeo = new THREE.SphereGeometry(HELMET_R, 10, 5, 0, 2 * Math.PI, 0, HELMET_PHI)), helmetMat);
     helmet.position.y = HELMET_Y;
@@ -40,7 +59,15 @@ export class Avatar {
     const eyeMat = new THREE.MeshLambertMaterial({ map: eyeTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
     const eyeGeo = new THREE.PlaneGeometry(0.085, 0.085), eyeGeoM = eyeGeo.clone(), uv = eyeGeoM.attributes.uv;
     for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i));
-    for (const side of [1, -1]) {                   // +x is the viewer's left when the player faces you (-z is their front)
+    if (bot) {                                      // square, yellow, lit from inside: they do not change
+      const m = new THREE.MeshBasicMaterial({ color: 0xffd21a });
+      for (const x of [0.06, -0.06]) {
+        const eye = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.06), m);
+        eye.position.set(x, HEAD_Y - 0.01, -0.133); eye.rotation.y = Math.PI;
+        group.add(eye);
+      }
+    }
+    for (const side of bot ? [] : [1, -1]) {                   // +x is the viewer's left when the player faces you (-z is their front)
       const az = 0.36 * side, el = 0.1, d = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
       const eye = new THREE.Mesh(side > 0 ? eyeGeo : eyeGeoM, eyeMat);
       eye.position.set(0, HEAD_Y, 0).addScaledVector(d, HEAD_R + 0.004);
@@ -51,9 +78,11 @@ export class Avatar {
     const tagCv = this.tagCv = document.createElement('canvas'); tagCv.width = 256; tagCv.height = 80;
     const tagTex = this.tagTex = new THREE.CanvasTexture(tagCv); tagTex.colorSpace = THREE.SRGBColorSpace; tagTex.anisotropy = 4;
     // over the left breast pocket: upper chest, off to the wearer's left (-x; they face -z)
-    const tagW = 0.15, tagAt = Math.PI + 0.5, tag = new THREE.Mesh(new THREE.CylinderGeometry(0.263, 0.263, 0.047, 4, 1, true, tagAt - tagW / 0.263 / 2, tagW / 0.263),
-      new THREE.MeshLambertMaterial({ map: tagTex, polygonOffset: true, polygonOffsetFactor: -2 }));
+    const tagW = 0.15, tagAt = Math.PI + 0.5, tagMat = new THREE.MeshLambertMaterial({ map: tagTex, polygonOffset: true, polygonOffsetFactor: -2 });
+    const tag = bot ? new THREE.Mesh(new THREE.PlaneGeometry(tagW, 0.047), tagMat)
+      : new THREE.Mesh(new THREE.CylinderGeometry(0.263, 0.263, 0.047, 4, 1, true, tagAt - tagW / 0.263 / 2, tagW / 0.263), tagMat);
     tag.position.y = 0.02 + 1.25 * 0.047;            // raised 1.25 tag heights (owner)
+    if (bot) { tag.position.set(-0.12, 0.16, -0.152); tag.rotation.y = Math.PI; }   // flat on the box chest, the wearer's left
     const backCv = this.backCv = document.createElement('canvas'); backCv.width = 256; backCv.height = 64;
     const backTex = this.backTex = new THREE.CanvasTexture(backCv); backTex.colorSpace = THREE.SRGBColorSpace; backTex.anisotropy = 4;
     const back = new THREE.Mesh(new THREE.SphereGeometry(0.207, 10, 3, Math.PI / 2 - 0.75, 1.5, 0.72, 0.5),
@@ -92,7 +121,7 @@ export class Avatar {
   }
   blinkNow() { this.blinkT = 0; }
   setEyes(st) {
-    if (st === this.eyeState) return;
+    if (this.bot || st === this.eyeState) return;
     this.eyeState = st;
     const g = this.eyeCv.getContext('2d');
     g.clearRect(0, 0, 64, 64);

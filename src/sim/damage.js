@@ -92,7 +92,7 @@ export class Damage {
     const sim = this.sim;
     if (this.trees.size) this.yardStep(dt);
     if (!sim.world.job || !(CFG.DAY_LENGTH > 0)) return;
-    const n = sim.players.list.size;
+    let n = 0; for (const p of sim.players.list.values()) if (!p.bot) n++;     // G.O.E. works for nothing
     this.owed = (this.owed || 0) + CFG.WAGE * n * dt / (CFG.DAY_LENGTH / 24);
     if (this.owed >= 1) { const c = Math.floor(this.owed); this.owed -= c; sim.emit({ t: 'wages', cost: c }); }
   }

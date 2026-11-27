@@ -368,7 +368,7 @@ export class View {
   playerMesh(id) {
     let p = this.players.get(id);
     if (p) return p;
-    const av = new Avatar(), group = av.group;        // body, head, helmet, eyes, name tags, stickers (avatar.js)
+    const av = new Avatar(!!this.world.players.get(id)?.bot), group = av.group;   // body, head, helmet, eyes, name tags, stickers (avatar.js); G.O.E.'s boxes
     // a tube salad in the right hand (+x: they face -z), held up in front, while aux says they have one
     const salad = new THREE.Mesh(this.saladGeo || (this.saladGeo = saladGeometry()), this.saladMat || (this.saladMat = new THREE.MeshLambertMaterial({ color: 0x3fae3a, flatShading: true })));
     salad.position.set(0.3, -0.12, -0.24); salad.rotation.x = 1.1; salad.castShadow = true; salad.visible = false;

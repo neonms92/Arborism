@@ -24,9 +24,9 @@ export class Players {
   constructor(sim) { this.sim = sim; this.list = new Map(); }
 
   /** name and color as the player chose them (cleaned here; '' / -1 when none). */
-  add(id, name, color = -1, st = []) {
+  add(id, name, color = -1, st = [], bot = false, at = null) {
     const sim = this.sim, R = sim.R;
-    const ang = id * 1.3, sp = [4 * Math.cos(ang), CFG.SPAWN_HEIGHT, 4 * Math.sin(ang)];       // spawn y is above the ground there
+    const ang = id * 1.3, sp = at ? [at[0], CFG.SPAWN_HEIGHT, at[1]] : [4 * Math.cos(ang), CFG.SPAWN_HEIGHT, 4 * Math.sin(ang)];       // spawn y is above the ground there
     sp[1] += sim.groundY(sp[0], sp[2]);
     const body = sim.rapier.createRigidBody(sim.dynamic().setTranslation(sp[0], sp[1], sp[2]).lockRotations());
     const col = sim.rapier.createCollider(R.ColliderDesc.capsule(CFG.P_HALF, CFG.P_RADIUS).setMass(CFG.P_MASS)
@@ -45,8 +45,9 @@ export class Players {
       held: '',                      // what is in the other hand: '' or 'salad' (a tube salad off a chipper's rack)
       rtPrev: 0,                     // {throttle} last tick, for its press (eating)
     };
+    if (bot) p.bot = true;         // input written on the host by a controller (G.O.E., sim/goe.js), not a person
     this.list.set(id, p);
-    sim.emit({ t: 'player', id, name: cleanName(name), color: cleanColor(color), st: cleanStickers(st) });
+    sim.emit({ t: 'player', id, name: cleanName(name), color: cleanColor(color), st: cleanStickers(st), ...(bot ? { bot: 1 } : {}) });
     return p;
   }
   /** A player picked a name and shirt colour in the lobby, or stuck a sticker on (a joining client sends them once it is in). */
@@ -425,10 +426,11 @@ export class Players {
     if (p.mode !== MODE.GROUND || !control) p.grab = null;
 
     if (p.mode === MODE.ROPE) {
-      p.prompt = '{throttle}: ease   {raise}: haul   {wraps}: wraps   {interact}: tie off';
+      // on the tail: walking about as on the ground, as far as you like (the tail is not a tether, D117)
+      p.prompt = (sim.world.rope.state === 2 ? '{throttle}: ease   {raise}: haul   {wraps}: wraps   ' : 'No knot tied yet   {wraps}: wraps   ') + '{interact}: tie off';
       sim.rope.operate(p, inp, pressed, dt);
       if (pressed.interact || !control) this.leaveRope(p);
-      p.body.setLinvel({ x: 0, y: p.body.linvel().y, z: 0 }, true);
+      this.walk(p, inp, dt, control, pressed);
     } else if (p.mode === MODE.CLIMB) {
       this.climb(p, inp, dt, control, pressed, aim);
     } else {
@@ -468,6 +470,12 @@ export class Players {
   }
 
   ground(p, inp, dt, control, pressed, aim) {
+    this.walk(p, inp, dt, control, pressed);
+    if (control) this.act(p, inp, dt, pressed, aim);
+  }
+
+  /** The legs: walking, standing on slopes and jumping, on the ground or on the rope tail. */
+  walk(p, inp, dt, control, pressed) {
     const sim = this.sim, body = p.body, t = body.translation(), v0 = body.linvel(), v = { x: v0.x, y: v0.y, z: v0.z };
     const hit = sim.rapier.castRayAndGetNormal(new sim.R.Ray(t, { x: 0, y: -1, z: 0 }), CFG.P_HALF + CFG.P_RADIUS + 0.12, true,
       undefined, undefined, undefined, body);
@@ -514,18 +522,22 @@ export class Players {
       body.setLinvel({ x: j.x, y: j.y, z: j.z }, true);
     }
     else body.setLinvel({ x: v.x + (wx - v.x) * 0.02, y: v.y, z: v.z + (wz - v.z) * 0.02 }, true);
+  }
 
-    // what the buttons do depends on what is looked at (no tools)
+  /** What the buttons do on the ground: it depends on what is looked at (no tools). */
+  act(p, inp, dt, pressed, aim) {
+    const sim = this.sim, control = true;
     const rope = sim.rope;
-    const nearDev = rope.nearDevice(p);
+    // the rope tail is taken with {rig} (D117), unless the wood looked at has a rigging action of its own (tie, untie, take the block down)
+    const tail = rope.nearDevice(p) && rope.holder < 0 && !p.grab && !rope.prompt(p, aim).includes('{rig}');
     let first = '';
+    if (pressed.rig && tail) { p.mode = MODE.ROPE; rope.holder = p.id; pressed.rig = false; }
     if (pressed.rig) rope.place(p, aim);
     const reach = aim && aim.dist < CFG.REACH;
     // a tube salad in hand goes first: {interact} on another player gives it to them (it takes the press)
     const sal = this.salad(p, inp, pressed);
-    if (nearDev && rope.holder < 0 && !p.grab) {
-      first = '{interact}: take tail';
-      if (pressed.interact) { p.mode = MODE.ROPE; rope.holder = p.id; }
+    if (tail) {
+      first = '{rig}: take tail';
     } else if (p.chips > 0 && !p.grab) {
       // hands full of chips: {interact} takes more off the pile looked at, while there is room, or puts them all down
       // At a chip bin: open, they are tipped in (and gone: it has no bottom); shut, the press opens its lid first.
@@ -577,7 +589,7 @@ export class Players {
       // shown to its player as a highlight on that wood (loose wood only: the standing tree is plain to see)
       if (gaim && !atChip && !bn && pile < 0 && !sim.world.pieces.get(sim.world.segs.get(gaim.seg).piece).fixed) p.target = gaim.seg;
     }
-    if (reach && !(nearDev && rope.holder < 0 && !p.grab)) {
+    if (reach && !tail) {
       const s = sim.world.segs.get(aim.seg), piece = sim.world.pieces.get(s.piece);
       if (piece.fixed && p.inj < INJ.HURT) {
         const loc = sim.segToLocal(s, aim.point), tt = Math.min(1, Math.max(0, segParam(s, loc)));

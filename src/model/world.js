@@ -276,7 +276,7 @@ export class World {
         break;
       case 'player':
         // joining, or changing name / shirt colour (the same event again): name and color are already cleaned by the host
-        if (ev.leave) this.players.delete(ev.id); else this.players.set(ev.id, { id: ev.id, name: ev.name, color: ev.color, st: cleanStickers(ev.st) });
+        if (ev.leave) this.players.delete(ev.id); else this.players.set(ev.id, { id: ev.id, name: ev.name, color: ev.color, st: cleanStickers(ev.st), ...(ev.bot ? { bot: 1 } : {}) });   // bot: G.O.E. (sim/goe.js)
         break;
       case 'job': this.awards = { ...newAwards(), job: ev.id }; break;   // a new job: no stickers handed out yet
       case 'award': {                                                    // players ev.to got sticker k at this tier (main.js hands it out)

@@ -163,6 +163,13 @@ export const CFG = {
   SLIP_V0: 1.0,            // m/s slip speed at 2x capacity
   WRAPS_MAX: 4,
   DEVICE_RANGE: 2.5,       // m to grab the tail
+  // G.O.E., the groundbot on solo games (sim/goe.js, D117)
+  GOE_LOWER_V: 0.6,        // m/s: how fast he lets the rope run through the device when lowering wood
+  GOE_REST_V: 0.15,        // m/s: wood slower than this (and off the rope's weight) is lying still...
+  GOE_REST_T: 1.5,         // s: ...for this long, and he goes to untie it
+  GOE_GRID: 0.5,           // m: the cells of his path finding
+  GOE_SEARCH: 10000,        // cells looked at, at most, for one path
+  GOE_REPLAN: 3,           // s between fresh paths (wood moves)
 
   // --- player ---
   P_MASS: 85, P_RADIUS: 0.28, P_HALF: 0.6,

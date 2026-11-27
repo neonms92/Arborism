@@ -218,7 +218,7 @@ export class Touch {
     const rig = actionLabel(pr, 'rig'), waiting = !rig && /rope to/.test(pr);
     const b = this.b;
     b.act.textContent = act || actionLabel(pr, 'interact', true) || 'Action'; b.act.classList.toggle('dim', !act);
-    show1(b.jump, !a || a.m === MODE.GROUND);
+    show1(b.jump, !a || a.m !== MODE.CLIMB);         // on the ground or on the rope tail
     show1(b.punch, has('punch'));
     show1(b.rig, !!rig || waiting); b.rig.classList.toggle('dim', waiting);
     b.rig.textContent = rig || 'Get closer';
