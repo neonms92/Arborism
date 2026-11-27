@@ -194,7 +194,7 @@ export const ROWS = [
   ['Power lines'],
   ['LINE_BREAK_F', 'Tension that snaps a conductor (kN)', 1, 200, 1, 1000, true],
   ['DROP_BREAK_F', 'Tension that snaps a service drop (kN)', 0.5, 50, 0.5, 1000, true],
-  ['LINE_DEAD_T', 'Downed line goes dead after (s)', 0, 300, 1],
+  ['LINE_DEAD_T', 'Downed line stops sparking after (s)', 0, 300, 1],
   ['LINE_EA', 'Line stretch stiffness (MN for 100% stretch)', 0.2, 50, 0.1, 1e6, true],
   ['LINE_SLACK', 'Line slack (% longer than straight; applies when you press Grow)', 0, 2, 0.05, 0.01, true],
   ['POLE_HEIGHT', 'Pole height (m; applies when you press Grow)', 5, 20, 0.5, 1, true],

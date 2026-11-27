@@ -264,7 +264,7 @@ export class World {
       case 'rope': this.rope = ev.rope; break;
       case 'lines': this.lines = newLines(ev.list, ev.hw, ev.src); break;    // the power lines, put up whole with a new tree
       case 'snap': snapLine(this.lines, ev); break;            // a power line parted (k: link) or came away at an end (end)
-      case 'dead': deadLine(this.lines, ev); break;           // a downed line went dead: no more sparks or shocks
+      case 'dead': deadLine(this.lines, ev); break;           // a downed line stopped sparking (it still shocks)
       case 'zap': break;                                       // someone touched a live line (drawn as a flash)
       case 'damage': this.damage += ev.cost; break;   // the price of something broken (sim/damage.js)
       case 'budget': this.job = ev.job; this.wages = 0; this.spent = 0; break;   // a new job: what it pays to start with (sim/damage.js)

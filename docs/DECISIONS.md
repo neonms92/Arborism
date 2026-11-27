@@ -2005,3 +2005,9 @@ when it loses it.
   closes; drag sensitivity (about 230 px of drag covers the whole range);
   the tag close-up shows about 0.26 m of chest; the idle sway fades out
   during the tag zoom. Tunables in config.js, not in the Tab menu.
+
+**D122 — Quiet downed lines still shock.** Owner (2026-11-27): "Downed
+power lines that aren't sparking should still zap players." This replaces
+my reading in D112: after `LINE_DEAD_T` a downed line only stops sparking;
+touching it still shocks, and sawing through it still flashes and shocks.
+The event keeps its name (`dead`). The neutral still never shocks.
