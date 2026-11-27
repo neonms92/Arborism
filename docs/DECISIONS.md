@@ -2026,3 +2026,9 @@ the bolt's lower tip is cut at y 60 and the tail hangs from there. The tail
 tip ends at y 92, inside the sticker's rim (it overlapped the rim before).
 Unreviewed: re-roll after Stick! only, the 0.8 rad gap, narrow tails (the
 bolt's) lose the two side wisps.
+
+**D124 — Sorry, Tree! trunk behind the leaves; wider Sorry, Chipper! body.**
+Owner (2026-11-27): put the tree ghost's trunk rectangle behind the leaf
+circles, and widen the chipper ghost's body to the right so its face is
+centred on it. The drum box is now 34 wide (x 33 to 67, centre 50, under the
+face); the tail follows it.
