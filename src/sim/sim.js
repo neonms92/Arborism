@@ -71,6 +71,7 @@ export class Sim {
       const s1 = this.colSeg.get(c1), s2 = this.colSeg.get(c2);
       if (this.chipper.noHit(c1, s2) || this.chipper.noHit(c2, s1)) return true;     // wood being fed passes into the chipper
       if (s1 === undefined || s2 === undefined) return false;
+      if (this.structure.inside.get(s1)?.has(s2)) return true;     // one was inside the other when they came apart (D127)
       const a = this.world.segs.get(s1), b = this.world.segs.get(s2), nh = this.structure.noHit;
       if (!a || !b) return false;
       const ro = this.structure.rootOf;
@@ -285,7 +286,7 @@ export class Sim {
       .setTranslation(mid[0], mid[1], mid[2]).setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w })
       .setMass(segMass(s) + s.leaf).setFriction(0.8).setRestitution(0.05)
       .setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(CFG.CONTACT_MIN);
-    if (this.structure && (this.structure.noHit.has(s.id) || this.structure.rootOf.has(s.id))) desc.setActiveHooks(RAPIER.ActiveHooks.FILTER_CONTACT_PAIRS);
+    if (this.structure && (this.structure.noHit.has(s.id) || this.structure.rootOf.has(s.id) || this.structure.inside.has(s.id))) desc.setActiveHooks(RAPIER.ActiveHooks.FILTER_CONTACT_PAIRS);
     const col = this.rapier.createCollider(desc, body);
     this.solid.onCollider(s.id);
     this.segCol.set(s.id, col); this.colSeg.set(col.handle, s.id);
