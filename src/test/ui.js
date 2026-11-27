@@ -497,7 +497,7 @@ class Testing {
       if (!saw.mesh.visible) return;
       const y = new THREE.Vector3().crossVectors(sw.f, sw.b);
       saw.mesh.material.color.set(sw.stuck ? 0xff2020 : sw.cutting ? 0xffe040 : 0xff8a20);
-      saw.mesh.matrix.makeBasis(sw.b, y, sw.f).scale(new THREE.Vector3(CFG.BAR_LEN, 0.012, 0.07)).setPosition(sw.A.clone().addScaledVector(sw.f, 0.035));
+      saw.mesh.matrix.makeBasis(sw.b, y, sw.f).scale(new THREE.Vector3(sw.len || CFG.BAR_LEN, 0.012, 0.07)).setPosition(sw.A.clone().addScaledVector(sw.f, 0.035));
     };
     addEventListener('keydown', (e) => { if (e.code === 'Space' && sawMode) { saw.key = true; e.preventDefault(); } });
     addEventListener('keyup', (e) => { if (e.code === 'Space') saw.key = false; });

@@ -796,7 +796,7 @@ export class Players {
         id: p.id, m: p.mode, inj: p.inj, sk: p.shakenT > 0 ? 1 : 0, ck: +(p.chips || 0).toFixed(4), hd: p.held ? 1 : 0, gk: p.grab && p.grab.chip ? p.grab.k || 0 : 0, gr: p.grab && p.grab.bot === undefined ? [p.grab.chip ? -1 : p.grab.bin !== undefined ? -2 - p.grab.bin : p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, gb: p.grab && p.grab.bot !== undefined ? [p.grab.bot, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, of: p.off ? 1 : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pt: +p.input.pitch.toFixed(2), pr: p.prompt, tg: p.target >= 0 && !p.grab ? p.target : -1,
         // [seg, t, side, end stop, armed, riding]: enough for a client to carry on climbing from (net/predict.js)
         cl: p.cl ? [p.cl.seg, +p.cl.t.toFixed(5), p.cl.side.map((x) => +x.toFixed(4)), p.cl.end || 0, p.cl.armed ? 1 : 0, p.ride ? 1 : 0] : 0, n: p.inN || 0,
-        saw: s.on ? [...s.A.toArray(), ...s.b.toArray(), ...s.f.toArray(), s.stuck ? 1 : 0, s.cutting ? 1 : 0, CFG.BAR_LEN].map((x) => +x.toFixed(3)) : 0,
+        saw: s.on ? [...s.A.toArray(), ...s.b.toArray(), ...s.f.toArray(), s.stuck ? 1 : 0, s.cutting ? 1 : 0, s.len].map((x) => +x.toFixed(3)) : 0,
       });
     }
     return out;

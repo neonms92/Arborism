@@ -2103,3 +2103,16 @@ the climber is on is carried across the joint unrotated (a crack is a small
 angle); a rope whose wraps change fast can still pump L0 out past CHIP_PULL
 (seen once at 11 m: the feed then pulled nothing), left as an open finding.
 
+
+**D128 — The chainsaw bar is sized to the wood it is planted on.** The owner
+asked for the bar to grow to match the diameter of the wood it is planted
+against, with a 40 cm minimum. At plant time the bar length is
+`max(BAR_LEN, BAR_FIT × diameter)`, the diameter taken where the bar is
+planted on that segment; `BAR_LEN` is now the shortest bar (0.4 m, was the
+fixed 0.6 m) and `BAR_FIT` is 1 (both in the Tab menu). The length is fixed
+for the plant: pivoting or pressing deeper does not resize it, and the next
+plant sizes it again. A bar planted on a rope or lanyard uses `BAR_LEN`. Not
+decided by the owner: `BAR_FIT` 1 (the bar, centred on the planted point,
+just reaches across the stem) and keeping the length fixed until the saw is
+lifted. A longer bar can touch neighbouring wood it would not have before;
+that is the fibres' rule, not a special case.
