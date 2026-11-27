@@ -73,16 +73,16 @@ const GHOST = {
   house: '<path d="M24 50 L50 26 L76 50 Z"/><rect x="30" y="48" width="40" height="22"/>',
   shed: '<path d="M26 44 L74 36 L74 42 L26 50 Z"/><rect x="30" y="45" width="40" height="25"/>',
   fence: '<path d="M26 70 V40 L31 33 L36 40 V70 Z M41 70 V37 L46 30 L51 37 V70 Z M56 70 V37 L61 30 L66 37 V70 Z"/><rect x="22" y="44" width="52" height="6"/><rect x="22" y="58" width="52" height="6"/>',
-  wrongtree: '<rect x="34" y="44" width="32" height="26"/><circle cx="50" cy="36" r="15"/><circle cx="37" cy="44" r="11"/><circle cx="63" cy="44" r="11"/>',
+  wrongtree: '<rect x="42" y="44" width="16" height="26"/><circle cx="50" cy="36" r="15"/><circle cx="37" cy="44" r="11"/><circle cx="63" cy="44" r="11"/>',
   power: '<path d="M60 14 L22 54 L45 54 L42.7 60 L55.9 60 L80 37 L57 37 L67 14 Z"/>',   // the bolt's lower tip becomes the tail
   wreck: '<path d="M20 46 L34 51 L34 63 L20 66 Z"/><rect x="33" y="45" width="34" height="25" rx="3"/><path d="M50 45 L52 31 Q54 24 63 24 L73 26 L71 32 L63 31 Q60 31 59 35 L58 45 Z"/>',
 };
-const FACE = { power: -13 };
+const FACE = { power: -13, wrongtree: -16 };
 // bodies drawn as one shape: outlined, then filled again without outline so no line shows inside (the tree's leaves, the bolt's tip)
 const UNION = new Set(['wrongtree', 'power']);   // the face higher up, where the thing is widest
 // where the tail hangs from: the body's bottom edge [left x, right x, y, how far the tail's top tucks up into the
 // body (default 3; the fence's covers the gaps between its pickets)], so the tail joins the body it belongs to
-const TAIL = { house: [30, 70, 70], shed: [30, 70, 70], fence: [26, 66, 70, 6], wrongtree: [34, 66, 70], power: [42.7, 55.9, 60], wreck: [33, 67, 70] };
+const TAIL = { house: [30, 70, 70], shed: [30, 70, 70], fence: [26, 66, 70, 6], wrongtree: [42, 58, 70], power: [42.7, 55.9, 60], wreck: [33, 67, 70] };
 function ghostTail([x0, x1, y, tuck = 3]) {
   // the wavy tail drawn for a 40-wide body ending at y 67, stretched to this body's width and down to y 92 (inside
   // the sticker's rim); its top tucks up into the body so the join is hidden under the fill pass
