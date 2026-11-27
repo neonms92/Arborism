@@ -26,13 +26,15 @@ export function sawStep(sim, p, inp, dt, can, aim) {
   if (!sw.on) {
     // Plant the bar on the wood being looked at: lying across the stem, square to it, ready to feed straight in.
     const { d } = sim.eye(p);
-    let A = null, f = null, b = null;
+    let A = null, f = null, b = null, len = CFG.BAR_LEN;
     if (aim && aim.dist <= CFG.SAW_REACH) {
       const s = sim.world.segs.get(aim.seg), ax = sim.segDirToWorld(s, segAxis(s), new THREE.Vector3());
       const loc = sim.segToLocal(s, aim.point), t = Math.min(1, Math.max(0, segParam(s, loc)));
       f = sim.segToWorld(s, lerp3(s.a, s.b, t), new THREE.Vector3()).sub(aim.point);
       f.addScaledVector(ax, -f.dot(ax));                                            // feed: from the bark toward the heart
       if (f.lengthSq() > 1e-8) { f.normalize(); b = new THREE.Vector3().crossVectors(ax, f).normalize(); A = aim.point.clone().addScaledVector(f, -0.02); }
+      // the bar is sized to the wood it is planted on: long enough to reach across it, never shorter than BAR_LEN
+      len = Math.max(CFG.BAR_LEN, CFG.BAR_FIT * 2 * (s.r0 + (s.r1 - s.r0) * t));
     }
     if (!A) {
       // no wood there: a rope or lanyard being looked at will do (bar across it, feeding away from the eye)
@@ -49,11 +51,11 @@ export function sawStep(sim, p, inp, dt, can, aim) {
     }
     if (!A) { p.prompt = 'Look at wood (or a rope) within reach, then {raise} to plant the bar on it'; return; }
     if (b.x * Math.cos(inp.yaw) - b.z * Math.sin(inp.yaw) > 0) b.negate();          // powerhead on the player's right
-    sw = p.saw = { on: true, A, b, f, sy: inp.sy, sp: inp.sp, stuck: false, cutting: false, prog: new Map(), ropeT: 0 };
+    sw = p.saw = { on: true, A, b, f, len, sy: inp.sy, sp: inp.sp, stuck: false, cutting: false, prog: new Map(), ropeT: 0 };
   }
   if (sw.A.distanceTo(o) > CFG.SAW_REACH + 0.7) { sawOff(sim, p); return; }      // walked away from it
 
-  const half = CFG.BAR_LEN / 2, run = inp.rt > 0.05;
+  const half = sw.len / 2, run = inp.rt > 0.05;
   const blockers = [];
   let pinch = 0;
   // 1. pivot about the planted point: swing in the plane of the cut, and tilt that plane
@@ -107,7 +109,7 @@ export function sawStep(sim, p, inp, dt, can, aim) {
   // ropes and lanyards do not stop a chain: a moment of contact under throttle and they part
   const a0 = _c0.copy(sw.A).addScaledVector(sw.b, -half), a1 = _c1.copy(sw.A).addScaledVector(sw.b, half);
   let touching = null;
-  if (inp.rt > 0.3) for (const [p0, p1, who] of ropeSpans(sim, sw.A)) if (segDist(a0, a1, p0, p1).d < CFG.ROPE_RADIUS + 0.02) { touching = who; break; }
+  if (inp.rt > 0.3) for (const [p0, p1, who] of ropeSpans(sim, sw.A, sw.len)) if (segDist(a0, a1, p0, p1).d < CFG.ROPE_RADIUS + 0.02) { touching = who; break; }
   sw.ropeT = touching ? sw.ropeT + dt : 0;
   if (touching && sw.ropeT > CFG.ROPE_CUT_TIME) {
     sw.ropeT = 0;
@@ -117,9 +119,9 @@ export function sawStep(sim, p, inp, dt, can, aim) {
 
 /** Every straight run of rope in the world, and of power line near the bar at `at`: [from, to, 'rope' | the climber
  *  whose lanyard it is | {line, k} (a live line: sawing through it shocks the sawyer)]. */
-function ropeSpans(sim, at) {
+function ropeSpans(sim, at, len = CFG.BAR_LEN) {
   const out = sim.rope.spans().map(([a, b]) => [a, b, 'rope']);
-  if (at && sim.lines) out.push(...sim.lines.spans(at, CFG.BAR_LEN + 0.5));
+  if (at && sim.lines) out.push(...sim.lines.spans(at, len + 0.5));
   for (const q of sim.players.list.values()) {
     if (q.mode !== MODE.CLIMB) continue;
     const s = sim.world.segs.get(q.cl.seg); if (!s) continue;

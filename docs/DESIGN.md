@@ -77,7 +77,7 @@ synced by different mechanisms (section 2).
 | `src/sim/saw.js` | The bar as a rod in the world: what it rests against, severing fibres, cutting ropes | host |
 | `src/sim/rope.js` | Rigging line: tension path, block, friction device | host |
 | `src/model/ropepath.js` | Rope over wood: a span routed round segments as a taut string (D125) | all |
-| `src/sim/loader.js` | The grapple loader (tyres, boom, claw, driver on its platform) and the log truck that hauls wood away (D128) | host |
+| `src/sim/loader.js` | The grapple loader (tyres, boom, claw, driver on its platform) and the log truck that hauls wood away (D129) | host |
 | `src/sim/goe.js` | G.O.E. the groundbot (solo): writes a player's input to work the rope tail and untie (D117), and first aid with a tube salad; his power button is `players.setPower` (D118) | host |
 | `src/net/net.js` | PeerJS transport: host/join, reliable + unreliable channels | all |
 | `src/net/snapshot.js` | Binary snapshot encode/decode, client interpolation | all |
@@ -492,8 +492,10 @@ other view switches are in the Tab menu (section 7).
 ### 4.1 Plant, pivot, press
 
 There is no "cut" object and no cutting mode with its own coordinates. The
-saw is a 0.6 m bar (`BAR_LEN`) with a planted point `A` at the middle of its
-leading edge, a bar direction `b` and a feed direction `f`.
+saw is a bar with a planted point `A` at the middle of its leading edge, a
+bar direction `b` and a feed direction `f`. Its length is set when it is
+planted: `BAR_FIT` times the diameter of the wood there, never shorter than
+`BAR_LEN` (0.4 m, also the length on a rope) (D128).
 
 - **Plant** (hold right mouse / LT while looking at wood within
   `SAW_REACH`): `A` goes on the bark where the player is looking, the bar
@@ -853,7 +855,7 @@ lost (swept debris), made and gone (m³ of chips)}, kept by `world.apply` so
 every machine agrees; the HUD shows tree chipped = chipped / (M − lost) and
 chips in bins = gone / made, coloured by `pctColour` (hud.js).
 
-### 6.5b Grapple loader and log truck (D128)
+### 6.5b Grapple loader and log truck (D129)
 
 `model/loader.js` (shapes), `sim/loader.js` (host), `view/loader.js`. For wood
 too heavy for the chipper (a round of the trunk, a big log). With every new
