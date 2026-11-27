@@ -96,6 +96,7 @@ book.onChange = () => { sendLook(); stk.refresh(); };
   const save = () => { const l = look(); try { localStorage.setItem('arb-name', l.name); localStorage.setItem('arb-color', String(l.color)); } catch { /* storage blocked */ } };
   $('pname').onchange = save; $('pcolor').oninput = () => { save(); sendLook(); }; save();
   $('pname').oninput = () => sendLook();          // the start-screen you answers as you type
+  $('pname').onfocus = () => stage.nameFocus(true); $('pname').onblur = () => stage.nameFocus(false);   // zoom in on the name tag
   sendLook();
 }
 const msg = (s) => { $('msg').textContent = s; };

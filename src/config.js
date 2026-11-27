@@ -207,6 +207,9 @@ export const CFG = {
   STICKER_LINE_T: 10,      // s: a line that snaps is blamed on whoever's wood last leaned on it, or held its end, this long before (owner)
   STICKER_SHARE: 0.1,      // share of the sawing (tree) or of the feeding (chipper) a player must do to get those stickers
   STICKER_SIZE: 0.1,       // m across, a sticker on a helmet
+  STAGE_TILT_MAX: 80,      // deg above the horizon: the start-screen camera's highest look down on you (owner's)
+  STAGE_HELMET_FROM: 0.4,  // share of the tilt range where the start-screen camera starts closing in on the helmet
+  STAGE_ZOOM_RATE: 4,      // 1/s, how fast the start-screen camera eases to and from the name tag
   STICKER_MAX: 40,         // most stickers a helmet carries (the oldest go first)
   WALK: 3.5, JUMP: 3.4,
   WALK_SLOPE: 0.785,       // rad (45°): ground up to this steep is stood on (the legs work on it)

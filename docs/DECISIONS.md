@@ -1986,3 +1986,22 @@ hopper; heavy branches are causing it to tip."
   1.35 m out from the centre line beside the hopper, no shadows from them,
   the lamps are not among the wreck's parts. Tunables in the Tab menu by the
   headlamps.
+
+**D121 — Start-screen camera: tilt up to the helmet, zoom to the name tag.**
+Owner asked (2026-11-27): on the start screen, drag the player "down" with
+the default view as the lower limit and 80° above the horizon as the upper,
+close in on the helmet near the top to see the stickers (as in the sticker
+dialog), and ease in on the name tag while the name box has focus, back out
+when it loses it.
+- Dragging down raises the camera around the player (`Stage.elev`), clamped
+  between the default view's angle and `STAGE_TILT_MAX` (80°). Past
+  `STAGE_HELMET_FROM` (0.4) of that range the camera smoothly closes in on
+  the helmet, ending at the sticker dialog's framing (0.3 m half-height).
+- Name box focus: the body turns the tag to the camera the shorter way round
+  and the camera eases in on the tag (`STAGE_ZOOM_RATE` 4 /s), from in front
+  and a little above; on blur it eases back to wherever the tilt was.
+- My choices, unreviewed: the tilt stays where you leave it (it does not
+  drift back to the default); the tilt is kept when the sticker dialog
+  closes; drag sensitivity (about 230 px of drag covers the whole range);
+  the tag close-up shows about 0.26 m of chest; the idle sway fades out
+  during the tag zoom. Tunables in config.js, not in the Tab menu.
