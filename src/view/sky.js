@@ -72,7 +72,7 @@ export class Sky {
     this.scene = scene; this.hemi = hemi; this.key = key;
     this.days = CFG.DAY_START; this.synced = false;
     this.sun = new THREE.Vector3(); this.moon = new THREE.Vector3();
-    this.sunUp = 1; this.lamps = 0; this.phase = moonPhase(this.days);
+    this.sunUp = 1; this.lamps = 0; this.dark = 0; this.phase = moonPhase(this.days);
 
     const disc = (tex, size) => {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: tex, fog: false, ...BACKDROP }));
@@ -149,7 +149,8 @@ export class Sky {
     k.shadow.intensity = 1 - 0.75 * c;                    // light through cloud casts faint shadows
 
     // headlamps: on as the sun goes down
-    this.lamps = CFG.HEADLAMPS ? 1 - smooth(0.0, 0.12, s) : 0;
+    this.dark = 1 - smooth(0.0, 0.12, s);               // 0 by day, 1 at night: work lights come on with it
+    this.lamps = CFG.HEADLAMPS ? this.dark : 0;
 
     // discs and stars sit just inside the far plane, centred on the eye; the fog does not touch them
     const R = cam.far * 0.9;

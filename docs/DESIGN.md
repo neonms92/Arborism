@@ -808,6 +808,20 @@ never sleeps (Rapier would stop it rolling slowly off its roof).
   player within reach gives it to them. Either way the eater is set to `ok`
   with no shaken pause, even from `down`. A downed player cannot eat their own.
   The rack is one of the wreck's parts when the chipper crumples.
+- **Axle (D119).** The wheels sit under the drum, 1 m behind the chassis
+  centre and just ahead of the hopper (`SHAPE.WHEELS`, `AXLE`), so the weight
+  of wood on the hopper lip or winch has a short lever about the axle and the
+  chipper's own weight a long one: it holds about 280 kg on the winch before
+  the jockey wheel lifts (with the axle at -0.3 m it tipped at about 60 kg).
+  The tyre model splits the weight between axle and jockey from where the
+  body's centre of mass is (about a third on the jockey now).
+- **Floodlights (D119).** Two work lamps on the back hoop of the roll cage,
+  one each side (`SHAPE.FLOOD_AT`), aimed at the ground beside the hopper
+  (`FLOOD_AIM`). View only: they come on with the dark (`Sky.dark`, the same
+  dusk ramp as the headlamps) at `FLOOD` candela. While the chipper is chipping
+  (aux `on`) the engine bogs: they sag to `FLOOD_DIM` of their light and
+  flicker below it by up to `FLOOD_FLICKER`, with a deeper dip now and then.
+  A wrecked chipper's lamps are out.
 - **Reset.** A new tree re-lays the pavers fresh and re-parks the chipper
   (`chipper` event): default pose, brakes on, nothing feeding, no chips.
 

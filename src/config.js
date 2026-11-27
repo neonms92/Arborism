@@ -56,6 +56,10 @@ export const CFG = {
   HEADLAMPS: true,         // players switch headlamps on when the sun goes down
   HEADLAMP: 14,            // candela: brightness of a headlamp (lights a surface 1 m away with this, 3 m away with a ninth)
   HEADLAMP_ANGLE: 0.45,    // rad, half-width of a headlamp's beam
+  FLOOD: 45,               // candela: each of the chipper's two floodlights (on at night, D119)
+  FLOOD_ANGLE: 0.75,       // rad, half-width of a floodlight's beam
+  FLOOD_DIM: 0.55,         // share of its light a floodlight keeps while the chipper is chipping (the engine bogs down)
+  FLOOD_FLICKER: 0.35,     // how far it flickers below that while chipping (0 = steady, 1 = to black)
   // clouds: the host drifts one number, cover (0 clear .. 1 overcast), and sends it with the clock
   CLOUDS: -1,              // -1 = the weather changes by itself; 0..1 = hold the cover there
   CLOUD_HOURS: 3,          // game hours, about how long between changes in the weather
