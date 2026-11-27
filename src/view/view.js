@@ -13,7 +13,8 @@
 // CFG.BARK_OPACITY blends between them (the Tab menu).
 
 import * as THREE from 'three';
-import { segAxis, segLen, segParam, lanyardLoop, playerName } from '../model/world.js';
+import { segAxis, segLen, segParam, segRadius, lanyardLoop, playerName } from '../model/world.js';
+import { routeSpan, pushOut, nearObstacles } from '../model/ropepath.js';
 import { bundleBasis, layout, CUT } from '../model/fibres.js';
 import { Flex, frameApply } from '../model/flex.js';
 import { CFG, MODE, INJ } from '../config.js';
@@ -121,8 +122,12 @@ export class View {
     this.ropeMesh.frustumCulled = false; this.ropeMesh.castShadow = true; this.scene.add(this.ropeMesh);
     this.blockMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.12), new THREE.MeshLambertMaterial({ color: 0xf0c020, flatShading: true }));
     this.deviceMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.35, 6), new THREE.MeshLambertMaterial({ color: 0xc03030, flatShading: true }));
-    this.knotMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.08), new THREE.MeshLambertMaterial({ color: 0xf2e9d0, flatShading: true }));
-    this.scene.add(this.blockMesh, this.deviceMesh, this.knotMesh);
+    this.knotMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.05), new THREE.MeshLambertMaterial({ color: 0xf2e9d0, flatShading: true }));
+    // the block's sling and the knot's hitch: loops of rope round the wood they hang on (D123)
+    this.slingMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat); this.slingMesh.frustumCulled = false;
+    this.hitchMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat); this.hitchMesh.frustumCulled = false;
+    this.scene.add(this.blockMesh, this.deviceMesh, this.knotMesh, this.slingMesh, this.hitchMesh);
+    this.ropeTail = [];
     // the loose wood {interact} would grab (the host's grab assist, sim.coneAim): a faint glowing sleeve round it
     this.targetMesh = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 12, 1, false),
       new THREE.MeshBasicMaterial({ color: 0xfff1b8, transparent: true, opacity: 0.3, depthWrite: false }));
@@ -604,29 +609,88 @@ export class View {
     return out.set(b[0], b[1], b[2]).applyQuaternion(piece.group.quaternion).add(piece.group.position);
   }
 
-  // The rigging line as a real tube: anchor -> block -> device -> tail, sagging where it is slack.
+  // The wood the rope lies on, in world space as drawn (model/ropepath.js obstacles).
+  ropeObstacles() {
+    const out = [], a = new THREE.Vector3(), b = new THREE.Vector3();
+    for (const s of this.world.segs.values()) {
+      if (Math.max(s.r0, s.r1) < CFG.ROPE_WRAP_R || !this.nodeWorld({ seg: s.id, p: s.a }, a) || !this.nodeWorld({ seg: s.id, p: s.b }, b)) continue;
+      out.push({ id: s.id, a: a.toArray(), b: b.toArray(), r0: s.r0, r1: s.r1 });
+    }
+    return out;
+  }
+
+  /** A loop of rope from point F round the far side of segment n.seg's wood (a sling or a hitch). */
+  loopRound(mesh, n, F) {
+    const s = this.world.segs.get(n.seg), t = Math.min(1, Math.max(0, segParam(s, n.p)));
+    const C = this.nodeWorld({ seg: s.id, p: [s.a[0] + (s.b[0] - s.a[0]) * t, s.a[1] + (s.b[1] - s.a[1]) * t, s.a[2] + (s.b[2] - s.a[2]) * t] }, new THREE.Vector3());
+    const B1 = this.nodeWorld({ seg: s.id, p: s.b }, new THREE.Vector3()), A1 = this.nodeWorld({ seg: s.id, p: s.a }, new THREE.Vector3());
+    mesh.visible = !!(C && A1 && B1); if (!mesh.visible) return;
+    const ax = B1.sub(A1).normalize(), d = F.clone().sub(C); d.addScaledVector(ax, -d.dot(ax));
+    const R = segRadius(s, t) + 0.014, nn = d.lengthSq() > 1e-8 ? d.normalize() : new THREE.Vector3(1, 0, 0), ww = new THREE.Vector3().crossVectors(ax, nn);
+    const pts = [F.clone()];
+    for (let i = 0; i <= 10; i++) { const a = Math.PI / 3 + i / 10 * Math.PI * 4 / 3; pts.push(C.clone().addScaledVector(nn, Math.cos(a) * R).addScaledVector(ww, Math.sin(a) * R)); }
+    pts.push(F.clone());
+    mesh.geometry.dispose();
+    mesh.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true, 'centripetal'), 24, 0.012, 5);
+  }
+
+  // The rigging line as a real tube: anchor -> block -> device -> tail, over the wood (D123), sagging where it is slack.
   updateRope(aux) {
     const r = this.world.rope, st = r.state || 0;
     const A = new THREE.Vector3(), B = new THREE.Vector3(), D = new THREE.Vector3();
     const hasB = st >= 1 && this.nodeWorld(r.block, B), hasD = st >= 1 && this.nodeWorld(r.device, D), hasA = st >= 2 && this.nodeWorld(r.anchor, A);
     this.blockMesh.visible = !!hasB; this.deviceMesh.visible = !!hasD; this.knotMesh.visible = !!hasA;
     this.ropeMesh.visible = !!(hasB && hasD);
-    if (!hasB || !hasD) return;
-    this.blockMesh.position.copy(B); this.deviceMesh.position.copy(D); if (hasA) this.knotMesh.position.copy(A);
+    this.slingMesh.visible = !!hasB; this.hitchMesh.visible = !!(hasA && !r.anchor.chip);
+    if (!hasB || !hasD) { this.ropeTail = []; return; }
+    const rr = CFG.ROPE_RADIUS, ar = aux && aux.rope;
+    const holder = ar && ar.holder >= 0 ? this.players.get(ar.holder) : null;
+    // the tail: to the hands of whoever holds it, or lying on the ground off the bark
+    let E;
+    if (holder) E = holder.group.position.clone().addScaledVector(Y, 0.2);
+    else {
+      const ds = this.world.segs.get(r.device.seg), t = Math.min(1, Math.max(0, segParam(ds, r.device.p)));
+      const C = this.nodeWorld({ seg: ds.id, p: [ds.a[0] + (ds.b[0] - ds.a[0]) * t, ds.a[1] + (ds.b[1] - ds.a[1]) * t, ds.a[2] + (ds.b[2] - ds.a[2]) * t] }, new THREE.Vector3());
+      const o = D.clone().sub(C || D); o.y = 0; if (o.lengthSq() < 1e-6) o.set(1, 0, 0); o.normalize().multiplyScalar(0.6);
+      E = new THREE.Vector3(D.x + o.x, 0, D.z + o.z); E.y = groundY(this.world.terrain, E.x, E.z) + 0.04;
+    }
+    const all = this.ropeObstacles(), ends = [B, D, E].concat(hasA ? [A] : []).map((v) => v.toArray());
+    const near = nearObstacles(all, ends, 1.5), byId = new Map(near.map((o) => [o.id, o]));
+    const a = hasA && pushOut(A.toArray(), near, rr), b = pushOut(B.toArray(), near, rr), d = pushOut(D.toArray(), near, rr);
+    // contact points: the host's (aux), relaxed here every frame so they move smoothly between packets
+    const legs = [[], []];
+    const wr = ar && ar.w;
+    if (wr) for (let i = 0; i + 4 < wr.length; i += 5) {
+      const q = this.nodeWorld({ seg: wr[i + 1], p: [wr[i + 2], wr[i + 3], wr[i + 4]] }, new THREE.Vector3());
+      if (q && byId.has(wr[i + 1])) legs[wr[i]].push({ id: wr[i + 1], x: q.toArray() });
+    }
+    const wa = hasA ? routeSpan(a, b, legs[0], near, byId, rr, 2) : [];
+    const wb = routeSpan(b, d, legs[1], near, byId, rr, 2);
+    this.ropeTail = routeSpan(d, E.toArray(), this.ropeTail, near, byId, rr, 2);    // the tail is only drawn: the view keeps its own
+
+    this.blockMesh.position.fromArray(b); this.deviceMesh.position.fromArray(d); if (hasA) this.knotMesh.position.fromArray(a);
+    this.loopRound(this.slingMesh, r.block, this.blockMesh.position);
+    if (hasA && !r.anchor.chip) this.loopRound(this.hitchMesh, r.anchor, this.knotMesh.position);
     const pts = [];
-    const span = (p, q, sag, n, skipFirst) => {
-      for (let i = skipFirst ? 1 : 0; i <= n; i++) {
-        const t = i / n, v = new THREE.Vector3().lerpVectors(p, q, t); v.y = Math.max(groundY(this.world.terrain, v.x, v.z) + 0.03, v.y - sag * 4 * t * (1 - t));
-        pts.push(v);
+    const push = (v) => { if (!pts.length || pts[pts.length - 1].distanceToSquared(v) > 1e-6) pts.push(v); };
+    const leg = (chain, sag) => {
+      let L = 0;
+      for (let i = 1; i < chain.length; i++) L += Math.hypot(chain[i][0] - chain[i - 1][0], chain[i][1] - chain[i - 1][1], chain[i][2] - chain[i - 1][2]);
+      for (let i = 1; i < chain.length; i++) {
+        const p = new THREE.Vector3().fromArray(chain[i - 1]), q = new THREE.Vector3().fromArray(chain[i]), l = p.distanceTo(q);
+        const n = Math.max(1, Math.round(10 * l / Math.max(L, 1e-6))), sg = sag * l / Math.max(L, 1e-6);
+        for (let k = i === 1 && !pts.length ? 0 : 1; k <= n; k++) {
+          const t = k / n, v = new THREE.Vector3().lerpVectors(p, q, t);
+          v.y = Math.max(groundY(this.world.terrain, v.x, v.z) + 0.03, v.y - sg * 4 * t * (1 - t));
+          push(v);
+        }
       }
     };
-    const slack = aux && aux.rope ? Math.max(0, aux.rope.slack) : 0;
-    if (hasA) span(A, B, Math.min(3, Math.sqrt(slack) * 0.6), 10, false); else pts.push(B.clone());
-    span(B, D, 0, 4, true);
-    const holder = aux && aux.rope && aux.rope.holder >= 0 ? this.players.get(aux.rope.holder) : null;
-    if (holder) span(D, _w.copy(holder.group.position).addScaledVector(Y, 0.2), 0.15, 5, true);
-    else span(D, _w.set(D.x + 0.5, groundY(this.world.terrain, D.x + 0.5, D.z + 0.3) + 0.04, D.z + 0.3), 0, 3, true);
+    const slack = ar ? Math.max(0, ar.slack) : 0;
+    if (hasA) leg([a, ...wa.map((q) => q.x), b], Math.min(3, Math.sqrt(slack) * 0.6)); else push(new THREE.Vector3().fromArray(b));
+    leg([b, ...wb.map((q) => q.x), d], 0);
+    leg([d, ...this.ropeTail.map((q) => q.x), E.toArray()], holder ? 0.15 : 0);
     this.ropeMesh.geometry.dispose();
-    this.ropeMesh.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.05), pts.length * 2, CFG.ROPE_RADIUS, 6);
+    this.ropeMesh.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'centripetal'), pts.length * 3, rr, 6);
   }
 }

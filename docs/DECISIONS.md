@@ -2011,3 +2011,34 @@ power lines that aren't sparking should still zap players." This replaces
 my reading in D112: after `LINE_DEAD_T` a downed line only stops sparking;
 touching it still shocks, and sawing through it still flashes and shocks.
 The event keeps its name (`dead`). The neutral still never shocks.
+
+**D123 — Rope lies on the wood.** Owner (2026-11-27): "realistic rope
+pathing that doesn't clip into wood, and wraps around branches", and the rope
+should not spawn inside the trunk.
+- General rule, not special cases: every straight run of the rigging line is
+  routed round every segment at least `ROPE_WRAP_R` (3 cm) thick as a taut
+  string (`model/ropepath.js`). Contact points slide over the bark the way
+  that shortens the rope, lift off when the rope pulls away, move to the
+  neighbouring segment at a crotch, merge when bunched, and are added where a
+  run cuts through wood. So the rope drapes over limbs, slides off tips and
+  down into crotches, and winds round a trunk it is pulled round.
+- Physics follows the path: the rope's length is measured over it and each
+  contact pushes on its wood with `T` along the bisector (a rigging load on
+  the standing tree). A rope pressing on loose wood other than the piece it is
+  tied to pushes at most `ROPE_PUSH_G` (3) g, so an explicit impulse cannot
+  fling a light stick. The saw cuts the rope where it actually runs.
+- Contacts are frictionless. Friction over bark (natural-crotch rigging) is
+  still P2-5: it changes how lowering plays, so it waits for the owner.
+- Ends outside the wood: the block hangs on a sling `BLOCK_DROP` (0.18 m)
+  off the bark, under a limb or beside a stem; the knot sits on the bark with
+  a hitch drawn round the wood; the friction device sits on the trunk's bark
+  (radius at its own height, not mid-segment) on the side under the block
+  (it was always +x and partly inside the bark). Any end point still inside
+  wood is pushed out before routing.
+- Network: the host sends its contact points in aux (piece-local, mm); each
+  client relaxes them every frame so they move smoothly between packets. The
+  tail (device to hands) is only drawn, so each view routes it itself.
+- My choices, unreviewed: 3 cm threshold (twigs do not catch the rope), 2
+  solver passes a tick, sling length, device on the block's side, push cap.
+  `ROPE_WRAP_R` and `BLOCK_DROP` are in the Tab menu.
+

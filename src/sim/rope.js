@@ -5,13 +5,15 @@
 
 import * as THREE from '../../vendor/three/three.module.js';
 import { CFG, MODE } from '../config.js';
-import { segRadius, segParam, lerp3, segAxis } from '../model/world.js';
+import { segRadius, segParam, lerp3, segAxis, perp } from '../model/world.js';
+import { routeSpan, pushOut, nearObstacles, spanLength } from '../model/ropepath.js';
 
-const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _d = new THREE.Vector3();
+const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _d = new THREE.Vector3(), _e = new THREE.Vector3();
+const V = (x) => new THREE.Vector3(x[0], x[1], x[2]);
 
 export class Rope {
   constructor(sim) { this.sim = sim; this.reset(); }
-  reset() { this.L0 = 0; this.T = 0; this.wraps = 2; this.holder = -1; this.prev = 0; this.lastForce = null; this.slack = 0; }
+  reset() { this.L0 = 0; this.T = 0; this.wraps = 2; this.holder = -1; this.prev = 0; this.lastForce = null; this.slack = 0; this.wrap = [[], []]; this.path = null; }
 
   node(n) { return n.chip ? this.sim.chipper.unit(n.k).infeed() : this.sim.segToWorld(this.sim.world.segs.get(n.seg), n.p); }
   /** The chipper's feed rollers have the rope: they reel it in until it is cut, the block comes down or a reset. */
@@ -39,19 +41,30 @@ export class Rope {
     if (this.fed()) { if (this.node(r.block).distanceTo(t.point) < 0.7) this.swallow('The block came down: the chipper took the rope'); return; }
     if (r.state === 0) {
       if (!t.fixed) return;
-      // friction device: on the root segment of the same piece, about 1 m up
-      const root = w.segsOf(w.segs.get(t.seg).piece)[0];
-      const c = lerp3(root.a, root.b, Math.min(0.9, 1 / Math.max(0.5, root.b[1] - root.a[1])));
-      const dev = { seg: root.id, p: [c[0] + segRadius(root, 0.5) + 0.05, c[1], c[2]] };
-      sim.emit({ t: 'rope', rope: { state: 1, block: { seg: t.seg, p: t.p }, device: dev } });
+      // the block hangs on a short sling off the wood looked at (D123): below a limb, beside a stem
+      const s = w.segs.get(t.seg), ax = segAxis(s), tt = Math.min(1, Math.max(0, segParam(s, t.p))), c = lerp3(s.a, s.b, tt);
+      const rad = perp([t.p[0] - c[0], t.p[1] - c[1], t.p[2] - c[2]], ax);
+      const hang = perp([rad[0] * 0.3, rad[1] * 0.3 - 1, rad[2] * 0.3], ax), off = segRadius(s, tt) + CFG.BLOCK_DROP;
+      const bp = [c[0] + hang[0] * off, c[1] + hang[1] * off, c[2] + hang[2] * off];
+      // friction device: on the bark of the root segment of the same piece, about 1 m up, on the side under the block
+      const root = w.segsOf(s.piece)[0], rt = Math.min(0.9, 1 / Math.max(0.5, root.b[1] - root.a[1]));
+      const rc = lerp3(root.a, root.b, rt), raxis = segAxis(root), hz = [bp[0] - rc[0], 0, bp[2] - rc[2]];
+      const side = Math.hypot(hz[0], hz[2]) > 0.05 ? perp(hz, raxis) : perp([1, 0, 0], raxis), doff = segRadius(root, rt) + CFG.DEVICE_OFF;
+      const dev = { seg: root.id, p: [rc[0] + side[0] * doff, rc[1] + side[1] * doff, rc[2] + side[2] * doff] };
+      sim.emit({ t: 'rope', rope: { state: 1, block: { seg: t.seg, p: bp }, device: dev } });
+      this.wrap = [[], []]; this.route(30);
     } else if (r.state === 1 && this.node(r.block).distanceTo(t.point) < 0.7) {
       this.clear(p);                                     // looking at the block: take it down
     } else if (r.state === 1) {
-      sim.emit({ t: 'rope', rope: { ...r, state: 2, anchor: { seg: t.seg, p: t.p } } });
+      // the knot sits on the bark, the rope round the wood (D123)
+      const s = w.segs.get(t.seg), tt = Math.min(1, Math.max(0, segParam(s, t.p))), c = lerp3(s.a, s.b, tt);
+      const rad = perp([t.p[0] - c[0], t.p[1] - c[1], t.p[2] - c[2]], segAxis(s)), off = segRadius(s, tt) + CFG.ROPE_RADIUS + 0.01;
+      sim.emit({ t: 'rope', rope: { ...r, state: 2, anchor: { seg: t.seg, p: [c[0] + rad[0] * off, c[1] + rad[1] * off, c[2] + rad[2] * off] } } });
+      this.wrap[0] = []; this.route(30);
       this.L0 = this.pathLength() + 0.15; this.prev = 0; this.T = 0;
     } else if (this.node(r.anchor).distanceTo(t.point) < 0.7) {
       sim.emit({ t: 'rope', rope: { state: 1, block: r.block, device: r.device } });
-      this.T = 0;
+      this.T = 0; this.wrap[0] = [];
     }
   }
   clear(p) {
@@ -60,10 +73,48 @@ export class Rope {
 
   /** Straight runs of rope in the world, for anything that can cut it. */
   spans() {
-    const r = this.sim.world.rope, out = [];
-    if (r.state >= 2) out.push([this.node(r.anchor), this.node(r.block)]);
-    if (r.state >= 1) out.push([this.node(r.block), this.node(r.device)]);
+    const out = [], P = this.path;
+    if (!P) return out;
+    for (let i = 1; i < P.pts.length; i++) out.push([V(P.pts[i - 1]), V(P.pts[i])]);
     return out;
+  }
+
+  // ---- the rope's path over the wood (D123): model/ropepath.js on every segment thick enough to hold it ----
+  obstacles() {
+    const sim = this.sim;
+    if (this._obsTick === sim.tick && this._obs) return this._obs;
+    const out = [];
+    for (const s of sim.world.segs.values()) {
+      if (Math.max(s.r0, s.r1) < CFG.ROPE_WRAP_R || !sim.world.pieces.get(s.piece)) continue;
+      out.push({ id: s.id, a: sim.segToWorld(s, s.a, _a).toArray(), b: sim.segToWorld(s, s.b, _b).toArray(), r0: s.r0, r1: s.r1 });
+    }
+    this._obsTick = sim.tick; this._obs = out;
+    return out;
+  }
+  /**
+   * Lay the rope over the wood: anchor -> contact points -> block -> contact points -> device.
+   * Sets this.path = {pts (world arrays), segs (seg id per point, -1 for the chipper), legs (index of the block)}.
+   */
+  route(iters = CFG.ROPE_WRAP_ITERS) {
+    const sim = this.sim, w = sim.world, r = w.rope, rr = CFG.ROPE_RADIUS;
+    if (r.state < 1) { this.path = null; this.wrap = [[], []]; return; }
+    const hasA = r.state >= 2;
+    const raw = [hasA ? this.node(r.anchor) : null, this.node(r.block), this.node(r.device)].map((v) => v && v.toArray());
+    const all = this.obstacles(), near = nearObstacles(all, raw.filter(Boolean), 1.5), byId = new Map(near.map((o) => [o.id, o]));
+    const [A, B, D] = raw.map((x) => x && pushOut(x, near, rr));
+    // the contact points are kept on their wood between ticks (piece-local), so they ride with it
+    const live = (list) => list.filter((q) => byId.has(q.seg)).map((q) => ({ id: q.seg, x: sim.segToWorld(w.segs.get(q.seg), q.p, _e).toArray() }));
+    const wa = hasA ? routeSpan(A, B, live(this.wrap[0]), near, byId, rr, iters) : [];
+    const wb = routeSpan(B, D, live(this.wrap[1]), near, byId, rr, iters);
+    const keep = (list) => list.map((q) => ({ seg: q.id, p: sim.segToLocal(w.segs.get(q.id), V(q.x)) }));
+    this.wrap = [keep(wa), keep(wb)];
+    const pts = [], segs = [];
+    if (hasA) { pts.push(A); segs.push(r.anchor.chip ? -1 : r.anchor.seg); for (const q of wa) { pts.push(q.x); segs.push(q.id); } }
+    const legs = pts.length;
+    pts.push(B); segs.push(r.block.seg);
+    for (const q of wb) { pts.push(q.x); segs.push(q.id); }
+    pts.push(D); segs.push(r.device.seg);
+    this.path = { pts, segs, legs };
   }
   cut() {
     if (this.fed()) { this.swallow('The rope was cut: the chipper took the rest'); return; }
@@ -99,17 +150,19 @@ export class Rope {
   }
 
   pathLength() {
-    const r = this.sim.world.rope;
-    const a = this.node(r.anchor).clone(), b = this.node(r.block).clone(), d = this.node(r.device);
-    return a.distanceTo(b) + b.distanceTo(d);
+    if (!this.path) this.route(30);
+    const P = this.path.pts;
+    let s = 0;
+    for (let i = 1; i < P.length; i++) s += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1], P[i][2] - P[i - 1][2]);
+    return s;
   }
 
   step(dt) {
     const sim = this.sim, w = sim.world, r = w.rope;
     this.lastForce = null;
+    this.route();
     if (r.state !== 2) { this.T = 0; this.run = 0; if (r.state < 1) this.holder = -1; return; }
-    const pa = this.node(r.anchor).clone(), pb = this.node(r.block).clone(), pd = this.node(r.device).clone();
-    const s = pa.distanceTo(pb) + pb.distanceTo(pd);
+    const s = this.pathLength();
     const fed = !!r.anchor.chip;
     if (fed && !sim.structure.isHeld(w.segs.get(r.block.seg).piece)) { this.swallow('The block\'s wood tore free: the chipper took the rope'); return; }
     if (fed && !sim.chipper.fedUnit().seized()) this.L0 = Math.max(0.3, this.L0 - CFG.CHIP_FEED_V * dt);     // the feed rollers reel it in (not while seized)
@@ -142,19 +195,28 @@ export class Rope {
       if (fed) { this.swallow('The rope snapped: the chipper took the rest'); return; }
       sim.emit({ t: 'rope', rope: { state: 0 } }); sim.toast('The rope snapped!'); this.reset(); return;
     }
-    // anchor: pulled toward the block
-    const fa = _a.copy(pb).sub(pa).normalize().multiplyScalar(T);
-    if (fed) sim.chipper.fedUnit().body.applyImpulseAtPoint({ x: fa.x * dt, y: fa.y * dt, z: fa.z * dt }, pa, true);
-    else sim.applyForce(r.anchor.seg, pa, fa);
-    if (!fed && !aPiece.fixed) this.lastForce = { piece: aSeg.piece, p: pa, f: fa.clone() };
-    // block: both legs pull on it
-    const fb = _b.copy(pa).sub(pb).normalize().add(_d.copy(pd).sub(pb).normalize()).multiplyScalar(T);
-    sim.applyForce(r.block.seg, pb, fb);
-    // device: pulled toward the block
-    sim.applyForce(r.device.seg, pd, _a.copy(pb).sub(pd).normalize().multiplyScalar(T));
+    // every point of the path is pulled toward both its neighbours: the anchor toward the first wood the
+    // rope touches, each contact and the block by both runs, the device up toward the last one
+    const P = this.path.pts, S = this.path.segs, g = CFG.GRAVITY * CFG.ROPE_PUSH_G;
+    for (let i = 0; i < P.length; i++) {
+      const at = V(P[i]), f = new THREE.Vector3();
+      if (i > 0) f.add(_a.set(P[i - 1][0] - at.x, P[i - 1][1] - at.y, P[i - 1][2] - at.z).normalize());
+      if (i + 1 < P.length) f.add(_a.set(P[i + 1][0] - at.x, P[i + 1][1] - at.y, P[i + 1][2] - at.z).normalize());
+      f.multiplyScalar(T);
+      if (i === 0 && fed) { sim.chipper.fedUnit().body.applyImpulseAtPoint({ x: f.x * dt, y: f.y * dt, z: f.z * dt }, at, true); continue; }
+      const seg = w.segs.get(S[i]); if (!seg) continue;
+      const piece = w.pieces.get(seg.piece);
+      if (i === 0 && !piece.fixed) this.lastForce = { piece: seg.piece, p: at, f: f.clone() };
+      // rope pressing on some other loose wood shoves it no harder than ROPE_PUSH_G g (an explicit push on a light stick would fling it)
+      if (i > 0 && !piece.fixed && seg.piece !== (aSeg && aSeg.piece)) { const cap = sim.bodies.get(seg.piece).mass() * g; if (f.length() > cap) f.setLength(cap); }
+      sim.applyForce(seg.id, at, f);
+    }
   }
 
   aux() {
-    return { fed: this.fed() ? 1 : 0, L0: +this.L0.toFixed(3), T: Math.round(this.T), wraps: this.wraps, holder: this.holder, slack: +(this.slack || 0).toFixed(2), run: +(this.run || 0).toFixed(2), grip: +(this.grip ?? 1).toFixed(2) };
+    // the contact points over the wood, piece-local to mm: [leg (0 anchor-block, 1 block-device), seg, x, y, z]...
+    const wr = [];
+    this.wrap.forEach((list, leg) => { for (const q of list) wr.push(leg, q.seg, +q.p[0].toFixed(3), +q.p[1].toFixed(3), +q.p[2].toFixed(3)); });
+    return { w: wr, fed: this.fed() ? 1 : 0, L0: +this.L0.toFixed(3), T: Math.round(this.T), wraps: this.wraps, holder: this.holder, slack: +(this.slack || 0).toFixed(2), run: +(this.run || 0).toFixed(2), grip: +(this.grip ?? 1).toFixed(2) };
   }
 }
