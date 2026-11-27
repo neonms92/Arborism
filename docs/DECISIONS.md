@@ -2002,11 +2002,17 @@ when it loses it.
   and a little above; on blur it eases back to wherever the tilt was.
 - My choices, unreviewed: the tilt stays where you leave it (it does not
   drift back to the default); the tilt is kept when the sticker dialog
-  closes; drag sensitivity (about 230 px of drag covers the whole range);
+  closes; drag sensitivity (about 115 px of drag covers the whole range; owner halved it from 230 px);
   the tag close-up shows about 0.26 m of chest; the idle sway fades out
   during the tag zoom. Tunables in config.js, not in the Tab menu.
 
-**D122 — A new spot for each sticker; ghost tails fit their bodies.** Owner
+**D122 — Quiet downed lines still shock.** Owner (2026-11-27): "Downed
+power lines that aren't sparking should still zap players." This replaces
+my reading in D112: after `LINE_DEAD_T` a downed line only stops sparking;
+touching it still shocks, and sawing through it still flashes and shocks.
+The event keeps its name (`dead`). The neutral still never shocks.
+
+**D123 — A new spot for each sticker; ghost tails fit their bodies.** Owner
 (2026-11-27): "After applying a sticker, re-roll a random placement for the
 next one. See if you can fix the alignment of the ghostly tail." After Stick!
 the helmet now turns (eased, so you see it) to a new random spot for the next

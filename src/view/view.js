@@ -273,7 +273,8 @@ export class View {
       }
     }
     mesh.count = k;
-    for (let i = 0; i < k; i++) mesh.setColorAt(i, _c.setRGB(NEUTRAL[0], NEUTRAL[1], NEUTRAL[2]));
+    // at least one colour, so instanceColor exists even with nothing to draw (a sliver thinner than a part): paintFibres reads it
+    for (let i = 0; i < Math.max(1, k); i++) mesh.setColorAt(i, _c.setRGB(NEUTRAL[0], NEUTRAL[1], NEUTRAL[2]));
     mesh.instanceMatrix.needsUpdate = true;
     mesh.visible = CFG.SHOW_FIBRES;
     p.fibres = mesh; p.info = info; p.fibBase = Float32Array.from(mesh.instanceMatrix.array.subarray(0, k * 16)); p.ends = Float32Array.from(ends);

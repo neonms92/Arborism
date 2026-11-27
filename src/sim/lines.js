@@ -5,7 +5,8 @@
 // is loose), so the lines hold up a pole sawn off at its base. Dormant poles and houses take it without moving.
 // Wood that meets a line pushes it aside, and the line pushes back on the wood with its tension.
 // Lines at rest sleep: nothing is solved and nothing is sent. Every line is live: a player who touches one is
-// shocked (players.shock), until LINE_DEAD_T after it first comes down, when it goes dead (a 'dead' event).
+// shocked (players.shock), downed or not. LINE_DEAD_T after a line first comes down it stops sparking (a 'dead'
+// event: the name is older than the rule, D122), but it still shocks.
 
 import * as THREE from '../../vendor/three/three.module.js';
 import { CFG, INJ } from '../config.js';
@@ -159,7 +160,7 @@ export class Lines {
     const check = sim.tick % 15 === 0;
     w.lines.list.forEach((L, i) => {
       const S = this.st[i]; if (!S) return;
-      // a line that has been down LINE_DEAD_T goes dead (the tick it came down is in the model, so a new host keeps it)
+      // a line that has been down LINE_DEAD_T stops sparking (the tick it came down is in the model, so a new host keeps it)
       if (!L.dead && (L.brk.length || L.off[0] || L.off[1])) {
         const t0 = L.down !== undefined ? L.down : (S.down ??= sim.tick);   // (a world saved before snaps carried it)
         if (sim.tick - t0 >= CFG.LINE_DEAD_T / CFG.TICK) sim.emit({ t: 'dead', i });
@@ -380,7 +381,7 @@ export class Lines {
       let hit = null;
       for (let i = 0; i < this.st.length && !hit; i++) {
         const S = this.st[i], L = w.lines.list[i];
-        if (L.dead || !isLive(L) || !Lines.near(S.box, mid, CFG.P_HALF + reach)) continue;
+        if (!isLive(L) || !Lines.near(S.box, mid, CFG.P_HALF + reach)) continue;
         for (let k = 0; k < L.n && !hit; k++) {
           if (L.brk.includes(k)) continue;
           const q = closest(S.x, 3 * k, 3 * k + 3, a, b);
@@ -415,7 +416,7 @@ export class Lines {
   cut(i, k, p) {
     const S = this.st[i]; if (!S) return;
     const x = S.x, at = [0, 1, 2].map((c) => +((x[3 * k + c] + x[3 * k + 3 + c]) / 2).toFixed(3));
-    const Li = this.sim.world.lines.list[i], live = !Li.dead && isLive(Li);
+    const Li = this.sim.world.lines.list[i], live = isLive(Li);
     this.sim.emit({ t: 'snap', i, k, tk: this.sim.tick, p: at });
     if (p) this.sim.awards.line(p.id);
     if (p && live && !this.shockT.has(p.id) && p.inj < INJ.DOWN) { this.shockT.set(p.id, CFG.SHOCK_AGAIN); this.sim.players.shock(p, at); }
