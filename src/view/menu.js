@@ -26,7 +26,7 @@ export const ROWS = [
   ['LEAVE_GUARD', 'Ask before Back or a swipe-back leaves the game'],
   ['LANYARD_TIME', 'Hold time to spur in or move the lanyard (s)', 0, 10, 0.1, 1, true],
   ['LETGO_TIME', 'Hold time to let go of the tree (s)', 0, 10, 0.1, 1, true],
-  ['LAND_DIST', 'Climber reaching the ground is put down this far from the stem (m)', 1, 10, 0.5, 1, true],
+  ['LAND_DIST', 'Climber reaching the ground is put down this far back from the stem (m)', 0, 10, 0.25, 1, true],
   ['SPAWN_HEIGHT', 'Respawn / landing height of a player\'s middle over the ground (m)', 0.9, 3, 0.05, 1, true],
   ['PUNCH_FORCE', 'Punch: force added per press (N)', 0, 3000, 10, 1, true],
   ['PUNCH_DECAY', 'Punch: how long each one lasts (s)', 0.02, 1, 0.01, 1, true],
