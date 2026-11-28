@@ -2258,3 +2258,20 @@ segment. The grab assist itself is unchanged (exact ray first, then the
 `GRAB_CONE` cone); only the drawing went, along with the player's `target`
 field and the aux `tg` that carried it to the view. The prompt
 ("{interact}: grab, N kg") is now the only sign of what a press would take.
+
+**D136 — The job tree sits on the finished ground.** Owner (2026-11-28): a
+tree near the road spawned with about 25 cm of air under it. The job tree is
+rooted at the origin (structure.js needs it there) and the natural ground was
+shifted to 0 at the origin, but the house pads and the street blends are laid
+after that and can reach the trunk, so the finished ground there could be
+lower (a float, up to 0.84 m over 14 seeds) or higher. The terrain spec now
+carries `root: {r, sink}` (the trunk's base radius, `ROOT_SINK`), and the
+finished grid is shifted as a whole so its lowest point at the centre or on a
+ring r out is `sink` above the origin: the same rule the yard trees and poles
+already used (lowest of 8 points round the trunk, less 5 cm), which is now
+`ROOT_SINK` for all of them. Pads move with the grid, and everything else is
+placed from the finished ground after the terrain event, so nothing else
+shifts relative to it. A spec without `root` (older saves) keeps the old
+ground. On a ledge or steep slope the uphill side buries the base deeper
+(about 1 m on seed "g"), as a real tree on a bank would be.
+
