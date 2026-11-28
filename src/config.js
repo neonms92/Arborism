@@ -197,6 +197,9 @@ export const CFG = {
   GOE_BOX: [0.37, 0.88, 0.16],   // m, half sizes: the box he is while switched off (arms' width, his height, the torso's depth) (D118)
   GOE_OFF_FRICTION: 0.4,   // friction of that box on what it lies or slides on
   GOE_BUTTON: [0.28, 0.33],      // m: his power button, on top of his right shoulder ([right, up] from his middle)
+  GOE_FOLLOW_FAR: 3.5,     // m: his owner further off than this and he walks after them (D134)...
+  GOE_FOLLOW_NEAR: 2.0,    // m: ...until he is this close
+  GOE_WAKE_T: 0.5,         // s: taken off the truck, let go of and lying still this long, he switches himself on
   GOE_BUTTON_R: 0.15,      // m: looking this close to it (across his front, back or side) is looking at the button
 
   // --- player ---

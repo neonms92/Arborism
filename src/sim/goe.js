@@ -1,13 +1,19 @@
-// G.O.E., the groundbot (D117). Host only; solo games only (main.js spawns him).
-// He is an ordinary player (sim/players.js): this controller writes his input each tick, the way a person's
+// G.O.E., the groundbot (D117). Host only.
+// Since D134 there are four of them, racked switched off on the log truck between its bed and cab (model/loader.js
+// RACK_SLOTS). {interact} on one there takes him off: a real G.O.E. (a player, id GOE_ID0 - slot) is made where he
+// stood, switched off and in the hands of whoever grabbed him, who is his owner from then on. Let go of (and lying
+// still), he switches himself on. He follows his owner about, and while his owner climbs a tree he waits by it to
+// tend it. With his owner gone from the game he switches himself off; switched back on by hand, he works for
+// whoever did it.
+// Each is an ordinary player (sim/players.js): this controller writes his input each tick, the way a person's
 // keys would, and everything he does goes through the same rules as anyone's (rope.js, players.js).
 // He does only these things:
-//   - stands by the job tree;
-//   - once a block is hung, takes the rope tail ({rig} at the friction device);
+//   - follows his owner; while his owner climbs, stands by that tree;
+//   - while his owner climbs and a block is hung, takes the rope tail ({rig} at the friction device);
 //   - once the rope is tied to wood, puts the wraps up to WRAPS_MAX;
 //   - once that wood comes off the tree, eases the tail to let it down at about GOE_LOWER_V;
 //   - once it lies still, ties off, walks to the knot (A* over the ground, round fences, sheds and logs) and unties it.
-// Then, with the block still hung, he goes back to the tail for the next one.
+// Then, with the block still hung and his owner still up the tree, he goes back to the tail for the next one.
 // And (D118): when a person goes down, he ties off if he is on the tail, takes a tube salad off the nearest
 // chipper's rack and gives it to them. A red button on his right shoulder switches him off (players.setPower):
 // then he is a box anyone can grab. Switched off when someone goes down, he switches himself on to help and
@@ -17,49 +23,131 @@ import * as THREE from '../../vendor/three/three.module.js';
 import { CFG, INJ, MODE } from '../config.js';
 import { segRadius } from '../model/world.js';
 import { SHAPE } from '../model/chipper.js';
+import { TRUCK, GOE_ID0, GOE_NAME, GOE_COLOR, frameToWorld } from '../model/loader.js';
 import { blankInput } from './players.js';
-
-export const GOE_ID = 99;               // his player id (people are 1, 2, 3...)
-export const GOE_NAME = 'G.O.E.';
-export const GOE_COLOR = 0x8a8d90;      // gray
 
 const _o = new THREE.Vector3(), _d = new THREE.Vector3();
 const yawTo = (dx, dz) => Math.atan2(-dx, -dz);          // yaw 0 looks toward -z; forward = (-sin, 0, -cos)
 
-export class Goe {
-  constructor(sim) { this.sim = sim; this.p = null; }
+/** All the G.O.E.s: the ones racked on the truck (colliders on its body) and the ones taken off it (a Goe each). */
+export class Goes {
+  constructor(sim) {
+    this.sim = sim;
+    this.bots = new Map();        // player id -> Goe
+    this.rackCols = new Map();    // collider handle -> slot, for the G.O.E.s still on the truck
+  }
 
-  /** Put him down by the tree (once: solo games). */
-  spawn() {
+  /** The truck was parked (sim/loader.js build): a box collider for each G.O.E. still on its rack. */
+  onTruck(body) {
+    const R = this.sim.R, H = CFG.GOE_BOX; this.rackCols.clear(); this.truck = body;
+    TRUCK.RACK_SLOTS.forEach((sl, i) => {
+      if (this.sim.players.list.has(GOE_ID0 - i)) return;
+      const col = this.sim.rapier.createCollider(R.ColliderDesc.cuboid(H[0], H[1], H[2]).setTranslation(...sl.c).setFriction(0.7), body);
+      this.rackCols.set(col.handle, i);
+    });
+  }
+  /** The truck went (its colliders with it). */
+  offTruck() { this.rackCols.clear(); this.truck = null; }
+  dropRack(slot) {
+    for (const [h, i] of this.rackCols) if (i === slot) {
+      const c = this.sim.rapier.getCollider(h); if (c) this.sim.rapier.removeCollider(c, false);
+      this.rackCols.delete(h);
+    }
+  }
+
+  /** The racked G.O.E. that player p looks at within reach: {slot, point} or null. */
+  aimRack(p) {
+    if (!this.rackCols.size) return null;
+    const sim = this.sim, { o, d } = sim.eye(p);
+    const hit = sim.rapier.castRay(new sim.R.Ray(o, d), CFG.REACH, true, undefined, undefined, undefined, p.body);
+    const slot = hit ? this.rackCols.get(hit.collider.handle) : undefined;
+    return slot === undefined ? null : { slot, point: o.clone().addScaledVector(d, hit.timeOfImpact) };
+  }
+
+  /** Player by grabbed the racked G.O.E. in slot at world point pt: he becomes a player, switched off, in their hands. */
+  unrack(slot, by, pt) {
+    const sim = this.sim, L = sim.loader.truck; if (!L) return;
+    this.dropRack(slot);
+    const sl = TRUCK.RACK_SLOTS[slot], c = frameToWorld(L.p, L.q, sl.c), f = frameToWorld([0, 0, 0], L.q, [0, 0, sl.f]);
+    const g = new Goe(sim, slot, by.id);
+    const p = g.spawn([c[0], c[2]]);
+    p.body.setTranslation({ x: c[0], y: c[1] + 0.01, z: c[2] }, true); p.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    p.input.yaw = g.inp.yaw = yawTo(f[0], f[2]);
+    sim.players.setPower(p, false);
+    g.fresh = true;
+    this.bots.set(p.id, g);
+    by.grab = { bot: p.id, p: sim.players.botLocal(p, pt), L0: Math.max(0.2, sim.players.hands(by, _o).distanceTo(pt)), prev: 0 };
+    sim.toast(`${sim.players.name(by.id)} took a ${GOE_NAME} off the truck`);
+  }
+
+  /** Host handover (resume.js): a G.O.E. that was a player on the old host, as the world has him. */
+  restore(m) {
+    const slot = GOE_ID0 - m.id; if (slot < 0 || slot >= TRUCK.RACK_SLOTS.length) return null;
+    this.dropRack(slot);
+    const g = new Goe(this.sim, slot, m.owner || 0);
+    this.bots.set(m.id, g);
+    return g.spawn([0, 0]);
+  }
+
+  step(dt) { for (const [id, g] of this.bots) { if (!this.sim.players.list.has(id)) { this.bots.delete(id); continue; } g.step(dt); } }
+  /** Someone pressed a G.O.E.'s button (players.act). */
+  switched(o, by) { const g = this.bots.get(o.id); if (g) g.switched(o, by); }
+}
+
+export class Goe {
+  constructor(sim, slot, owner) { this.sim = sim; this.slot = slot; this.id = GOE_ID0 - slot; this.owner = owner; this.p = null; }
+
+  /** Make him a player at (x, z). */
+  spawn(at) {
     if (this.p) return this.p;
-    const at = this.standSpot();
-    this.p = this.sim.players.add(GOE_ID, GOE_NAME, GOE_COLOR, [], true, at);
+    this.p = this.sim.players.add(this.id, GOE_NAME, GOE_COLOR, [], true, at, this.owner);
     this.p.spawn = [at[0], this.p.spawn[1], at[1]];
-    this.inp = blankInput(); this.inp.yaw = yawTo(-at[0], -at[1]);
+    this.inp = blankInput(); this.inp.yaw = 0;
     this.path = null; this.goalKey = ''; this.planT = 0; this.stuckT = 0; this.stuckN = 0; this.from = null;
     this.grip = 1; this.restT = 0; this.wrapT = 0; this.rigT = 0; this.lowering = false;
     this.aid = null; this.passed = new Set(); this.aidT = 0;
+    this.fresh = false; this.stillT = 0; this.tree = null; this.treeT = 0; this.spot = null; this.following = false; this.fTo = null;
     return this.p;
+  }
+  /** A new owner: the world hears of it (his band, view/avatar.js). */
+  setOwner(id) {
+    this.owner = id;
+    this.sim.emit({ t: 'player', id: this.id, name: GOE_NAME, color: GOE_COLOR, st: [], bot: 1, owner: id });
   }
 
   // ---- where things are ----
-  /** The job tree's trunk at the ground: rooted wood sits at the origin (structure.js), the trunk on its axis. */
-  trunk() {
-    const w = this.sim.world; let best = null;
-    for (const s of w.segs.values()) {
-      if (!w.pieces.get(s.piece)?.fixed || Math.hypot(s.a[0], s.a[2]) > 0.5) continue;
-      if (!best || s.a[1] < best.a[1]) best = s;
+  /** The tree player o is climbing: {x, z, r, piece} at the bottom of its trunk (the lowest wood of a rooted piece,
+   *  which sits at the origin, structure.js), or of the rooted piece nearest them when what they climb has come off
+   *  it but is still held (D127). Looked up again every few seconds (sawing changes it). */
+  treeOf(o) {
+    const w = this.sim.world, s = o.cl && w.segs.get(o.cl.seg);
+    if (!s) return this.tree;
+    if (this.tree && this.tree.on === s.piece && this.treeT > 0) return this.tree;
+    const low = new Map();
+    for (const g of w.segs.values()) {
+      if (!w.pieces.get(g.piece)?.fixed) continue;
+      const b = low.get(g.piece); if (!b || g.a[1] < b.a[1]) low.set(g.piece, g);
     }
-    return { r: best ? segRadius(best, 0) : 0.3 };
+    let best = low.get(s.piece);
+    if (!best) {
+      const t = o.body.translation(); let bd = Infinity;
+      for (const g of low.values()) { const d = Math.hypot(g.a[0] - t.x, g.a[2] - t.z); if (d < bd) { bd = d; best = g; } }
+    }
+    if (!best) return this.tree;
+    const tr = { x: best.a[0], z: best.a[2], r: segRadius(best, 0), on: s.piece, piece: best.piece };
+    if (!this.tree || this.tree.piece !== tr.piece) this.spot = null;
+    this.tree = tr; this.treeT = 5;
+    return tr;
   }
-  /** His place by the tree before a block is hung, a pace out from the bark (the device then goes on the side under the block, rope.js D125). */
-  standSpot() {
-    const r = this.trunk().r + 1.0;
+  /** His place by tree tr while it is climbed, a pace out from the bark (the device then goes on the side under the
+   *  block, rope.js D125); each G.O.E. starts looking from his own side of it. */
+  standSpot(tr) {
+    const r = tr.r + 1.0;
     for (const a of [0.35, 0.8, -0.2, 1.3, -0.7, 1.9, 2.6, -1.4, 3.14]) {
-      const x = r * Math.cos(a), z = r * Math.sin(a);
+      const b = a + this.slot * 1.6, x = tr.x + r * Math.cos(b), z = tr.z + r * Math.sin(b);
       if (this.free(x, z)) return [x, z];
     }
-    return [r, 0];
+    return [tr.x + r, tr.z];
   }
 
   /** Can he stand here: ground no steeper than he can walk, and nothing but the ground (or a person) in the way. */
@@ -153,12 +241,31 @@ export class Goe {
 
   // ---- each tick, before the players move ----
   step(dt) {
-    const p = this.p; if (!p || !this.sim.players.list.has(GOE_ID)) return;
+    const p = this.p; if (!p || !this.sim.players.list.has(this.id)) return;
     const sim = this.sim, w = sim.world, r = w.rope, rope = sim.rope, inp = this.inp;
     inp.mx = inp.my = 0; inp.rt = inp.lt = 0;
     if (this.rigT > 0) this.rigT -= dt;
     if (this.wrapT > 0) this.wrapT -= dt;
-    sim.players.setInput(GOE_ID, inp);
+    if (this.treeT > 0) this.treeT -= dt;
+    sim.players.setInput(this.id, inp);
+    // just taken off the truck: once nobody holds him and he lies still, he switches himself on (D134)
+    if (this.fresh) {
+      if (!p.off) this.fresh = false;
+      else {
+        const held = [...sim.players.list.values()].some((o) => o.grab && o.grab.bot === this.id), v = p.body.linvel();
+        this.stillT = !held && Math.hypot(v.x, v.y, v.z) < 0.3 ? this.stillT + dt : 0;
+        if (this.stillT < CFG.GOE_WAKE_T) return;
+        this.fresh = false; sim.players.setPower(p, true);
+        sim.toast(`${GOE_NAME} switched on: he works for ${sim.players.name(this.owner)}`);
+      }
+    }
+    // his owner left the game: he switches himself off (switched on again by hand, he works for whoever did it)
+    const own = sim.players.list.get(this.owner);
+    if (!own || own.bot) {
+      if (!p.off) { sim.players.setPower(p, false); sim.toast(`${GOE_NAME} switched himself off: nobody to work for`); }
+      this.aid = null;
+      return;
+    }
     // a person down: off to help them, switching himself on for it if he is off
     const down = this.aid ? null : this.downed();
     if (down && !this.aid) {
@@ -192,8 +299,9 @@ export class Goe {
       }
       return;
     }
-    // a block hung and nobody on the tail: take it
-    if (r.state >= 1 && rope.holder < 0 && !rope.fed() && !atRest) {
+    // his owner up a tree, a block hung and nobody on the tail: take it
+    const climbing = own.mode === MODE.CLIMB;
+    if (climbing && r.state >= 1 && rope.holder < 0 && !rope.fed() && !atRest) {
       const dv = rope.node(r.device), range = CFG.DEVICE_RANGE - 0.6;
       if (this.walkTo('tail', dv.x, dv.z, (x, z) => Math.hypot(x - dv.x, z - dv.z) < range && this.free(x, z), dt) && rope.nearDevice(p)) {
         // {rig} takes the tail only while no wood in reach offers a rigging action: look where there is none
@@ -201,12 +309,33 @@ export class Goe {
       }
       return;
     }
-    // otherwise: stand by the tree, facing it
-    const sp = this.spot || (this.spot = this.standSpot());
-    if (this.walkTo('stand', sp[0], sp[1], (x, z) => Math.hypot(x - sp[0], z - sp[1]) < 0.6, dt)) {
-      const t = p.body.translation();
-      inp.yaw = yawTo(-t.x, -t.z);
-      inp.pitch = r.state >= 1 ? this.pitchTo(rope.node(r.block)) : 0.25;
+    // his owner up a tree: wait by it, facing it
+    if (climbing) {
+      const tr = this.treeOf(own);
+      if (tr) {
+        const sp = this.spot || (this.spot = this.standSpot(tr));
+        this.following = false;
+        if (this.walkTo('stand' + tr.piece, sp[0], sp[1], (x, z) => Math.hypot(x - sp[0], z - sp[1]) < 0.6, dt)) {
+          const t = p.body.translation();
+          inp.yaw = yawTo(tr.x - t.x, tr.z - t.z);
+          inp.pitch = r.state >= 1 ? this.pitchTo(rope.node(r.block)) : this.pitchTo(own.body.translation());
+        }
+        return;
+      }
+    }
+    // otherwise: follow his owner about, keeping a few paces off, and face them
+    this.spot = null;
+    const ot = own.body.translation(), t = p.body.translation(), d = Math.hypot(ot.x - t.x, ot.z - t.z);
+    if (d > CFG.GOE_FOLLOW_FAR) this.following = true;
+    if (this.following) {
+      // they keep moving: a fresh path once they are a metre from where the last one was headed
+      if (this.fTo && Math.hypot(ot.x - this.fTo[0], ot.z - this.fTo[1]) > 1) this.planT = 0;
+      if (this.planT <= 0) this.fTo = [ot.x, ot.z];
+      const goal = (x, z) => Math.hypot(x - ot.x, z - ot.z) < CFG.GOE_FOLLOW_NEAR && this.free(x, z);
+      if (this.walkTo('follow', ot.x, ot.z, goal, dt)) this.following = false;
+    } else {
+      this.path = null; this.goalKey = '';
+      this.look(_d.set(ot.x, ot.y + CFG.EYE - 0.1, ot.z));
     }
   }
 
@@ -237,8 +366,12 @@ export class Goe {
   /** Someone pressed his button (players.act): switched off by hand, he drops what he was doing for whoever is down. */
   switched(p, by) {
     if (p !== this.p) return;
+    this.fresh = false;
     if (p.off && this.aid) { this.passed.add(this.aid.id); this.aid = null; }
     if (p.off) this.path = null;
+    // switched on with nobody to work for: he works for whoever did it (D134)
+    const own = this.sim.players.list.get(this.owner);
+    if (!p.off && (!own || own.bot) && by && !by.bot) { this.setOwner(by.id); this.sim.toast(`${GOE_NAME} works for ${this.sim.players.name(by.id)} now`); }
   }
   /** One tick of helping the person in this.aid. true while that is what he is doing. */
   aidStep(dt) {

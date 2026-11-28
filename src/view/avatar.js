@@ -33,6 +33,10 @@ export class Avatar {
       const dark = new THREE.MeshLambertMaterial({ color: 0x5d6064, flatShading: true });
       box(0.17, 0.56, 0.2, 0.11, -0.58, 0, dark); box(0.17, 0.56, 0.2, -0.11, -0.58, 0, dark);
       box(0.48, 0.62, 0.3, 0, -0.0, 0);
+      // his owner's band (D134): a vertical loop round the torso (front, over the top, down the back, under), off to
+      // his right as far as the name tag is to his left, in the shirt colour of whoever took him off the truck
+      this.bandMat = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
+      this.band = box(0.075, 0.632, 0.312, 0.12, 0, 0, this.bandMat); this.band.visible = false;
       box(0.12, 0.56, 0.14, 0.31, 0.02, 0, dark); box(0.12, 0.56, 0.14, -0.31, 0.02, 0, dark);
       box(0.1, 0.1, 0.1, 0, 0.35, 0, dark);
       // the power button (D118): a red one on top of his right shoulder (+x: he faces -z), in a dark collar
@@ -119,6 +123,8 @@ export class Avatar {
   }
 
   /** G.O.E. on or switched off: his eyes lit yellow or dark gray. */
+  /** G.O.E.'s owner band: the owner's shirt colour, or none (-1: still on the truck, or nobody's). */
+  setBand(c) { if (this.band) { this.band.visible = c >= 0; if (c >= 0) this.bandMat.color.setHex(c); } }
   setPower(on) { if (this.botEyes) this.botEyes.color.setHex(on ? 0xffd21a : 0x3a3c3e); }
 
   /** The eyes: 'open', 'blink', 'wince', 'worry' or 'x'. tick(dt) says whether a blink is due. */

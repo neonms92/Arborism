@@ -417,6 +417,7 @@ export class View {
   setLook(pm) {
     const w = this.world.players.get(pm.id), name = playerName(this.world, pm.id), c = this.shirtOf(pm.id);
     if (pm.av.setLook(name, c)) pm.engMat.color.setHex(c);
+    if (w && w.bot) pm.av.setBand(w.owner > 0 && this.world.players.has(w.owner) ? this.shirtOf(w.owner) : -1);   // G.O.E.: his owner's shirt (D134)
     pm.av.setStickers(w ? w.st : null);
   }
 

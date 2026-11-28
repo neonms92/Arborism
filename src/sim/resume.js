@@ -72,7 +72,8 @@ export function resume(sim, st) {
   // players: everyone in the world, where they were; climbers back on their spurs
   const pl = new Map(); if (aux) for (const a of aux.pl) pl.set(a.id, a);
   for (const m of w.players.values()) {
-    sim.players.add(m.id, m.name, m.color, m.st);
+    if (m.bot && !sim.goe.restore(m)) continue;             // a G.O.E. off the truck (sim/goe.js); else a person
+    if (!m.bot) sim.players.add(m.id, m.name, m.color, m.st);
     const p = sim.players.list.get(m.id), a = pl.get(m.id), ps = st.poses.get(PLAYER_BODY_ID + m.id);
     if (ps) { p.body.setTranslation(ps.p, true); p.body.setLinvel({ x: 0, y: 0, z: 0 }, true); }
     if (a && a.m === MODE.CLIMB && Array.isArray(a.cl) && w.segs.has(a.cl[0])) {
@@ -80,6 +81,7 @@ export function resume(sim, st) {
       p.cl.end = a.cl[3] || 0; p.cl.armed = !!a.cl[4];
     }
     if (a) { p.inj = a.inj || 0; }
+    if (m.bot && a && a.of) sim.players.setPower(p, false);
   }
 
   // rope and clock

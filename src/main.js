@@ -112,7 +112,6 @@ async function startHost(online) {
   me = nextPid++;
   sim.players.add(me, look().name, look().color, look().st);
   role = 'solo';
-  if (!online) sim.goe.spawn();                    // G.O.E., the groundbot, works solo games only (sim/goe.js)
   if (online) {
     room = (q.get('host') || randomRoom()).toUpperCase();
     msg('Registering room...');
@@ -243,8 +242,8 @@ const handover = {
     const s = await Sim.create(world, { tree: false, terrain: !!world.terrain });
     resume(s, this.keep);
     sim = s; interp = null; predict = null;
-    nextPid = Math.max(me, ...world.players.keys()) + 1;
-    reserved.clear(); for (const id of world.players.keys()) if (id !== me) reserved.add(id);
+    nextPid = Math.max(me, ...[...world.players.values()].filter((m) => !m.bot).map((m) => m.id)) + 1;
+    reserved.clear(); for (const [id, m] of world.players) if (id !== me && !m.bot) reserved.add(id);   // G.O.E.s stay: the new host runs them
     // whoever has not come back in a minute is gone
     setTimeout(() => { for (const id of [...reserved]) { reserved.delete(id); sim.players.remove(id); } }, 60000);
     wireHost();
