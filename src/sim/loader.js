@@ -55,6 +55,7 @@ export class Loader {
     this.hold = null;                 // {piece, kind: 'carry'|'light'|'pin', ...}: what the claw has
     this.through = new Map();         // piece id -> s: wood dropped from the claw, not meeting the loader yet
     this.driver = -1;
+    this.lastDriver = -1;             // who drove it last (blamed for what it breaks: awards.culprit)
     this.ctrl = { thr: 0, turn: 0 };
     this.note = '';                   // a word for the driver about the last grab ('' for none)
     this.rest = new Map();            // piece id -> s it has lain still in the truck's bed
@@ -142,7 +143,7 @@ export class Loader {
     }
     this.truck = { body: tb, p: ev.truck.p, q: tq };
     sim.goe.onTruck(tb);              // the G.O.E.s still racked on it (sim/goe.js, D134)
-    this.vStand = null; this.rest.clear();
+    this.vStand = null; this.rest.clear(); this.lastDriver = -1;
     this.arm = Math.max(L.ARM_MIN, Math.min(L.ARM_MAX, this.arm));
     this.jaw = 0; this.phase = this.arm > L.ARM_MIN + 1e-3 ? LOWER : IDLE; this.phaseT = 0;
   }
@@ -210,7 +211,7 @@ export class Loader {
       sim.players.say(p, `${sim.players.name(this.driver)} is driving the loader`); return;
     }
     sawOff(sim, p); p.grab = null; p.cl = null; p.lan = false; p.ride = null;
-    p.mode = MODE.DRIVE; this.driver = p.id;
+    p.mode = MODE.DRIVE; this.driver = p.id; this.lastDriver = p.id;
     p.body.setBodyType(sim.R.RigidBodyType.KinematicPositionBased, true);
     p.col.setSensor(true);                       // the driver goes with the loader and does not shove it
     const s = this.toWorld(LOADER.STAND, _a);

@@ -2295,3 +2295,8 @@ calls: wood too thick still runs the motion empty (with a note), so the
 button always does something; the arms overhead now hold the wood 1.4 m
 ahead of the loader's middle (was 1.7), still over a truck's side once the
 loader's nose is under the bed.
+Also (owner, same day: "does driving through an obstacle count against the
+driver?"): its price was already charged to the job like any breakage, but
+the blame sticker (D107: house, shed, fence, wreck) went to no one, since
+`awards.culprit` knew wood and chippers, not the loader. It now names whoever
+drove the loader last (still on it, or it rolled on after they got off).
