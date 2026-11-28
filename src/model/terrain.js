@@ -17,6 +17,7 @@
 //                into the natural ground over the next `blend` m. y omitted: the natural height at
 //                (x, z), or at yAt [x, z] if given (a patio level with its house's pad). Applied in order, so a later pad wins where they overlap. This is how
 //                anything that needs level ground (the tree's yard, a shed, a house) gets it.
+//   root         {r, sink} or absent: the job tree's base radius and how deep it sits (see below)
 //   streets      [{z0, z1}] strips along x, the whole width of the grid: level across, and along their
 //                length the natural ground averaged over streetSmooth m either way, so hills and ledges
 //                become long gentle grades. They blend into the ground over the next streetBlend m and
@@ -24,6 +25,10 @@
 //
 // The natural ground is shifted so it is at 0 at the origin, where the tree
 // is rooted (rooted pieces sit at the origin: structure.js relies on it).
+// With spec.root = {r, sink} the finished ground (after pads and streets,
+// whose blends can reach the trunk) is shifted again so its lowest point
+// round the trunk's base, r m out, is `sink` m above the origin: the tree
+// never floats, by the same rule as the other trees (D136).
 //
 // Heights between grid points follow the same two triangles per cell that
 // Rapier's heightfield collider uses (split along the (x1, z0)-(x0, z1)
@@ -136,6 +141,15 @@ export class Terrain {
         H[i + j * (n + 1)] = y;
       }
     }
+    // the job tree stands at the origin: seat it on the finished ground, not the natural ground (D136)
+    if (s.root) {
+      const r = Math.max(0, s.root.r || 0);
+      let low = this.heightAt(0, 0);
+      for (let k = 0; k < 16; k++) low = Math.min(low, this.heightAt(Math.cos(k * TAU / 16) * r, Math.sin(k * TAU / 16) * r));
+      const dy = (s.root.sink || 0) - low;
+      for (let q = 0; q < H.length; q++) H[q] += dy;
+      for (const p of pads) p.y += dy;
+    }
     let lo = Infinity, hi = -Infinity;
     for (const y of H) { if (y < lo) lo = y; if (y > hi) hi = y; }
     this.lo = lo; this.hi = hi;
@@ -204,13 +218,13 @@ export class Terrain {
 export function makeTerrain(spec) { return spec ? new Terrain(spec) : null; }
 
 /** The spec for the current settings, with these pads. CFG.TERRAIN_* (config.js). */
-export function terrainSpec(CFG, pads = [], streets = []) {
+export function terrainSpec(CFG, pads = [], streets = [], root = { r: CFG.TREE_DIAMETER / 2, sink: CFG.ROOT_SINK }) {
   return {
     seed: CFG.TERRAIN_SEED, size: CFG.TERRAIN_SIZE, cell: CFG.TERRAIN_CELL,
     hillH: CFG.TERRAIN_HILL_H, hillW: CFG.TERRAIN_HILL_W,
     ledges: CFG.TERRAIN_LEDGES, ledgeH: CFG.TERRAIN_LEDGE_H, ledgeW: CFG.TERRAIN_LEDGE_W, ledgeSharp: CFG.TERRAIN_LEDGE_SHARP,
     ledgeGaps: CFG.TERRAIN_LEDGE_GAPS, pads,
-    streets, streetSmooth: CFG.STREET_SMOOTH, streetBlend: CFG.STREET_BLEND,
+    streets, streetSmooth: CFG.STREET_SMOOTH, streetBlend: CFG.STREET_BLEND, root,
   };
 }
 

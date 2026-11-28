@@ -105,6 +105,7 @@ export const CFG = {
   TREE_SEED: 7,
   TREE_HEIGHT: 22,         // m
   TREE_DIAMETER: 1.2,      // m at the base
+  ROOT_SINK: 0.05,         // m every tree's base sits below the lowest ground round its trunk, so none floats (D136)
   BRANCH_DENSITY: 1,       // 1 = a limb roughly every metre of trunk
   BRANCH_LENGTH: 1,        // multiplier
   SEG_CAP: 900,            // stop adding branches once the tree has this many segments

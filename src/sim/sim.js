@@ -145,7 +145,7 @@ export class Sim {
   standList(trees, poles = []) {
     const g = treeShape({ pitch: CFG.YARD_TREES_PITCH });
     delete g.h; delete g.d;
-    const low = (x, z, d) => { let y = Infinity; for (let k = 0; k < 8; k++) y = Math.min(y, this.groundY(x + Math.cos(k * Math.PI / 4) * d / 2, z + Math.sin(k * Math.PI / 4) * d / 2)); return y - 0.05; };
+    const low = (x, z, d) => { let y = Infinity; for (let k = 0; k < 8; k++) y = Math.min(y, this.groundY(x + Math.cos(k * Math.PI / 4) * d / 2, z + Math.sin(k * Math.PI / 4) * d / 2)); return y - CFG.ROOT_SINK; };
     const list = trees.map(([x, z, seed, h, d]) => [x, +low(x, z, d).toFixed(4), z, seed, h, d]);
     // a pole stands POLE_HEIGHT above the ground at its middle
     const d = CFG.POLE_DIAMETER;

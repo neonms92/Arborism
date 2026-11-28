@@ -175,6 +175,7 @@ export const ROWS = [
   ['New tree (these apply when you press Grow)'],
   ['TREE_HEIGHT', 'Height (m)', 3, 30, 0.5, 1, true],
   ['TREE_DIAMETER', 'Trunk diameter at the base (m)', 0.1, 1.5, 0.02, 1, true],
+  ['ROOT_SINK', 'Tree bases sit below the lowest ground round the trunk by (m)', 0, 0.3, 0.01, 1, true],
   ['BRANCH_DENSITY', 'Branch density (1 = a limb about every metre)', 0, 3, 0.1, 1, true],
   ['BRANCH_LENGTH', 'Branch length (multiplier)', 0.2, 3, 0.1, 1, true],
   ['FIBRE_PITCH', 'Fibre density: fibre width (mm). Smaller = more fibres', 8, 100, 1, 0.001, true],
