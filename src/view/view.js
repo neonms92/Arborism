@@ -121,14 +121,14 @@ export class View {
 
     this.ropeMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat);
     this.ropeMesh.frustumCulled = false; this.ropeMesh.castShadow = true; this.scene.add(this.ropeMesh);
-    // the block, its friction device and its sling wear the shirt colour of whoever set the block (rope.by); the rope stays rope-coloured
+    // the block, its friction device, its sling and the tie on the branch (knot and hitch) wear the shirt colour of whoever set the block (rope.by); the rope stays rope-coloured
     this.gearMat = new THREE.MeshLambertMaterial({ color: 0xf0c020, flatShading: true }); this.gearBy = undefined;
     this.blockMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.12), this.gearMat);
     this.deviceMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.35, 6), this.gearMat);
-    this.knotMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.05), new THREE.MeshLambertMaterial({ color: 0xf2e9d0, flatShading: true }));
+    this.knotMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.05), this.gearMat);
     // the block's sling and the knot's hitch: loops of rope round the wood they hang on (D125)
     this.slingMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.gearMat); this.slingMesh.frustumCulled = false;
-    this.hitchMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat); this.hitchMesh.frustumCulled = false;
+    this.hitchMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.gearMat); this.hitchMesh.frustumCulled = false;
     this.scene.add(this.blockMesh, this.deviceMesh, this.knotMesh, this.slingMesh, this.hitchMesh);
     this.ropeTail = [];
 
