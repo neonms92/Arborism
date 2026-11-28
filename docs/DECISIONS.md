@@ -2201,3 +2201,14 @@ tail still blocked {interact} (no grab, no climb, no G.O.E. button, no
 loader). Now the tail only adds "{rig}: take tail" beside whatever
 {interact} offers there; {rig} still prefers a rigging action on the wood
 looked at, as in D117.
+
+**D133 — Rigging gear wears its owner's shirt colour.** Owner ask: the
+block, its friction device and the sling it hangs on take the shirt colour
+of the player who set the block; the rope itself (the line, its tail and the
+hitch at the knot) stays rope-coloured. The host records the setter in the
+rope state (`rope.by`, a player id), so it reaches every client through the
+'rope' event and the join snapshot. Untying keeps `by`; a new block takes the
+new setter's colour. A player who picked no shirt colour gets their default
+one, as on their body. Unreviewed: the hitch at the knot counts as rope, not
+as the "tie loop"; if the setter leaves, the gear keeps the default colour
+for that player number.
