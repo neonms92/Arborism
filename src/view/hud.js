@@ -116,7 +116,7 @@ export class Hud {
     if (a) s += `  |  ${a.m === MODE.CLIMB ? 'on spurs, lanyard on' : a.m === MODE.ROPE ? 'on the rope' : a.m === MODE.DRIVE ? 'driving the loader' : 'on the ground'}  |  ${INJ_NAME[a.inj]}`;
     this.status.textContent = s;
     this.progress();
-    this.prompt.textContent = a ? describe(a.pr, device, device === 'touch' && (a.m === MODE.ROPE || a.m === MODE.DRIVE) ? TOUCH_ROPE : null) : '';
+    this.prompt.textContent = a ? describe(a.pr, device, device === 'touch' && a.m === MODE.ROPE ? TOUCH_ROPE : null) : '';
     this.keys.style.display = device === 'touch' ? 'none' : '';
     this.keys.textContent = describe('{move} move   {look} look   {interact} lanyard (hold)   {rig} block / tie   {punch} punch   {raise} saw   {drop} let go (hold)   {menu} settings', device);
     const ch = a ? a.ch || 0 : 0;

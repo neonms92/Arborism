@@ -1,11 +1,12 @@
 // The grapple loader and the log truck: their shapes (shared by the sim's colliders and the view's meshes).
 // Plain data, part of the world model.
 //
-// The loader is a small four-wheeled machine the driver stands on the back of (a stand-on loader). Its own
-// frame: +x forward (the boom and claw), +y up, z across. The body origin sits BODY_Y above the ground at rest.
-// A boom hinged on two towers over the middle of the chassis reaches forward; a grapple (the claw) hangs from a
-// link at its tip and swings there. The driver steers the front wheels, drives all four, raises and lowers the
-// boom, and opens and closes the claw (sim/loader.js).
+// The loader is a small skid steer the driver stands on the back of. Its own frame: +x forward (the arms and claw),
+// +y up, z across (+z to the driver's right). The body origin sits BODY_Y above the ground at rest. It has four
+// wheels that do not steer: each side is driven on its own, and it turns by driving one side faster (skidding).
+// Two short arms hinged on towers at the back reach forward past the front wheels; on their ends is an over-and-
+// under claw, kept level: a fork underneath, and a clamp that closes down on the wood from above (sim/loader.js).
+// The arms and the claw are drawn only: they have no colliders.
 //
 // The log truck is parked in the street in front of the job's lot. It does not move (a fixed body). Its own
 // frame: +x toward the cab, +y up, z across; the origin is on the ground under the middle. Loose wood that comes
@@ -14,36 +15,42 @@
 // world.loader = null, or {p:[3], q:[4] where the loader was parked, truck: {p, q}, kg: wood hauled away this job,
 //                n: loads}. Parked fresh ('loader' event) with every new tree (not in the engine tests).
 
-export const LOADER_BODY_ID = 59800;       // the loader's body in transform snapshots; its grapple is one more
-export const GRAPPLE_BODY_ID = 59801;
+export const LOADER_BODY_ID = 59800;       // the loader's body in transform snapshots
 
 export const LOADER = {
   BODY_Y: 0.7,
-  CHASSIS: { c: [0, 0, 0], h: [1.2, 0.35, 0.62] },
-  // the counterweight over the back axle: most of the mass, so the loader can hold a heavy log out in front
-  WEIGHT: { c: [-0.85, 0.15, 0], h: [0.3, 0.2, 0.6] },
+  CHASSIS: { c: [0, 0, 0], h: [1.0, 0.35, 0.6] },
+  // the counterweight over the back axle: most of the mass
+  WEIGHT: { c: [-0.7, 0.15, 0], h: [0.28, 0.2, 0.58] },
   // the platform the driver stands on, behind the chassis, and the control post in front of them
-  PLATFORM: { c: [-1.5, -0.33, 0], h: [0.3, 0.04, 0.5] },
-  POST: { c: [-1.15, 0.45, 0.0], h: [0.05, 0.1, 0.25] },
-  STAND: [-1.5, 0.59, 0],                  // the driver's body centre (feet on the platform)
-  WHEELS: [[0.85, -0.3, 0.78], [0.85, -0.3, -0.78], [-0.85, -0.3, 0.78], [-0.85, -0.3, -0.78]],   // front two steer
+  PLATFORM: { c: [-1.3, -0.33, 0], h: [0.3, 0.04, 0.5] },
+  POST: { c: [-0.95, 0.45, 0.0], h: [0.05, 0.1, 0.25] },
+  STAND: [-1.3, 0.59, 0],                  // the driver's body centre (feet on the platform)
+  WHEELS: [[0.72, -0.3, 0.8], [0.72, -0.3, -0.8], [-0.72, -0.3, 0.8], [-0.72, -0.3, -0.8]],
   WHEEL_R: 0.4, WHEEL_W: 0.3,
-  // the boom: hinged at PIVOT, BOOM_L long, two arms ARM_Z either side; angle from level, up positive
-  PIVOT: [-0.55, 0.6, 0], BOOM_L: 4.4, ARM_Z: 0.45,
-  BOOM_MIN: -0.32, BOOM_MAX: 1.15, BOOM_START: 0.35,
-  // the grapple, in its own frame (+y up toward the link, z across the loader when it hangs straight): a head
-  // with a tine at each side that close round the log
-  LINK: [0, 0.5, 0],                       // where it hangs from the boom tip
-  HEAD: { c: [0, 0, 0], h: [0.22, 0.14, 0.72] },
-  TINE: { c: [0, -0.38, 0.72], h: [0.09, 0.3, 0.04] },    // (and mirrored to -z), as open
-  JAW: [0, -0.42, 0],                      // the middle of the jaws: what it closes on is held here
-  JAW_R: 0.65,                             // the thickest wood the jaws close round (radius, m)
+  // the arms: hinged at PIVOT (on towers at the back), ARM_L long, one each side at ARM_Z; angle from level, up
+  // positive. Down, the claw's fork is on the ground; up, the claw is overhead, above a truck's side.
+  PIVOT: [-0.7, 0.85, 0], ARM_L: 2.3, ARM_Z: 0.72,
+  ARM_MIN: -0.42, ARM_MAX: 0.62,
+  // the claw, in its own frame: origin at the arms' ends, axes the loader's (it is kept level). A plate on the
+  // arms, a fork of tines underneath (the under), and a clamp hinged on top of the plate that closes down (the over)
+  PLATE: { c: [0.08, -0.22, 0], h: [0.04, 0.32, 0.62] },
+  TINES: [-0.45, -0.15, 0.15, 0.45],       // z of each tine of the fork
+  FORK: { c: [0.5, -0.55, 0], h: [0.42, 0.03, 0.05] },
+  CLAMP_HINGE: [0.12, 0.1, 0], CLAMP_Z: 0.42, CLAMP_L: 0.62,
+  JAW: [0.55, -0.35, 0],                   // the middle of the jaws: what it holds is held with its middle here
+  JAW_R: 0.4,                              // the thickest wood the claw closes on (radius, m)
 };
 
-/** The boom tip in loader-local coordinates for boom angle a (rad). */
-export function boomTip(a) {
-  const P = LOADER.PIVOT, L = LOADER.BOOM_L;
+/** The arms' ends (the claw's origin) in loader-local coordinates for arm angle a (rad). */
+export function armTip(a) {
+  const P = LOADER.PIVOT, L = LOADER.ARM_L;
   return [P[0] + L * Math.cos(a), P[1] + L * Math.sin(a), 0];
+}
+/** The middle of the jaws in loader-local coordinates for arm angle a. */
+export function jawAt(a) {
+  const t = armTip(a), J = LOADER.JAW;
+  return [t[0] + J[0], t[1] + J[1], t[2] + J[2]];
 }
 
 export const TRUCK = {

@@ -318,12 +318,12 @@ const HELP = '{move} move / climb   {look} look   hold {interact}: spur in / mov
   '{rig}: hang the block, then tie the rope to the wood looked at, or untie at the knot; near the base of the tree it takes the rope tail (walk anywhere with it)   {punch}: punch the wood (press again and again to push harder)   ' +
   '{raise} plant the saw on the wood you are looking at, then {look} pivots the bar and {throttle} presses it in   ' +
   'salad rack on the chipper: {interact} takes a tube salad, {eat} eats it, {interact} on another player gives it (heals, even when DOWN)   ' +
-  'grapple loader (parked in the street by the log truck): {interact} on it gets on, {move} drives, {raise} / {throttle} raise and lower the claw, {interact} opens and shuts it, {jump} gets off; logs left in the truck are hauled away   ' +
+  'grapple loader, a skid steer (parked in the street by the log truck): {interact} on it gets on, {move} drives, {interact} grabs and lifts overhead, then lets go and lowers, {jump} gets off; logs left in the truck are hauled away   ' +
   'on the rope tail: {throttle} ease, {raise} haul, {wraps} wraps   {menu} settings (Respawn player is in there)';
 const TOUCH_HELP = '{move} move / climb   {look} look   the big button does what the prompt says (hold it to spur in or move the lanyard)   ' +
   'hold {drop} to let go of the tree   {rig}, {punch} and {raise} appear when they can be used; with the saw planted, {look} pivots the bar and hold {throttle} to press it in   ' +
   'at the chipper\'s salad rack the big button takes a tube salad; Eat salad eats it, and the big button gives it to a player you look at   ' +
-  'on the grapple loader: {move} drives, the slider raises and lowers the claw, the big button opens and shuts it, {jump} gets off   ' +
+  'on the grapple loader: {move} drives, the big button grabs and lifts, then lets go and lowers, {jump} gets off   ' +
   'on the rope tail: the slider hauls (up) and eases (down), {wraps}   {menu} settings (Respawn player is in there)';
 let helpDevice = '', driveYaw = null;
 
