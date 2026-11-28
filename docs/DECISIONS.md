@@ -2194,3 +2194,10 @@ than where they hung on the stem, on the same side, through the same check.
 Found on main with seeds visibo and sofosa (player 1 under a house roof);
 none of 42 seeds after. Unreviewed: an eave or a porch roof overhead also
 counts as indoors, and so does anything loose lying on top of a spot.
+
+**D132 — No highlight on the wood {interact} would grab.** Owner asked
+(2026-11-28) to remove the faint pulsing sleeve D101 drew round the targeted
+segment. The grab assist itself is unchanged (exact ray first, then the
+`GRAB_CONE` cone); only the drawing went, along with the player's `target`
+field and the aux `tg` that carried it to the view. The prompt
+("{interact}: grab, N kg") is now the only sign of what a press would take.

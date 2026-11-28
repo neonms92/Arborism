@@ -35,7 +35,6 @@ import { WeedsView } from './weeds.js';
 import { Avatar, PLAYER_COLORS, HEAD_Y } from './avatar.js';
 
 const Y = new THREE.Vector3(0, 1, 0);
-const _ta = new THREE.Vector3(), _tb = new THREE.Vector3(), _tc = new THREE.Vector3();
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _m = new THREE.Matrix4(), _c = new THREE.Color();
 const _q2 = new THREE.Quaternion(), _e0 = [0, 0, 0], _e1 = [0, 0, 0];
 const _bx = new THREE.Vector3(), _by = new THREE.Vector3(), _bz = new THREE.Vector3(), _s = new THREE.Vector3(), _q = new THREE.Quaternion();
@@ -130,11 +129,6 @@ export class View {
     this.hitchMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat); this.hitchMesh.frustumCulled = false;
     this.scene.add(this.blockMesh, this.deviceMesh, this.knotMesh, this.slingMesh, this.hitchMesh);
     this.ropeTail = [];
-    // the loose wood {interact} would grab (the host's grab assist, sim.coneAim): a faint glowing sleeve round it
-    this.targetMesh = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 12, 1, false),
-      new THREE.MeshBasicMaterial({ color: 0xfff1b8, transparent: true, opacity: 0.3, depthWrite: false }));
-    this.targetMesh.visible = false; this.targetMesh.renderOrder = 2;
-    this.scene.add(this.targetMesh);
 
     world.on((ev, info) => this.onEvent(ev, info));
     window.addEventListener('resize', () => this.resize()); this.resize();
@@ -465,7 +459,6 @@ export class View {
     }
     for (const [id, pm] of [...this.players]) if (!seen.has(id)) { this.scene.remove(pm.group, pm.saw, pm.lanyard, pm.grab, pm.lamp, pm.lamp.target); pm.lamp.dispose(); this.players.delete(id); }
     this.updateRope(aux);
-    this.poseTarget(meA);
 
     if (mePos) {                                      // first person
       this.camera.position.copy(mePos).addScaledVector(Y, CFG.EYE);
@@ -592,18 +585,6 @@ export class View {
     const H = pm.group.position.clone().addScaledVector(Y, CFG.GRAB_HEIGHT);
     pm.grab.geometry.dispose();
     pm.grab.geometry = new THREE.TubeGeometry(new THREE.LineCurve3(H, W), 1, 0.012, 5);
-  }
-
-  // the grab-assist highlight on the segment the local player would grab
-  poseTarget(a) {
-    const m = this.targetMesh, s = a && a.tg >= 0 ? this.world.segs.get(a.tg) : null;
-    const A = s && this.nodeWorld({ seg: s.id, p: s.a }, _ta), B = s && this.nodeWorld({ seg: s.id, p: s.b }, _tb);
-    m.visible = !!(A && B); if (!m.visible) return;
-    const L = A.distanceTo(B), r = Math.max(s.r0, s.r1) * 1.25 + 0.012;
-    m.position.copy(A).add(B).multiplyScalar(0.5);
-    m.quaternion.setFromUnitVectors(Y, _tc.copy(B).sub(A).divideScalar(Math.max(L, 1e-6)));
-    m.scale.set(r, L + 2 * r, r);
-    m.material.opacity = 0.22 + 0.1 * Math.sin(performance.now() * 0.006);
   }
 
   nodeWorld(n, out) {
