@@ -12,7 +12,7 @@
 //          players who put STICKER_SHARE of the chips in bins (fed from their feeds, or tipped in by hand).
 //   skull  the player who went DOWN (once per job each)
 //   salad  the player who has eaten STICKER_SALADS tube salads this job (one handed over counts for whoever ate it)
-//   house, shed, fence, wreck (a chipper)   the player whose wood or runaway chipper broke one (D107). Wood is
+//   house, shed, fence, car, wreck (a chipper)   the player whose wood or runaway chipper broke one (D107). Wood is
 //          the player's who last sawed it free, grabbed, punched or fed it; a chipper is the player's who last
 //          towed it or started a feed into it (the feed is what drags it off).
 //   cutself, cutother   the player who sawed through their own lanyard, or someone else's
@@ -125,7 +125,7 @@ export class Awards {
     if (sim.loader.solid(h)) return sim.loader.lastDriver;      // the loader: whoever drove it last (still driving, or it rolled on)
     return -1;
   }
-  /** Something of kind ('house', 'shed', 'fence', 'wreck') broke, hit by collider h. */
+  /** Something of kind ('house', 'shed', 'fence', 'car', 'wreck') broke, hit by collider h. */
   broke(kind, h) { const id = this.culprit(h); if (id >= 0) this.give(kind, 0, [id]); }
   /** A power line snapped: a ghost bolt for whoever sawed it (id), else whoever's wood was on it lately (lines.js). */
   line(id) { if (id !== undefined && id >= 0) this.give('power', 0, [id]); }

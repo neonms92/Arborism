@@ -12,9 +12,12 @@
 import { CFG } from '../config.js';
 import { segMass, segRadius, segLen } from '../model/world.js';
 import { CUT } from '../model/fibres.js';
+import { MAT_CFG } from '../model/pavers.js';
 
 // build kind (before any ':') -> [cost setting, what to call one broken module]
-const BUILD = { shed: ['SHED_COST', 'The shed'], fence: ['FENCE_COST', 'A fence section'], house: ['HOUSE_COST', 'A room of a house'] };
+const BUILD = { shed: ['SHED_COST', 'The shed'], fence: ['FENCE_COST', 'A fence section'], house: ['HOUSE_COST', 'A room of a house'], car: ['CAR_COST', 'Part of a parked car'] };
+// paving material -> [one, several] for the toast
+const CRACKED = { paver: ['A paver', 'pavers'], slab: ['A driveway slab', 'driveway slabs'], asphalt: ['The street', 'patches of street'] };
 
 export class Damage {
   constructor(sim) {
@@ -66,9 +69,9 @@ export class Damage {
       // a paver whose damage is now only what this event added was whole before it
       const add = new Map();
       for (const [i, , , a] of ev.h) add.set(i, (add.get(i) || 0) + a);
-      let n = 0;
-      for (const [i, a] of add) if (w.paving.dmg[i] - a <= 1e-9) n++;
-      if (n) this.charge(n * CFG.PAVER_COST, n === 1 ? 'A paver cracked' : `${n} pavers cracked`);
+      const n = {};
+      for (const [i, a] of add) if (w.paving.dmg[i] - a <= 1e-9) { const m = w.paving.L.list[i]?.m || 'paver'; n[m] = (n[m] || 0) + 1; }
+      for (const m in n) this.charge(n[m] * CFG[MAT_CFG[m][2]], n[m] === 1 ? `${CRACKED[m][0]} cracked` : `${n[m]} ${CRACKED[m][1]} cracked`);
     } else if (ev.t === 'chipwreck') this.charge(CFG.CHIPPER_COST, 'The chipper truck was wrecked');
     else if (ev.t === 'snap') {             // a power line came down: charged once a line, however many places it parts
       const l = w.lines && w.lines.list[ev.i];      // (the event is applied: this is its first break if it is the only one)

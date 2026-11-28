@@ -132,6 +132,14 @@ export const CFG = {
   PAVER_CRACK_E: 800,      // J of impact energy on one paver that cracks it; each hit adds (its energy / this) damage
   PAVER_MAX_SLOPE: 0.5236, // rad (30°): no paver is laid on ground steeper than this
   PAVER_GRAVEL: 30,        // damage at which a paver is drawn as gravel (the counter goes on past it)
+  // driveways (concrete slabs) and streets (asphalt) crack by the same rule, panel by panel (model/pavers.js MATS)
+  DRIVE_CRACK_E: 3000,     // J of impact energy on one driveway slab that cracks it
+  DRIVE_GRAVEL: 40,        // damage at which a driveway slab is drawn as rubble
+  DRIVE_CELL: 2.5,         // m, about how long a driveway slab is between control joints
+  DRIVE_WIDTH: 3,          // m, a driveway's width
+  STREET_CRACK_E: 2500,    // J of impact energy on one patch of street that cracks it
+  STREET_GRAVEL: 40,       // damage at which a patch of street is a pothole
+  STREET_CELL: 3,          // m, side of the patches a street cracks in (they are not drawn: the asphalt is one surface)
 
   // --- fibres (every segment is a bundle of them) ---
   FIBRE_PITCH: 0.03,       // m, target fibre width; a segment gets round(diameter / pitch) fibres across
@@ -298,6 +306,8 @@ export const CFG = {
   SHED_BREAK_F: 25000,     // N of contact force from wood in one tick that breaks a module (the shed) apart
   FENCE_BREAK_F: 10000,    // N of contact force from wood in one tick that breaks one fence section apart
   HOUSE_BREAK_F: 40000,    // N of contact force from wood in one tick that breaks one room of a house apart
+  CAR_BREAK_F: 20000,      // N of contact force from wood in one tick that breaks one part of a parked car (cabin, bonnet, boot, body) apart
+  CAR_DENSITY: 700,        // kg/m3 of a car's panels and blocks once loose (a whole car is about 1 300 kg)
   DEBRIS_FREEZE: 60,       // s after a structure breaks that its loose pieces become scenery: no body, nothing collides with them
   DEBRIS_FREEZE_V: 0.3,    // m/s: a piece still moving faster than this then waits until it slows (not frozen mid-fall or while carried), at most until twice DEBRIS_FREEZE
   HOUSE_RAISE: 0.15,       // m a house's floor stands above the highest ground under it (its foundation shows)
@@ -311,6 +321,8 @@ export const CFG = {
   STREET_SMOOTH: 30,       // m: a street's grade is the ground averaged this far either way along it (bigger = flatter)
   STREET_BLEND: 3,         // m beside a street over which it blends into the ground
   YARD_FENCE: 0.5,         // chance a lot is fenced round its sides and back
+  YARD_DRIVE: 0.8,         // chance a lot with a house gets a driveway from the street, where one fits
+  YARD_CARS: 0.6,          // chance a driveway has a car parked on it
   YARD_TREE_CLEAR: 0.6,    // m beyond the trunk (as it leans, up to POLE_HEIGHT) kept clear of houses, sheds and the chipper (D113)
   YARD_TREE_EDGE: 0.3,     // m from the trunk (as it leans, up to POLE_HEIGHT) to its lot's lines: the job tree stands anywhere inside that
   // --- other trees in the yards (model/stands.js): drawn, with only a trunk to bump into, until someone saws or climbs one ---
@@ -330,6 +342,9 @@ export const CFG = {
   BUDGET_ROUND: 500,       // $
   WAGE: 7.5,               // $ per player per game hour (U.S. federal minimum wage, rounded); a game hour is DAY_LENGTH / 24
   PAVER_COST: 25,          // one paver, the first time it cracks
+  DRIVE_COST: 400,         // one driveway slab, the first time it cracks
+  STREET_COST: 600,        // one patch of street (STREET_CELL square), the first time it cracks
+  CAR_COST: 4000,          // one part of a parked car broken apart (a car is four: body, cabin, bonnet, boot)
   FENCE_COST: 300,         // one fence section broken apart
   SHED_COST: 2500,         // the shed broken apart
   HOUSE_COST: 20000,       // one room of a house broken apart

@@ -9,6 +9,10 @@
 //   {shape: 'circle', x, z, r, pit}      whole pavers within r of the centre
 //   {shape: 'rect', x, z, yaw, w, d, pit} whole pavers within a w x d rectangle (w along the area's x)
 // pit (optional): a square of that half-width left open in the middle (a tree pit).
+// mat (optional): what the area is made of (MATS). 'paver' (the default) is the basket weave above; 'slab' (a
+// concrete driveway) and 'asphalt' (a street) are rectangles cut into a plain grid of panels about `c` (the
+// area's own cell, m) on a side, stretched to fill it exactly: a driveway's control joints, and patches of road
+// that crack on their own. All three crack the same way; the sim and the view look the material up per panel (m).
 // Their tops are flush with the ground, so the ground collider is what wood
 // and players actually land on; the sim works out which paver a contact
 // point is on (paverAt), and the view lays each one on the ground under it.
@@ -19,6 +23,7 @@
 
 import { groundN } from './terrain.js';
 
+export const MATS = ['paver', 'slab', 'asphalt'];
 export const HITS_KEPT = 16;   // crack origins remembered per paver (damage itself keeps counting)
 const BUCKET = 2;              // m, side of the lookup grid's squares
 
@@ -30,7 +35,21 @@ const BUCKET = 2;              // m, side of the lookup grid's squares
 export function layPavers(c, areas, keep) {
   const list = [], grid = new Map();
   for (const A of areas) {
-    const ca = Math.cos(A.yaw || 0), sa = Math.sin(A.yaw || 0);
+    const ca = Math.cos(A.yaw || 0), sa = Math.sin(A.yaw || 0), mat = A.mat || 'paver';
+    const put = (p) => {
+      const w = { x: +(A.x + p.x * ca + p.z * sa).toFixed(4), z: +(A.z - p.x * sa + p.z * ca).toFixed(4), a: A.yaw || 0, hx: p.hx, hz: p.hz, m: mat };
+      if (paverAt({ list, grid }, w.x, w.z) >= 0) return;           // an area laid earlier is already there
+      if (keep && !keep(w)) return;
+      add(grid, list.length, w);
+      list.push(w);
+    };
+    if (mat !== 'paver') {
+      // a plain grid of panels filling the rectangle: as many along each side as come closest to the cell
+      const cell = A.c || c, nu = Math.max(1, Math.round(A.w / cell)), nw = Math.max(1, Math.round(A.d / cell));
+      const hu = +(A.w / nu / 2).toFixed(4), hw = +(A.d / nw / 2).toFixed(4);
+      for (let i = 0; i < nu; i++) for (let j = 0; j < nw; j++) put({ x: -A.w / 2 + (2 * i + 1) * hu, z: -A.d / 2 + (2 * j + 1) * hw, hx: hu, hz: hw });
+      continue;
+    }
     let ni, nj, inside;
     if (A.shape === 'circle') {
       ni = nj = Math.max(1, Math.ceil(A.r / c));
@@ -48,12 +67,7 @@ export function layPavers(c, areas, keep) {
       for (let h = 0; h < 2; h++) {
         const o = (h - 0.5) * c / 2;
         const p = alongX ? { x: cx, z: cz + o, hx: c / 2, hz: c / 4 } : { x: cx + o, z: cz, hx: c / 4, hz: c / 2 };
-        if (!fits(p)) continue;
-        const w = { x: +(A.x + p.x * ca + p.z * sa).toFixed(4), z: +(A.z - p.x * sa + p.z * ca).toFixed(4), a: A.yaw || 0, hx: p.hx, hz: p.hz };
-        if (paverAt({ list, grid }, w.x, w.z) >= 0) continue;           // an area laid earlier is already there
-        if (keep && !keep(w)) continue;
-        add(grid, list.length, w);
-        list.push(w);
+        if (fits(p)) put(p);
       }
     }
   }
@@ -61,6 +75,8 @@ export function layPavers(c, areas, keep) {
 }
 
 const bkey = (i, j) => i * 100003 + j;
+/** The setting names for a material: [impact energy that cracks one, damage at which it is rubble, $ the first time one cracks]. */
+export const MAT_CFG = { paver: ['PAVER_CRACK_E', 'PAVER_GRAVEL', 'PAVER_COST'], slab: ['DRIVE_CRACK_E', 'DRIVE_GRAVEL', 'DRIVE_COST'], asphalt: ['STREET_CRACK_E', 'STREET_GRAVEL', 'STREET_COST'] };
 function add(grid, idx, p) {
   const r = Math.hypot(p.hx, p.hz);
   for (let i = Math.floor((p.x - r) / BUCKET); i <= Math.floor((p.x + r) / BUCKET); i++) {

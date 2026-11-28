@@ -10,9 +10,12 @@
 // to the impulse each took. A paver whose share is at least PAVER_CRACK_E
 // gains share / PAVER_CRACK_E damage. A body resting or rolling on the
 // pavers closes at ~0 m/s and does nothing.
+//
+// Driveway slabs and street asphalt (model/pavers.js MATS) are panels of the same paving and crack by the same
+// rule, each against its own material's energy (DRIVE_CRACK_E, STREET_CRACK_E).
 
 import { CFG, MODE } from '../config.js';
-import { paverAt } from '../model/pavers.js';
+import { paverAt, MAT_CFG } from '../model/pavers.js';
 
 const TOUCH = 0.01;                // m: contact points this much further than the nearest still share an impact (see impact)
 
@@ -31,9 +34,11 @@ export class Pavers {
    * Lay fresh pavers: the yards' areas (the tree's own paving among them). Flat ground (the engine tests) has no
    * yards and gets the old circle round a tree of CFG.TREE_HEIGHT and CFG.TREE_DIAMETER instead.
    */
-  lay(areas) {
+  lay(areas, streets = []) {
     const c = CFG.PAVER_SIZE, pit = CFG.TREE_DIAMETER / 2 + CFG.PAVER_PIT;
     if (this.sim.flat) areas = [{ shape: 'circle', x: 0, z: 0, r: CFG.TREE_HEIGHT * CFG.PAVER_RADIUS, pit }];
+    // the streets' asphalt, the whole width of the ground, after everything else (nothing else is laid on a street)
+    else areas = areas.concat(streets.map((st) => ({ shape: 'rect', x: 0, z: +((st.z0 + st.z1) / 2).toFixed(4), yaw: 0, w: CFG.TERRAIN_SIZE, d: +(st.z1 - st.z0).toFixed(4), mat: 'asphalt', c: CFG.STREET_CELL })));
     this.sim.emit({ t: 'pavers', c, areas, slope: CFG.PAVER_MAX_SLOPE });
   }
 
@@ -123,7 +128,8 @@ export class Pavers {
       meff = 1 / (1 / Math.max(1e-6, m) + Math.max(0, q));
     }
     if (!(vn > 0)) return;
-    const E = 0.5 * meff * vn * vn, thr = Math.max(1e-6, CFG.PAVER_CRACK_E);
+    const thrOf = (m) => Math.max(1e-6, CFG[MAT_CFG[m || 'paver'][0]]);
+    const E = 0.5 * meff * vn * vn, thr = Math.min(thrOf('paver'), thrOf('slab'), thrOf('asphalt'));
     if (this.log) this.log.push({ tick: sim.tick, E: Math.round(E), vn: +vn.toFixed(2), meff: Math.round(meff), n: pts.length, x: +cx.toFixed(2), z: +cz.toFixed(2), who: pl ? 'player' : chip ? 'chipper' : 'wood' });
     if (E < thr) return;
 
@@ -136,8 +142,8 @@ export class Pavers {
       share.set(i, s);
     }
     for (const [i, s] of share) {
-      const e = E * s[0] / W;
-      if (e >= thr) out.push([i, +(s[1] / s[0]).toFixed(3), +(s[2] / s[0]).toFixed(3), +(e / thr).toFixed(3)]);
+      const e = E * s[0] / W, t = thrOf(pv.L.list[i].m);
+      if (e >= t) out.push([i, +(s[1] / s[0]).toFixed(3), +(s[2] / s[0]).toFixed(3), +(e / t).toFixed(3)]);
     }
   }
 }

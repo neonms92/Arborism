@@ -18,7 +18,7 @@
 //
 // world.builds = [{id, kind, p:[3], q:[4], mods: [mod...], glue: [[i, j]...],
 //                  bodies: {id: {p, q}} (loose bodies, as they started)}]
-// mod = {p, q, ground, shape ('shed', a fence style, 'room' or 'found'), end (a fence's last section),
+// mod = {p, q, ground, shape ('shed', a fence style, 'room', 'found' or a car's 'carbody', 'carcabin', 'carhood', 'carboot'), end (a fence's last section),
 //        s (a room's or foundation's shape parameters),
 //        parts: [part...] (from its shape, module-local),
 //        body: id of the body it is in while intact,
@@ -249,22 +249,76 @@ export function roomParts(s) {
   return out;
 }
 
+// ---- parked cars: four modules (body, cabin, bonnet, boot) ----
+// Car frame: origin on the ground in the middle between the wheels, +y up, +z toward the nose. The body (floor,
+// doors, seats and the four wheels) stands on the ground; the cabin (roof, pillars, glass), the bonnet (engine,
+// wings, grille, bumper, lamps) and the boot are glued to it and to each other, so a branch on the roof smashes
+// the cabin and leaves the rest parked. A wheel is a box to the physics; the view draws it round (mat 'tyre').
+export const CAR = { L: 4.6, W: 1.84, WHEEL_R: 0.32, TYRE: 0.22, AXLE: 1.35, TRACK: 0.76, BELT: 0.92, ROOF: 1.42 };
+
+function carParts(shape) {
+  const { WHEEL_R: r, TYRE, AXLE, TRACK, BELT, ROOF } = CAR, out = [], g = 0.004, X = 0.91;
+  const box = (x0, x1, y0, y1, z0, z1, mat, q = I) => out.push({ c: [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2], h: [(x1 - x0) / 2, (y1 - y0) / 2, (z1 - z0) / 2], q, mat });
+  // a thin panel from (ya, za) to (yb, zb) in the y-z plane, half width hx about x = cx, half thickness t
+  const slant = (cx, hx, ya, za, yb, zb, t, mat) => {
+    const dy = yb - ya, dz = zb - za, L = Math.hypot(dy, dz), a = Math.atan2(-dy, dz);
+    out.push({ c: [cx, (ya + yb) / 2, (za + zb) / 2], h: [hx, t, L / 2 - 0.02], q: rotX(a), mat });
+  };
+  if (shape === 'carbody') {
+    box(-0.86, 0.86, 0.24, 0.36, -1.0 + g, 1.0 - g, 'under');                   // floor pan, between the wheels
+    for (const sx of [-1, 1]) {
+      box(sx < 0 ? -X : 0.87, sx < 0 ? -0.87 : X, 0.28, BELT, -1.0 + g, 1.0 - g, 'paint');   // the doors
+      for (const sz of [-1, 1]) box(sx * TRACK - TYRE / 2, sx * TRACK + TYRE / 2, 0, 2 * r, sz * AXLE - r, sz * AXLE + r, 'tyre');   // a wheel (drawn round)
+    }
+    // seats: two in front, a bench behind
+    for (const sx of [-1, 1]) { box(sx * 0.4 - 0.25, sx * 0.4 + 0.25, 0.36 + g, 0.6, 0.22, 0.65, 'seat'); box(sx * 0.4 - 0.25, sx * 0.4 + 0.25, 0.36 + g, 1.15, 0.05, 0.2, 'seat'); }
+    box(-0.7, 0.7, 0.36 + g, 0.6, -0.76, -0.3, 'seat'); box(-0.7, 0.7, 0.36 + g, 1.02, -0.9, -0.78, 'seat');
+  } else if (shape === 'carhood' || shape === 'carboot') {
+    const s = shape === 'carhood' ? 1 : -1, z = (a, b) => (s > 0 ? [a, b] : [-b, -a]);    // z ranges measured from the middle toward this end
+    box(-0.55, 0.55, 0.36, 0.84, ...z(1.05, 2.1), s > 0 ? 'engine' : 'under');      // the engine, or the boot's floor and spare
+    for (const sx of [-1, 1]) box(sx < 0 ? -X : 0.87, sx < 0 ? -0.87 : X, 0.36, BELT, ...z(1.0 + g, 2.15), 'paint');   // wings
+    box(-X, X, BELT + g, BELT + 0.04, ...z(1.0 + g, 2.15), 'paint');                // bonnet or boot lid
+    box(-X, X, 0.3, BELT, ...z(2.15 + g, 2.22), s > 0 ? 'grille' : 'paint');       // the front or back panel
+    box(-0.93, 0.93, 0.24, 0.42, ...z(2.22 + g, 2.3), 'bumper');
+    for (const sx of [-1, 1]) box(sx * 0.67 - 0.14, sx * 0.67 + 0.14, 0.66, 0.8, ...z(2.22 + g, 2.25), s > 0 ? 'lamp' : 'tail');
+  } else {                                                                       // the cabin
+    const zf = 0.45, zb = -0.75, yb = BELT + 0.04 + g;
+    box(-0.8, 0.8, ROOF, ROOF + 0.05, zb, zf, 'paint');                          // roof
+    slant(0, 0.78, yb, 1.0, ROOF - g, zf, 0.008, 'cglass');                      // windscreen
+    slant(0, 0.78, yb, -1.0, ROOF - g, zb, 0.008, 'cglass');                     // back window
+    for (const sx of [-1, 1]) {
+      slant(sx * 0.83, 0.04, yb, 1.0, ROOF - g, zf, 0.03, 'paint');              // A pillar
+      slant(sx * 0.83, 0.04, yb, -1.0, ROOF - g, zb, 0.03, 'paint');             // C pillar
+      box(sx * 0.84 - 0.04, sx * 0.84 + 0.04, yb, ROOF - g, -0.17, -0.13, 'paint');   // B pillar
+      box(sx * 0.84 - 0.01, sx * 0.84 + 0.01, yb + 0.02, ROOF - 0.03, -0.12, zf - 0.06, 'cglass');   // door glass, front
+      box(sx * 0.84 - 0.01, sx * 0.84 + 0.01, yb + 0.02, ROOF - 0.03, zb + 0.06, -0.18, 'cglass');   // and back
+    }
+  }
+  return out;
+}
+
 /** The parts of one module, from its shape. */
 export function modParts(m) {
   if (m.shape === 'shed') return shedParts();
   if (m.shape === 'room') return roomParts(m.s);
   if (m.shape === 'found') return foundParts(m.s);
+  if (m.shape.startsWith('car')) return carParts(m.shape);
   return fenceParts(m.shape, m.end, m.s?.span, m.s?.start ?? true);
 }
 
 /**
  * Kinds of build: module poses (build frame), shapes and glue. 'shed'; 'stack' (two sheds glued one on the
  * other, not placed by default); 'fence:<style>' with n sections in a row, each glued to the next
- * (b.span: their length, else the style's; b.start / b.end false: no post at that end of the run); 'house' from b.h.
+ * (b.span: their length, else the style's; b.start / b.end false: no post at that end of the run); 'house' from b.h;
+ * 'car' (a parked car, four modules).
  */
 function layout(b) {
   const S = SHED, kind = b.kind, n = b.n || 4;
   if (kind === 'house') return houseLayout(b.h);
+  if (kind === 'car') {
+    const mod = (shape, ground) => ({ p: [0, 0, 0], q: I, ground, shape });
+    return { mods: [mod('carbody', true), mod('carcabin', false), mod('carhood', false), mod('carboot', false)], glue: [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3]] };
+  }
   if (kind.startsWith('fence:')) {
     const style = kind.slice(6), span = b.span || FENCE[style].SPAN, mods = [], glue = [];
     for (let i = 0; i < n; i++) {
@@ -332,8 +386,12 @@ export function modProxies(m) {
 export function breakForce(m, CFG) {
   if (m.shape === 'found') return Infinity;
   if (m.shape === 'room') return CFG.HOUSE_BREAK_F;
+  if (m.shape.startsWith('car')) return CFG.CAR_BREAK_F;
   return m.shape === 'shed' ? CFG.SHED_BREAK_F : CFG.FENCE_BREAK_F;
 }
+
+/** Density (kg/m3) of a build's loose parts. */
+export function buildDensity(b, CFG) { return b.kind === 'car' ? CFG.CAR_DENSITY : CFG.SHED_DENSITY; }
 
 /** Mass of a part (kg) at density rho. */
 export function partMass(pt, rho) { return 8 * pt.h[0] * pt.h[1] * pt.h[2] * rho; }

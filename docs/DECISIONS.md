@@ -2305,3 +2305,24 @@ Also (owner, same day): the log truck's tailgate is down (hanging below the
 back of the floor, collider and all), so the wood in the bed shows from the
 street behind it. Wood can now roll out of the back; the bed's floor still
 holds anything set down in it. The truck still never moves.
+
+**D138 — Driveways, parked cars, and crackable driveways and streets.**
+Owner (2026-11-28): driveways and parked cars on lots, space permitting;
+driveways and streets crackable; cars smashable like structures, with a
+sticker and a penalty. Built on what was there rather than new systems:
+driveways and streets are paving in new materials (`slab`, `asphalt`), so
+they crack, turn to rubble, are charged and sync exactly as pavers do, each
+material with its own crack energy, rubble threshold and price; a street
+is cut into `STREET_CELL` squares the whole width of the ground so a crack
+stays local. Cars are builds of four glued modules (body on the ground;
+cabin, bonnet, boot), so a log on the roof smashes the cabin and the rest
+stays parked, and loose parts are ordinary debris that freezes as any
+other. Judgment calls (placeholders, unreviewed): energies 3 000 J (slab)
+and 2 500 J (street) against 800 J for a paver, rubble at 40, $400 a slab,
+$600 a street patch, $4 000 a car module (a whole car $16 000), car break
+force 20 kN; driveway 3 m wide with 2.5 m slabs, on 80 % of lots with a
+house where one fits (beside the house first, else in front), a car on
+60 % of them, 70 % nose in; one car shape, nine paints; cars stand on their
+wheels tilted to the ground (no pad levels a driveway: it follows the
+hills, slab by slab); no weeds round a car; a pothole is a dark patch with
+a few chips, no hole in the physics.

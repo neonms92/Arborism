@@ -718,6 +718,17 @@ them: radial cracks, then branches and a crushed spot, then loose chips;
 from `PAVER_GRAVEL` the slab is drawn as a low heap of gravel (finer the
 further past it). Gravel is still flat ground to the physics.
 
+**Driveways and streets (D138)** are paving too, in other materials (an
+area's `mat`): `slab` (a driveway: concrete panels about `DRIVE_CELL` long,
+one across the driveway's `DRIVE_WIDTH`, with wide joints) and `asphalt`
+(every street, cut into `STREET_CELL` squares the whole width of the
+ground; the squares are not drawn, the street is the ground's own asphalt).
+Both are a plain grid of panels stretched to fill their rectangle, not a
+basket weave. They crack by the same rule as pavers, each against its own
+material's energy (`DRIVE_CRACK_E`, `STREET_CRACK_E`), turn to rubble (a
+driveway) or a pothole (a street) at `DRIVE_GRAVEL` / `STREET_GRAVEL`, and
+cost `DRIVE_COST` / `STREET_COST` the first time each panel cracks.
+
 ### 6.5 The wood chipper
 
 A towable chipper (`model/chipper.js` shape and chip piles, `sim/chipper.js`,
@@ -990,6 +1001,16 @@ Siding and roof colours are picked per house in the view.
   section is level at the lower of its two posts (`ys` in the `builds` list),
   so its posts sink deeper on the uphill side.
 
+**Parked cars (D138)** are builds too (`kind: 'car'`, `CAR` in
+`model/builds.js`): four modules, the body (floor, doors, seats and the
+four wheels; it stands on the ground) with the cabin (roof, pillars and
+glass), the bonnet (engine, wings, grille, bumper, headlamps) and the boot
+glued to it and to each other. Each breaks at `CAR_BREAK_F` and costs
+`CAR_COST`; loose parts weigh `CAR_DENSITY`. A wheel is a box to the physics
+and drawn round. Paint is picked per car in the view. A car is set on its
+four wheels, tilted to the ground under them. Whoever's wood (or chipper, or
+loader) broke one gets the "Sorry, Car!" sticker.
+
 ### 6.7 The ground: hills and ledges
 
 The ground (`model/terrain.js`) is a square height field, `TERRAIN_SIZE`
@@ -1090,7 +1111,15 @@ what the engine tests use. The word is not remembered between visits.
   at the door, a paver sidewalk to the street, or both; a patio behind it; a
   shed in a back corner, door toward the house; and, with chance
   `YARD_FENCE`, a fence of one style round its sides and back, sometimes
-  along the front too with a gap at the path. A lot line is fenced once.
+  along the front too with a gap at the path (and at the driveway). A lot line is fenced once.
+- **Driveways (D138)**: a lot with a house gets one with chance
+  `YARD_DRIVE`, where it fits: `DRIVE_WIDTH` of concrete slabs from the
+  street, beside the house back to its middle, else in front of it clear
+  of the path and porch, long enough for a car. With chance `YARD_CARS` a
+  car is parked on it near the house end, usually nose in. Driveways and
+  cars come from their own random numbers (seeded by the lot), and are
+  planned after the house, porch and path, before the patio, shed, fence
+  and trees, which then fit round them.
 - **Other trees** (`model/stands.js`, D74): about `YARD_TREES` per lot,
   wherever there is room after everything else. Until a player saws,
   climbs, grabs or rigs one it has no wood: every machine draws it from its
