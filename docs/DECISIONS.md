@@ -1549,7 +1549,7 @@ beside the stem, and on uneven ground (or at the stem's foot) that place can be
 inside the terrain or pressed against the trunk; switching it to a dynamic body
 let Rapier push it out at speed, which `post` read as an impact. Now reaching
 the ground lands the climber instead (`players.land`): the lanyard comes off
-and they are put down standing `LAND_DIST` (4 m, the spawn ring's radius) from
+and they are put down standing `LAND_DIST` (4 m then, 1 m beyond the hang point since D131; the spawn ring's radius) from
 the stem on the side they were climbing, at `SPAWN_HEIGHT` (1.2 m, the old
 respawn height) over the ground, with zero velocity, so no impact. Reaching the
 ground means either stepping off the bottom of the wood (as before) or, while
@@ -2174,7 +2174,28 @@ Judgment calls the owner has not seen:
 - Turning: each side drives at throttle ∓ 0.6 × turn; sideways grip 0.45 of
   the weight (it skids round; in place with no throttle).
 
-**D131 — Near the friction device, {interact} keeps its own actions.** Owner
+**D131 — Nobody is put down inside a house, and climbers land 1 m back.**
+Owner (2026-11-28): a fresh solo game started inside a house with no way out;
+and coming down off the tree put the player too far away (D100's 4 m). Cause
+of the first: the starting spot (4 m round the tree) was never checked at all,
+and the clearance check the respawn and landing used (`safeSpot`, a capsule
+query) passes inside a room, since a room's walls leave its inside empty.
+Now a spot is clear (`players.clearAt`) when the capsule touches nothing but
+the ground and a ray straight up for `SPAWN_SKY` (30 m) meets nothing but
+wood (the tree, a yard tree's trunk) and players: never under a roof, which
+covers houses, sheds, the chipper and anything built later with a top, with
+no list of kinds. A new player is checked after their first step
+(`placeClear`), because Rapier's queries only see colliders made since the
+last step once it has run (the yards are built just before the host's player
+joins); if the spot is not clear they go to the nearest clear spot round it,
+at rest. `safeSpot` now swings all the way round and out to 26 m further
+before giving up. Landing puts the climber `LAND_DIST` (now 1 m) further out
+than where they hung on the stem, on the same side, through the same check.
+Found on main with seeds visibo and sofosa (player 1 under a house roof);
+none of 42 seeds after. Unreviewed: an eave or a porch roof overhead also
+counts as indoors, and so does anything loose lying on top of a spot.
+
+**D132 — Near the friction device, {interact} keeps its own actions.** Owner
 report: since D117 moved taking the tail to {rig}, being in range of the
 tail still blocked {interact} (no grab, no climb, no G.O.E. button, no
 loader). Now the tail only adds "{rig}: take tail" beside whatever
