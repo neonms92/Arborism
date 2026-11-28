@@ -176,7 +176,7 @@ export class View {
         for (const id of [...this.pieces.keys()]) this.dropPiece(id);
         for (const id of this.world.pieces.keys()) this.buildPiece(id);
         break;
-      case 'tree': this.buildPiece(ev.piece); break;
+      case 'tree': case 'roots': this.buildPiece(ev.piece); break;
       case 'split': {
         if (!info.moved) break;
         const old = this.pieces.get(info.oldPiece), fr = this.flexNow && (ev.at > 0 ? this.flexNow.at(ev.seg, ev.at) : this.flexNow.joint(ev.seg));

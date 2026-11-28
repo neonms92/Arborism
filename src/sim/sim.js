@@ -216,6 +216,9 @@ export class Sim {
       const body = this.rapier.createRigidBody(RAPIER.RigidBodyDesc.fixed());
       this.bodies.set(ev.piece, body);
       for (const s of this.world.segsOf(ev.piece)) this.addCollider(s, body);
+    } else if (ev.t === 'roots') {
+      const body = this.bodies.get(ev.piece);
+      if (body) for (const d of ev.segs) this.addCollider(this.world.segs.get(d.id), body);
     } else if (ev.t === 'divide') {
       const s = this.world.segs.get(ev.seg), body = this.bodies.get(s.piece);
       this.structure.flex.copy(ev.seg, ev.newSeg);

@@ -241,6 +241,66 @@ function fixTree(p, mode) {
 }
 
 // ================= the tests =================
+/** FM-50 / FM-51: a player gets on the loader, drives to the wood place() put down (its first segment), presses
+ *  {interact} once the prompt matches offer, drives to the truck and lets go there. */
+async function loaderRun(env, p, place, offer) {
+  const ctx = await env.ctx(), sim = ctx.sim, w = ctx.world, ld = sim.loader;
+  const yawQ = (a) => [0, Math.sin(a / 2), 0, Math.cos(a / 2)];
+  // the loader at the origin facing +x; the truck ahead and to its left, its side toward the loader's path
+  const lp = ld.pose(0, 0, yawQ(0)), T = { p: [8, 0, 8], q: yawQ(0) };
+  sim.emit({ t: 'loader', p: lp.p, q: lp.q, truck: T });
+  const seg = place(ctx, p);
+  const piece = () => w.segs.get(seg)?.piece, kg0 = sim.weightOf(piece());
+  // the player, behind the loader, looking at it
+  sim.players.add(1, 'Tester', 0x3a9be8, [], false, [-3.2, 0.3]);
+  const pl = sim.players.list.get(1), inp = { mx: 0, my: 0, yaw: -Math.PI / 2, pitch: -0.25, sy: 0, sp: 0, rt: 0, lt: 0, hi: 0, hd: 0, c: { ...pl.input.c } };
+  const press = () => { inp.c = { ...inp.c, interact: (inp.c.interact || 0) + 1 }; };
+  const send = () => sim.players.setInput(1, { ...inp, c: { ...inp.c } });
+  ctx.actions.push(send);
+  const m = { kg: Number.isFinite(kg0) ? Math.round(kg0) : null, mounted: null, grabbed: null, lifted: null, released: null, hauled: null, topY: 0, prompt: '' };
+  // drive toward a point: turn on the spot while it is off to the side, then go, steering on the way
+  const steer = (x, z, speed) => {
+    const l = ld.toLocal({ x, y: 0, z }), ang = Math.atan2(l[2], l[0]);
+    if (Math.abs(ang) > 0.25) { inp.mx = Math.sign(ang); inp.my = 0; } else { inp.mx = Math.max(-1, Math.min(1, ang * 3)); inp.my = speed; }
+    return Math.hypot(l[0], l[2]);
+  };
+  // INV-3 judges free fall. Wood in the claw is moved by it (squaring up, a stump coming out of the ground: up to
+  // about 2.5 m/s), so while held it is judged as though it fell from 0.5 m above where it is, and once let go,
+  // from where the claw let it go
+  ctx.hooks.push(() => { const b = sim.bodies.get(piece()); if (b && ld.hold) ctx.h0.set(piece(), Math.max(ctx.h0.get(piece()) || 0, b.worldCom().y + 0.5)); });
+  await ctx.run(1);
+  press();                                                       // {interact} on the loader
+  if (!(await ctx.run(2, () => pl.mode === 3))) return { ...m, why: 'did not get on' };
+  m.mounted = +ctx.t.toFixed(2);
+  // up to the round until the prompt offers to grab it
+  const got = await ctx.run(30, () => {
+    const sg = w.segs.get(seg), q = sim.segToWorld(sg, sg.a);
+    steer(q.x, q.z, 0.5);
+    return offer.test(pl.prompt || '');
+  });
+  inp.mx = inp.my = 0;
+  m.prompt = pl.prompt;
+  if (!got) return { ...m, why: 'never had the wood in the jaws' };
+  press();                                                       // grab and lift
+  if (!(await ctx.run(1, () => ld.hold && ld.hold.kind === 'carry'))) return { ...m, why: 'the claw did not take it: ' + (ld.hold ? ld.hold.kind : ld.note || 'nothing') };
+  m.grabbed = +ctx.t.toFixed(2); m.kg = Math.round(sim.weightOf(piece()));
+  if (!(await ctx.run(10, () => ld.phase === 'up'))) return { ...m, why: 'the arms did not get up' };
+  m.lifted = +ctx.t.toFixed(2); m.topY = +sim.bodies.get(piece()).worldCom().y.toFixed(2);
+  // to the truck: out to a spot in front of its side, turn to face it, drive in until it stops
+  const bx = T.p[0] + (TRUCK.BED.lo[0] + TRUCK.BED.hi[0]) / 2, wz = T.p[2] - TRUCK.HW - 3.5;
+  if (!(await ctx.run(30, () => steer(bx, wz, 0.6) < 0.6))) return { ...m, why: 'did not reach the truck' };
+  if (!(await ctx.run(10, () => { const l = ld.toLocal({ x: bx, y: 0, z: T.p[2] }); inp.mx = Math.sign(l[2]) * Math.min(1, Math.abs(Math.atan2(l[2], l[0])) * 2); inp.my = 0; return Math.abs(Math.atan2(l[2], l[0])) < 0.05; }))) return { ...m, why: 'did not turn to the truck' };
+  let still = 0;
+  await ctx.run(15, () => { steer(bx, T.p[2], 0.4); const v = ld.body.linvel(); still = Math.hypot(v.x, v.z) < 0.05 ? still + CFG.TICK : 0; return still > 0.5; });
+  inp.mx = inp.my = 0;
+  press();                                                       // let go and lower
+  m.released = +ctx.t.toFixed(2);
+  if (!(await ctx.run(20, () => !w.segs.has(seg)))) return { ...m, why: 'it was not hauled away' };
+  m.hauled = +ctx.t.toFixed(2); m.truckKg = Math.round(w.loader.kg); m.dirt = (w.loader.dirt || []).length;
+  await ctx.run(3, () => ld.phase === 'down');
+  return m;
+}
+
 export const TESTS = [
   {
     id: 'FM-01', title: 'Cantilever sags as beam theory says', time: 10,
@@ -713,69 +773,37 @@ export const TESTS = [
     // lower). Every control goes through the player's input, as a client's would.
     id: 'FM-50', title: 'Grapple loader: drive up, grab a round, put it in the truck', time: 90,
     params: { R: P([0.3, 0.55], [0.12, 0.6], 0.45, 'm'), L: P([0.8, 1.6], [0.5, 2.4], 1.2, 'm'), turn: P([0, 40], [0, 90], 25, '°') },
-    async run(env, p) {
-      const ctx = await env.ctx(), sim = ctx.sim, w = ctx.world, ld = sim.loader;
-      const yawQ = (a) => [0, Math.sin(a / 2), 0, Math.cos(a / 2)];
-      // the loader at the origin facing +x; the truck ahead and to its left, its side toward the loader's path
-      const lp = ld.pose(0, 0, yawQ(0)), T = { p: [8, 0, 8], q: yawQ(0) };
-      sim.emit({ t: 'loader', p: lp.p, q: lp.q, truck: T });
+    run: (env, p) => loaderRun(env, p, (ctx, p) => {
       // the round: on the ground 6.5 m ahead, a little to the right, turned `turn` from square
-      const a = p.turn * DEG, ax = [Math.sin(a), 0, Math.cos(a)], c = [6.5, p.R + 0.01, 0.8];
+      const a = p.turn * DEG, ax = [Math.sin(a), 0, Math.cos(a)], c = [6.5, p.R + 0.01, 0.8], w = ctx.world;
       const [seg] = ctx.plant([{ parent: -1, a: [c[0] - ax[0] * p.L / 2, c[1], c[2] - ax[2] * p.L / 2], b: [c[0] + ax[0] * p.L / 2, c[1], c[2] + ax[2] * p.L / 2], r0: p.R, r1: p.R * 0.97 }]);
-      sim.emit({ t: 'split', seg, at: 0, newPiece: w.newId() });
-      const piece = () => w.segs.get(seg)?.piece, kg = sim.weightOf(piece());
-      // the player, behind the loader, looking at it
-      sim.players.add(1, 'Tester', 0x3a9be8, [], false, [-3.2, 0.3]);
-      const pl = sim.players.list.get(1), inp = { mx: 0, my: 0, yaw: -Math.PI / 2, pitch: -0.25, sy: 0, sp: 0, rt: 0, lt: 0, hi: 0, hd: 0, c: { ...pl.input.c } };
-      const press = () => { inp.c = { ...inp.c, interact: (inp.c.interact || 0) + 1 }; };
-      const send = () => sim.players.setInput(1, { ...inp, c: { ...inp.c } });
-      ctx.actions.push(send);
-      const m = { kg: Math.round(kg), mounted: null, grabbed: null, lifted: null, released: null, hauled: null, topY: 0, prompt: '' };
-      // drive toward a point: turn on the spot while it is off to the side, then go, steering on the way
-      const steer = (x, z, speed) => {
-        const l = ld.toLocal({ x, y: 0, z }), ang = Math.atan2(l[2], l[0]);
-        if (Math.abs(ang) > 0.25) { inp.mx = Math.sign(ang); inp.my = 0; } else { inp.mx = Math.max(-1, Math.min(1, ang * 3)); inp.my = speed; }
-        return Math.hypot(l[0], l[2]);
-      };
-      // the held wood fell from where the claw let it go, not from where it was made (INV-3's free fall)
-      ctx.hooks.push(() => { const b = sim.bodies.get(piece()); if (b && ld.hold) ctx.h0.set(piece(), Math.max(ctx.h0.get(piece()) || 0, b.worldCom().y)); });
-      await ctx.run(1);
-      press();                                                       // {interact} on the loader
-      if (!(await ctx.run(2, () => pl.mode === 3))) return { ...m, why: 'did not get on' };
-      m.mounted = +ctx.t.toFixed(2);
-      // up to the round until the prompt offers to grab it
-      const got = await ctx.run(30, () => {
-        const b = sim.bodies.get(piece()), q = b.worldCom();
-        steer(q.x, q.z, 0.5);
-        return /grab and lift/.test(pl.prompt || '');
-      });
-      inp.mx = inp.my = 0;
-      m.prompt = pl.prompt;
-      if (!got) return { ...m, why: 'never had the round in the jaws' };
-      press();                                                       // grab and lift
-      if (!(await ctx.run(1, () => ld.hold && ld.hold.kind === 'carry'))) return { ...m, why: 'the claw did not take it: ' + (ld.hold ? ld.hold.kind : ld.note || 'nothing') };
-      m.grabbed = +ctx.t.toFixed(2);
-      if (!(await ctx.run(10, () => ld.phase === 'up'))) return { ...m, why: 'the arms did not get up' };
-      m.lifted = +ctx.t.toFixed(2); m.topY = +sim.bodies.get(piece()).worldCom().y.toFixed(2);
-      // to the truck: out to a spot in front of its side, turn to face it, drive in until it stops
-      const bx = T.p[0] + (TRUCK.BED.lo[0] + TRUCK.BED.hi[0]) / 2, wz = T.p[2] - TRUCK.HW - 3.5;
-      if (!(await ctx.run(30, () => steer(bx, wz, 0.6) < 0.6))) return { ...m, why: 'did not reach the truck' };
-      if (!(await ctx.run(10, () => { const l = ld.toLocal({ x: bx, y: 0, z: T.p[2] }); inp.mx = Math.sign(l[2]) * Math.min(1, Math.abs(Math.atan2(l[2], l[0])) * 2); inp.my = 0; return Math.abs(Math.atan2(l[2], l[0])) < 0.05; }))) return { ...m, why: 'did not turn to the truck' };
-      let still = 0;
-      await ctx.run(15, () => { steer(bx, T.p[2], 0.4); const v = ld.body.linvel(); still = Math.hypot(v.x, v.z) < 0.05 ? still + CFG.TICK : 0; return still > 0.5; });
-      inp.mx = inp.my = 0;
-      press();                                                       // let go and lower
-      m.released = +ctx.t.toFixed(2);
-      if (!(await ctx.run(20, () => !w.segs.has(seg)))) return { ...m, why: 'it was not hauled away' };
-      m.hauled = +ctx.t.toFixed(2); m.truckKg = Math.round(w.loader.kg);
-      await ctx.run(3, () => ld.phase === 'down');
-      return m;
-    },
+      ctx.sim.emit({ t: 'split', seg, at: 0, newPiece: w.newId() });
+      return seg;
+    }, /grab and lift/),
     judge: (m) => [
       is('got on the loader with {interact}', m.mounted !== null, m.mounted),
       is('the prompt offered the round, and {interact} took it', m.grabbed !== null, m.why || m.prompt),
       ge('lifted it overhead (centre of mass, m)', m.topY, 2.0),
       is('let go over the truck, it was hauled away', m.hauled !== null, m.why || m.truckKg),
+    ],
+    view: () => ({ target: [5, 1, 4], dist: 16, yaw: -0.6, pitch: 0.45 }),
+  },
+  {
+    // The owner's (2026-11-28): the loader grabs a stump short enough and rips it out, roots and all, leaving a dirt
+    // patch, and it goes on the truck like any wood.
+    id: 'FM-51', title: 'Grapple loader: rip out a stump and put it in the truck', time: 90,
+    params: { R: P([0.25, 0.55], [0.12, 0.6], 0.45, 'm'), H: P([0.3, 1.1], [0.1, 1.2], 0.6, 'm') },
+    run: (env, p) => loaderRun(env, p, (ctx, p) => {
+      // a stump (rooted, as a felled tree's is) 6.5 m ahead and a little to the right
+      const [seg] = ctx.plant([{ parent: -1, a: [6.5, 0, 0.8], b: [6.5, p.H, 0.8], r0: p.R * 1.05, r1: p.R }]);
+      return seg;
+    }, /rip out the stump/),
+    judge: (m) => [
+      is('got on the loader with {interact}', m.mounted !== null, m.mounted),
+      is('the prompt offered the stump, and {interact} ripped it out', m.grabbed !== null, m.why || m.prompt),
+      ge('lifted it overhead (centre of mass, m)', m.topY, 1.6),
+      is('let go over the truck, it was hauled away', m.hauled !== null, m.why || m.truckKg),
+      is('a dirt patch where it stood', m.dirt === 1, m.dirt),
     ],
     view: () => ({ target: [5, 1, 4], dist: 16, yaw: -0.6, pitch: 0.45 }),
   },

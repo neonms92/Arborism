@@ -2326,3 +2326,21 @@ house where one fits (beside the house first, else in front), a car on
 wheels tilted to the ground (no pad levels a driveway: it follows the
 hills, slab by slab); no weeds round a car; a pothole is a dark patch with
 a few chips, no hole in the physics.
+
+**D139 — The loader rips out short stumps, roots and all.** Owner
+(2026-11-28): let the loader grab a stump that's short enough and rip it
+out, roots and all, leaving a dirt patch, and load it on the truck. Roots
+are not in the tree's wood (it is grown from the ground up), so the press
+grows them as ordinary segments with fibre bundles on the stump's base
+(`'roots'` event) and then frees the stump with the existing `'split'`:
+nothing about how wood fails is added, and the roots are wood like any
+other (they can be sawn, chipped, hauled). Judgment calls (unreviewed):
+"short enough" is the top no more than 1.2 m (4 ft, `LOADER_STUMP_H`, Tab
+menu) above the ground at the base, whatever its weight (a 1.9 t oak stump
+comes out); five roots 2.2 × radius + 0.3 m long splayed 30° below level,
+plus a tap root 1.5 × radius + 0.2 m; the dirt patch is 2.4 × radius + 0.5 m
+across with clods, a drawing only (the ground is not dug); the stump is
+held upright; refused while felled wood hangs from it; a neighbour's yard
+stump can be pulled too (and is charged as damage to their tree). Also
+fixed: a press while driving near a dormant yard tree woke the tree instead
+of working the claw.

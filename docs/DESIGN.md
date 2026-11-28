@@ -866,7 +866,7 @@ lost (swept debris), made and gone (m³ of chips)}, kept by `world.apply` so
 every machine agrees; the HUD shows tree chipped = chipped / (M − lost) and
 chips in bins = gone / made, coloured by `pctColour` (hud.js).
 
-### 6.5b Grapple loader and log truck (D129, D130, D137)
+### 6.5b Grapple loader and log truck (D129, D130, D137, D139)
 
 `model/loader.js` (shapes), `sim/loader.js` (host), `view/loader.js`. For wood
 too heavy for the chipper (a round of the trunk, a big log). With every new
@@ -921,6 +921,18 @@ the first spot along the street where both fit (`'loader'` event; `world.loader`
     lets go and lowers, and the loader drops back under its own weight;
   - still joined to the tree by fibres: the claw does not close.
   Sawn through while held, the claw lets go of all of it.
+- **Stumps (D139).** A rooted stump whose top is no higher than
+  `LOADER_STUMP_H` (1.2 m, 4 ft) above the ground at its base is ripped out,
+  roots and all: the press grows its roots (`'roots'` event: five roots
+  splayed out and down and a tap root, ordinary wood segments with bundles
+  on the base, their mass added to the job), leaves a dirt patch where it
+  stood (`world.loader.dirt`, [x, y, z, r], r = 2.4 × base radius + 0.5 m;
+  drawn as brown earth on the ground with clods), frees the stump as a
+  dynamic piece (`'split'` at its base) and the claw takes it upright, as it
+  stood. The 8 ft and too-light rules do not apply to it. Refused, with a
+  word, while felled wood still hangs from it by fibres. Taller standing wood
+  is the standing tree: it tips the loader. A neighbour's yard stump comes
+  out the same way and is charged as damaging their tree.
 - **The truck** is a fixed body (cab, frame, a steel bed with sides, its tailgate down so the load shows from behind). Loose
   wood not in the claw and not joined to the tree whose centre of mass lies
   still (under `TRUCK_REST_V`) in the bed for `TRUCK_TAKE_T` is hauled away

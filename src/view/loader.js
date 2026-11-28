@@ -2,6 +2,7 @@
 // (shapes from model/loader.js), posed from the snapshots and aux. No game rules.
 
 import * as THREE from 'three';
+import { groundY } from '../model/terrain.js';
 import { LOADER, TRUCK, LOADER_BODY_ID, GOE_ID0, GOE_NAME, GOE_COLOR, armTip } from '../model/loader.js';
 import { Avatar } from './avatar.js';
 
@@ -22,6 +23,30 @@ export class LoaderView {
   onEvent(ev) {
     if (ev.t === 'loader' || ev.t === 'load' || ev.t === 'reset') this.rebuild();
     if (ev.t === 'haul' || ev.t === 'load' || ev.t === 'loader') this.fillBed();
+    if (ev.t === 'roots' || ev.t === 'load' || ev.t === 'loader' || ev.t === 'reset') this.dirt();
+  }
+
+  /** The dirt patches where stumps were ripped out: a disc of turned earth over the ground, with a few clods. */
+  dirt() {
+    if (this.dirtG) { this.scene.remove(this.dirtG); this.dirtG.traverse((o) => o.geometry && o.geometry.dispose()); }
+    this.dirtG = null;
+    const L = this.world.loader; if (!L || !L.dirt || !L.dirt.length) return;
+    const g = new THREE.Group(), T = this.world.terrain, mat = this.mats.dirt || (this.mats.dirt = new THREE.MeshLambertMaterial({ color: 0x5a3d26, flatShading: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    const clod = this.mats.clod || (this.mats.clod = new THREE.MeshLambertMaterial({ color: 0x4a3120, flatShading: true }));
+    for (const [x, , z, r] of L.dirt) {
+      const geo = new THREE.CircleGeometry(r, 20).rotateX(-Math.PI / 2), pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const px = x + pos.getX(i), pz = z + pos.getZ(i);
+        pos.setXYZ(i, px, groundY(T, px, pz) + 0.035, pz);
+      }
+      geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, mat); m.receiveShadow = true; g.add(m);
+      for (let k = 0; k < 9; k++) {
+        const a = k * 2.4 + x, rr = r * (0.75 + 0.3 * ((k * 0.61) % 1)), cx = x + Math.cos(a) * rr, cz = z + Math.sin(a) * rr, sz = 0.08 + 0.06 * ((k * 0.37) % 1);
+        const c = new THREE.Mesh(new THREE.DodecahedronGeometry(sz, 0), clod); c.position.set(cx, groundY(T, cx, cz) + sz * 0.4, cz); c.castShadow = true; g.add(c);
+      }
+    }
+    this.scene.add(g); this.dirtG = g;
   }
 
   rebuild() {

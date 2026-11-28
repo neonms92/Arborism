@@ -492,7 +492,7 @@ export class Players {
     // one of the other trees in the yards, still without wood of its own (sim/stands.js): starting to saw it
     // (holding {raise}), climb or grab it ({interact}) or rig it ({rig}) grows its wood. Rapier only finds the new
     // colliders after the next step, so the press that did it is handed on to the next tick.
-    const stand = control && !aim && p.mode !== MODE.ROPE ? sim.stands.aim(p, Math.max(CFG.REACH, CFG.SAW_REACH)) : null;
+    const stand = control && !aim && p.mode !== MODE.ROPE && p.mode !== MODE.DRIVE ? sim.stands.aim(p, Math.max(CFG.REACH, CFG.SAW_REACH)) : null;
     let standHint = '';
     if (stand) {
       const sawIt = inp.lt >= 0.3 && stand.dist <= CFG.SAW_REACH, near = stand.dist < CFG.REACH;
