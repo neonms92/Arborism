@@ -229,6 +229,17 @@ export class World {
         break;
       }
       case 'loader': this.loader = { p: ev.p, q: ev.q, truck: ev.truck, kg: 0, n: 0 }; break;   // parked fresh with a new tree
+      case 'roots': {               // a stump the loader rips out: its roots (wood like any other) grow on its base; a dirt patch where it stood
+        const yd = [...this.segs.values()].some((g) => g.piece === ev.piece && g.yd);
+        for (const d of ev.segs) {
+          const g = { ...d, piece: ev.piece, f: makeBundle(d.N || gridFor(d.r0)) };
+          if (yd) g.yd = 1; else this.prog.M += segMass(g) + g.leaf;
+          this.segs.set(d.id, g);
+        }
+        if (this.loader && ev.dirt) (this.loader.dirt || (this.loader.dirt = [])).push(ev.dirt);
+        this._dirty();
+        break;
+      }
       case 'haul': {                // loose wood that came to rest in the log truck's bed is taken away (it never fills)
         let kg = 0;
         for (const s of [...this.segs.values()]) if (s.piece === ev.piece) { kg += segMass(s) + s.leaf; if (!s.yd) this.prog.hauled = (this.prog.hauled || 0) + segMass(s) + s.leaf; this.segs.delete(s.id); }

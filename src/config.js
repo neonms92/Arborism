@@ -288,6 +288,7 @@ export const CFG = {
   LOADER_JAW_REACH: 0.35,  // m from the middle of the open jaws to the bark that closing still takes hold of
   LOADER_MAX_LEN: 2.44,    // m (8 ft): longer wood is too heavy: the loader tips forward trying, and the wood stays put
   LOADER_LIGHT: 0.75,      // wood lighter than this x CHIP_CAPACITY slips through the claw halfway up (it is for the chipper)
+  LOADER_STUMP_H: 1.2,     // m (4 ft): a stump no taller than this above the ground the claw rips out, roots and all
   LOADER_TIP: 0.35,        // rad the loader tips forward, trying to lift wood too long, before it gives up
   LOADER_TIP_HOLD: 0.8,    // s it stays tipped before the claw lets go and it comes back down
   TRUCK_TAKE_T: 1.5,       // s loose wood lies still in the log truck's bed before it is hauled away

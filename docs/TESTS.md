@@ -623,6 +623,23 @@ client's would.
 - **Measured on 2026-11-28:** 25 / 25 (667 kg at the default point). Before
   the D137 fix the turned rounds broke INV-3 while the claw squared them up.
 
+### FM-51 Grapple loader: rip out a stump and put it in the truck
+
+*Why (owner, 2026-11-28, D139):* a short stump comes out roots and all and
+goes on the truck.
+
+- **Scenario:** as FM-50, with a rooted stump (one upright segment, no
+  roots) standing 6.5 m ahead and 0.8 m to the right in place of the round.
+  Drive up until the prompt offers "rip out the stump", press, drive to the
+  truck, let go. While wood is held INV-3 takes its free-fall height from
+  the claw (it moves at about 2 m/s, not falling).
+- **Parameters:** radius 0.12 – 0.6 m, height 0.1 – 1.2 m.
+- **Pass if:** got on; the prompt offered the stump and the press took it
+  out (no longer fixed); it went up (top ≥ 1.6 m); it was hauled; one dirt
+  patch.
+- **Measured on 2026-11-28:** 21 / 21 must points. In game on the felled
+  `?solo` job oak (cut at 0.6 m): a 1 862 kg stump came out with its roots.
+
 ---
 
 ## 6. What the runner reports

@@ -255,10 +255,18 @@ export class Loader {
       const f = this.between();
       act = !f ? '{interact}: lift (nothing in the claw)'
         : f.thick ? '{interact}: lift (too thick for the claw)'
-        : !isFinite(f.kg) ? '{interact}: grab (still part of the tree)'
+        : !isFinite(f.kg) ? (this.stumpPrompt(f.seg))
         : `{interact}: grab and lift {mass:${Math.round(f.kg)}}`;
     }
     p.prompt = (this.note ? this.note + '   ' : '') + `{move}: drive   ${act}   {jump}: get off`;
+  }
+
+  /** What the button does for wood of the standing tree in the jaws. */
+  stumpPrompt(seg) {
+    const w = this.sim.world, s = w.segs.get(seg), pc = s && w.pieces.get(s.piece);
+    if (!pc || !pc.fixed) return '{interact}: grab (still joined to the tree)';
+    const st = this.stump(s.piece);
+    return !st ? '{interact}: grab (the standing tree)' : st.why ? `{interact}: grab (${st.why.split(':')[0].toLowerCase()})` : '{interact}: rip out the stump';
   }
 
   /** Are the arms on their way up, or up (closing, lifting, holding overhead, straining)? */
@@ -283,6 +291,17 @@ export class Loader {
     if (!body) { this.setPhase(GRAB); return; }
     const kg = found.kg;
     if (!piece.fixed && !isFinite(kg)) { sim.players.say(p, 'Still joined to the tree: saw it free first'); return; }
+    if (piece.fixed) {
+      const st = this.stump(s.piece);
+      if (st && !st.why) {                           // a short stump: out it comes, roots and all
+        const np = this.uproot(s.piece, st);
+        sim.awards.touch(np, p.id);
+        this.take(np, sim.bodies.get(np), sim.weightOf(np), 'carry', true);
+        this.note = 'Stump out, roots and all';
+        this.setPhase(GRAB); return;
+      }
+      if (st && st.why) { sim.players.say(p, st.why); return; }
+    }
     sim.awards.touch(s.piece, p.id);
     const len = piece.fixed ? Infinity : this.lengthOf(s.piece);
     if (!piece.fixed && kg < CFG.LOADER_LIGHT * CFG.CHIP_CAPACITY) this.take(s.piece, body, kg, 'light');
@@ -328,11 +347,52 @@ export class Loader {
   }
 
   /**
+   * Is rooted piece id a stump the claw can rip out? {base, top, R} (base: its root segment), with why set when it
+   * is a stump that cannot come out yet; null when it is not a stump (standing wood: too heavy, the claw tips).
+   * Short enough: its wood reaches no more than LOADER_STUMP_H above the ground at its base.
+   */
+  stump(id) {
+    const sim = this.sim, w = sim.world;
+    let base = null, top = -Infinity;
+    for (const s of w.segsOf(id)) { if (s.parent < 0) base = s; top = Math.max(top, s.a[1], s.b[1]); }
+    if (!base) return null;
+    const g = sim.groundY(base.a[0], base.a[2]);
+    if (top - g > CFG.LOADER_STUMP_H) return null;
+    const out = { base, R: base.r0, g };
+    for (const j of sim.structure.live.values()) if (j.parent === id) { out.why = 'Wood still hangs from the stump: saw it free first'; break; }
+    return out;
+  }
+
+  /**
+   * Rip out stump id: roots grow on its base where they were in the ground (a 'roots' event: wood like any other,
+   * a few thick roots splaying out and down and a tap root, and a dirt patch where it stood), then the whole of it
+   * comes free of the ground (a 'split' at its base). Returns the new loose piece.
+   */
+  uproot(id, st) {
+    const sim = this.sim, w = sim.world, b = st.base, R = st.R, a = b.a, segs = [];
+    const n = 5, k0 = (a[0] * 7.3 + a[2] * 3.1) % 1;             // turned a little, the same for the same stump
+    const add = (d, len, r0, r1) => {
+      const l = Math.hypot(d[0], d[1], d[2]), u = [d[0] / l, d[1] / l, d[2] / l];
+      const o = [a[0] + u[0] * R * 0.5, a[1] + 0.12, a[2] + u[2] * R * 0.5];
+      segs.push({ id: w.newId(), parent: b.id, a: o, b: [o[0] + u[0] * len, o[1] + u[1] * len, o[2] + u[2] * len], r0, r1, leaf: 0 });
+    };
+    for (let i = 0; i < n; i++) {
+      const th = (i + k0) * 2 * Math.PI / n, len = R * 2.2 + 0.3 + 0.15 * ((i * 0.37 + k0) % 1);
+      add([Math.cos(th), -0.55, Math.sin(th)], len, R * 0.42, R * 0.14);
+    }
+    add([0, -1, 0], R * 1.5 + 0.2, R * 0.5, R * 0.2);           // the tap root
+    sim.emit({ t: 'roots', piece: id, segs, dirt: [+a[0].toFixed(3), +st.g.toFixed(3), +a[2].toFixed(3), +(R * 2.4 + 0.5).toFixed(3)] });
+    const np = w.newId();
+    sim.emit({ t: 'split', seg: b.id, at: 0, newPiece: np });
+    return np;
+  }
+
+  /**
    * The claw takes piece id to carry (kind 'carry', or 'light': it slips out halfway up): the wood becomes a
    * kinematic body, drawn while the claw closes from where it is to lying square across the jaws with its centre
    * of mass in their middle; from then on it goes where the jaws go.
    */
-  take(id, body, kg, kind) {
+  take(id, body, kg, kind, upright = false) {
     const sim = this.sim, qL = this.quat(), qLi = qL.clone().invert();
     const J = this.toWorld(jawAt(this.arm), new THREE.Vector3()), t = body.translation(), qP = this.quat(body);
     // now, in the loader's frame relative to the jaws
@@ -342,7 +402,8 @@ export class Loader {
     // square across the jaws: its length along the loader's z (the nearer way round), its centre of mass in the middle
     const ax = new THREE.Vector3(); this.lengthOf(id, ax); if (ax.lengthSq() < 1e-9) ax.set(0, 0, 1);
     ax.normalize().applyQuaternion(q0); if (ax.z < 0) ax.negate();
-    const q1 = new THREE.Quaternion().setFromUnitVectors(ax, new THREE.Vector3(0, 0, 1)).multiply(q0);
+    // (a stump is held as it stood, upright, its roots hanging under the claw)
+    const q1 = upright ? q0.clone() : new THREE.Quaternion().setFromUnitVectors(ax, new THREE.Vector3(0, 0, 1)).multiply(q0);
     const p1 = new THREE.Vector3();
     body.setBodyType(sim.R.RigidBodyType.KinematicPositionBased, true);
     this.groups(id, HELD_G); this.through.delete(id);
