@@ -2195,7 +2195,64 @@ Found on main with seeds visibo and sofosa (player 1 under a house roof);
 none of 42 seeds after. Unreviewed: an eave or a porch roof overhead also
 counts as indoors, and so does anything loose lying on top of a spot.
 
-**D132 — No highlight on the wood {interact} would grab.** Owner asked
+**D132 — Near the friction device, {interact} keeps its own actions.** Owner
+report: since D117 moved taking the tail to {rig}, being in range of the
+tail still blocked {interact} (no grab, no climb, no G.O.E. button, no
+loader). Now the tail only adds "{rig}: take tail" beside whatever
+{interact} offers there; {rig} still prefers a rigging action on the wood
+looked at, as in D117.
+
+**D133 — Rigging gear wears its owner's shirt colour.** Owner ask: the
+block, its friction device and the sling it hangs on take the shirt colour
+of the player who set the block; the rope itself (the line, its tail and the
+hitch at the knot) stays rope-coloured. The host records the setter in the
+rope state (`rope.by`, a player id), so it reaches every client through the
+'rope' event and the join snapshot. Untying keeps `by`; a new block takes the
+new setter's colour. A player who picked no shirt colour gets their default
+one, as on their body. Unreviewed: the hitch at the knot counts as rope, not
+as the "tie loop"; if the setter leaves, the gear keeps the default colour
+for that player number.
+
+**D134 — G.O.E.s are racked on the log truck and follow whoever takes one.**
+Owner (2026-11-28): "Create a space between the log truck's bed and the cab,
+where G.O.E. robots are lined up. They're part of the truck geometry, and
+deactivated. They can be grabbed, in which case a real GOE is spawned for the
+grab to attach to. This will be how GOE is activated from now on, so remove
+the auto-spawning GOE. When GOE is spawned, paint a vertical band around his
+torso shifted to his right, mirroring the offset of his name tag. The band
+should be colored to match the shirt of whoever spawned him. Instead of
+seeking the target tree, GOE should follow his owner, and wait to tend any
+tree his owner is climbing."
+- The bed is shortened at the front (headboard from x 2.42 to 0.6) to make a
+  1.9 m rack: a deck on the frame, a spine down the middle, and four
+  G.O.E.s back to back against it, two facing each side of the street
+  (`TRUCK.RACK_*`). Each racked one is a `GOE_BOX` collider on the truck's
+  fixed body, drawn as a switched-off G.O.E.
+- Slot i becomes player id `GOE_ID0 - i` (99 down to 96). A slot is empty
+  while that player exists, so the rack has no state of its own; a new truck
+  (new tree) does not refill it.
+- {interact} on a racked one makes him a player there, switched off (the
+  D118 box), held by the grabber as a switched-off G.O.E. is. Once nobody
+  holds him and he has lain still `GOE_WAKE_T` (0.5 s) he switches himself
+  on: "activated" read as this.
+- Owner = the grabber, on the player record (`owner`), so every machine
+  draws the band: a loop round the box torso (front, top, back, under), 7.5 cm
+  wide, 12 cm to his right (the tag is 12 cm to his left), in the owner's
+  shirt colour (the default colour when they picked none).
+- Following: walks once his owner is over `GOE_FOLLOW_FAR` (3.5 m) away,
+  stops within `GOE_FOLLOW_NEAR` (2 m), faces them. While the owner climbs,
+  he stands a pace from that tree's trunk (the lowest wood of the rooted
+  piece climbed, or the rooted piece nearest the climber), each G.O.E. from
+  his own side, and does D117's rope work. He takes the tail only while his
+  owner climbs; once on it he finishes lowering and untying even if they
+  come down. First aid (D118) is unchanged and helps anyone.
+- Owner left the game: he switches himself off. Switched on by hand with no
+  owner, the person who did it owns him. Host handover keeps G.O.E.s as
+  G.O.E.s (they were plain players before; they are not held for anyone to
+  come back to).
+- Now in online games too (D117 was solo only).
+
+**D135 — No highlight on the wood {interact} would grab.** Owner asked
 (2026-11-28) to remove the faint pulsing sleeve D101 drew round the targeted
 segment. The grab assist itself is unchanged (exact ray first, then the
 `GRAB_CONE` cone); only the drawing went, along with the player's `target`

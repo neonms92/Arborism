@@ -3,7 +3,7 @@
 //
 // seg:   {id, parent, piece, a:[3], b:[3], r0, r1, leaf, f}   (a, b piece-local; f = fibre bundle)
 // piece: {id, fixed}
-// rope:  {state: 0 none | 1 block set | 2 tied, block, anchor, device}  nodes = {seg, p:[3] piece-local}
+// rope:  {state: 0 none | 1 block set | 2 tied, block, anchor, device, by: id of the player who set the block}  nodes = {seg, p:[3] piece-local}
 //        or, for an anchor the chipper has taken in, {chip: 1} (the rope runs into its infeed until it comes free)
 // chipper: model/chipper.js
 // builds: breakable structures (the shed), model/builds.js
@@ -290,7 +290,7 @@ export class World {
         break;
       case 'player':
         // joining, or changing name / shirt colour (the same event again): name and color are already cleaned by the host
-        if (ev.leave) this.players.delete(ev.id); else this.players.set(ev.id, { id: ev.id, name: ev.name, color: ev.color, st: cleanStickers(ev.st), ...(ev.bot ? { bot: 1 } : {}) });   // bot: G.O.E. (sim/goe.js)
+        if (ev.leave) this.players.delete(ev.id); else this.players.set(ev.id, { id: ev.id, name: ev.name, color: ev.color, st: cleanStickers(ev.st), ...(ev.bot ? { bot: 1, owner: ev.owner || 0 } : {}) });   // bot: G.O.E. (sim/goe.js); owner: who took him off the truck
         break;
       case 'job': this.awards = { ...newAwards(), job: ev.id }; break;   // a new job: no stickers handed out yet
       case 'award': {                                                    // players ev.to got sticker k at this tier (main.js hands it out)

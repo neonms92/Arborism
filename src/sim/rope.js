@@ -51,7 +51,7 @@ export class Rope {
       const rc = lerp3(root.a, root.b, rt), raxis = segAxis(root), hz = [bp[0] - rc[0], 0, bp[2] - rc[2]];
       const side = Math.hypot(hz[0], hz[2]) > 0.05 ? perp(hz, raxis) : perp([1, 0, 0], raxis), doff = segRadius(root, rt) + CFG.DEVICE_OFF;
       const dev = { seg: root.id, p: [rc[0] + side[0] * doff, rc[1] + side[1] * doff, rc[2] + side[2] * doff] };
-      sim.emit({ t: 'rope', rope: { state: 1, block: { seg: t.seg, p: bp }, device: dev } });
+      sim.emit({ t: 'rope', rope: { state: 1, block: { seg: t.seg, p: bp }, device: dev, by: p.id } });   // by: who set it (the gear wears their shirt colour)
       this.wrap = [[], []]; this.route(30);
     } else if (r.state === 1 && this.node(r.block).distanceTo(t.point) < 0.7) {
       this.clear(p);                                     // looking at the block: take it down
@@ -63,7 +63,7 @@ export class Rope {
       this.wrap[0] = []; this.route(30);
       this.L0 = this.pathLength() + 0.15; this.prev = 0; this.T = 0;
     } else if (this.node(r.anchor).distanceTo(t.point) < 0.7) {
-      sim.emit({ t: 'rope', rope: { state: 1, block: r.block, device: r.device } });
+      sim.emit({ t: 'rope', rope: { state: 1, block: r.block, device: r.device, by: r.by } });
       this.T = 0; this.wrap[0] = [];
     }
   }

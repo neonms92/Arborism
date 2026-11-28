@@ -24,7 +24,7 @@ export class Players {
   constructor(sim) { this.sim = sim; this.list = new Map(); }
 
   /** name and color as the player chose them (cleaned here; '' / -1 when none). */
-  add(id, name, color = -1, st = [], bot = false, at = null) {
+  add(id, name, color = -1, st = [], bot = false, at = null, owner = 0) {
     const sim = this.sim, R = sim.R;
     const ang = id * 1.3, sp = at ? [at[0], CFG.SPAWN_HEIGHT, at[1]] : [4 * Math.cos(ang), CFG.SPAWN_HEIGHT, 4 * Math.sin(ang)];       // spawn y is above the ground there
     sp[1] += sim.groundY(sp[0], sp[2]);
@@ -47,7 +47,7 @@ export class Players {
     };
     if (bot) p.bot = true;         // input written on the host by a controller (G.O.E., sim/goe.js), not a person
     this.list.set(id, p);
-    sim.emit({ t: 'player', id, name: cleanName(name), color: cleanColor(color), st: cleanStickers(st), ...(bot ? { bot: 1 } : {}) });
+    sim.emit({ t: 'player', id, name: cleanName(name), color: cleanColor(color), st: cleanStickers(st), ...(bot ? { bot: 1, owner } : {}) });
     return p;
   }
   /** A player picked a name and shirt colour in the lobby, or stuck a sticker on (a joining client sends them once it is in). */
@@ -628,9 +628,15 @@ export class Players {
     // a tube salad in hand goes first: {interact} on another player gives it to them (it takes the press)
     const sal = this.salad(p, inp, pressed);
     // G.O.E. (D118): {interact} on the red button on his right shoulder switches him off or on; switched off, anywhere else grabs him
-    const bot = !tail && !p.grab && !p.chips && !p.bot ? this.aimBot(p) : null;
-    const ld = !tail && !p.grab && !p.chips ? sim.loader.aim(p) : null;
-    if (bot && (bot.button || bot.o.off)) {
+    // {rig} takes the tail; {interact} keeps doing whatever it does here (the take-tail hint rides alongside)
+    const bot = !p.grab && !p.chips && !p.bot ? this.aimBot(p) : null;
+    const ld = !p.grab && !p.chips ? sim.loader.aim(p) : null;
+    // a G.O.E. racked on the log truck (D134): grabbing him takes him off it, a real one, switched off, in your hands
+    const racked = !p.grab && !p.chips && !p.bot && !bot ? sim.goe.aimRack(p) : null;
+    if (racked) {
+      if (pressed.interact) { p.chLock.add('lanyard'); sim.goe.unrack(racked.slot, p, racked.point); }
+      first = '{interact}: grab G.O.E.';
+    } else if (bot && (bot.button || bot.o.off)) {
       const nm = this.name(bot.o.id);
       if (pressed.interact) {
         p.chLock.add('lanyard');
@@ -638,8 +644,6 @@ export class Players {
         else p.grab = { bot: bot.o.id, p: bot.local, L0: Math.max(0.2, this.hands(p, _a).distanceTo(bot.point)), prev: 0 };
       }
       first = bot.button ? (bot.o.off ? `{interact}: switch ${nm} on` : `{interact}: switch ${nm} off`) : `{interact}: grab ${nm}`;
-    } else if (tail) {
-      first = '{rig}: take tail';
     } else if (ld && !p.chips && !p.grab) {
       // the grapple loader: {interact} anywhere on it steps up onto its platform and takes the controls
       if (pressed.interact) { sim.loader.mount(p); p.chLock.add('lanyard'); }
@@ -693,7 +697,7 @@ export class Players {
       else if (pile >= 0) first = '{interact}: take chips';
       else first = gaim ? '{interact}: grab' + kg(sim.world.segs.get(gaim.seg).piece) : '';
     }
-    if (reach && !tail) {
+    if (reach) {
       const s = sim.world.segs.get(aim.seg);
       // the standing tree, or wood cracked off it but still held by fibres (D127): both stand, both can be climbed
       const standing = sim.structure.isHeld(s.piece);
@@ -714,6 +718,7 @@ export class Players {
       } else if (standing) first += '   (too hurt to climb)';
     }
     if (p.ch && p.ch.kind === 'lanyard') first = 'keep holding {interact}: spur in';
+    if (tail) first = first ? first + '   {rig}: take tail' : '{rig}: take tail';
     this.grabStep(p, dt);
     p.prompt = this.extras(p, aim, (sal && first ? sal + '   ' + first : sal || first));
   }
