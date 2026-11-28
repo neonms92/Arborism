@@ -313,6 +313,7 @@ export class World {
       case 'work':                                                       // who sawed (m² cut) and fed (kg chipped) since the last of these
         for (const k of ['chop', 'chip', 'bin']) { const W = this.awards.work[k] || (this.awards.work[k] = {}); for (const id in ev[k] || {}) W[id] = (W[id] || 0) + ev[k][id]; }
         break;
+      case 'chopped': this.prog.cut = ev.kg; break;   // kg of the job tree lying in pieces the chipper or the loader can take (sim/awards.js)
       case 'toast': break;
     }
     for (const fn of this.listeners) fn(ev, info);
@@ -480,9 +481,29 @@ const EMPTY = [];
 /** M: kg of the job tree (wood and leaves) as grown; chipped: kg of it chipped; hauled: kg of it taken away on the log
  * truck (model/loader.js); lost: kg of it swept away as debris
  * (twigs under DEBRIS_MASS, which nobody could chip: the share chipped is of M - lost); made: m3 of chips blown out by
- * the chippers; gone: m3 of chips that went into bins. */
+ * the chippers; gone: m3 of chips that went into bins; cut: kg of it still here in pieces the chipper or the loader can
+ * take, the stump too once it is short enough to rip out (jobShares). */
 /** job: id of this job ('' before one, as in the engine tests: nothing is handed out); got: kind -> {player id:
  * highest tier handed to them}; ate: player id -> tube salads eaten this job; work: {chop: id -> m² of the job tree
  * sawn through, chip: id -> kg of it they fed that was chipped, bin: id -> m³ of chips they put in bins}. In the world so a host taking over (D104) carries on. */
 function newAwards() { return { job: '', got: {}, ate: {}, work: { chop: {}, chip: {}, bin: {} } }; }
-function newProg() { return { M: 0, chipped: 0, hauled: 0, lost: 0, made: 0, gone: 0 }; }
+function newProg() { return { M: 0, chipped: 0, hauled: 0, lost: 0, made: 0, gone: 0, cut: 0 }; }
+
+/**
+ * How far the job has got, as the HUD shows it and the stickers go by (D140), each a share 0..1 of the job tree's kg:
+ *   chucked  deposited: hauled away on the log truck, or chipped with its chips in a bin (the share of all chips made
+ *            that went into bins), of the tree less what was swept away as debris;
+ *   chipped  gone: chipped, swept away as debris, or hauled away on the truck;
+ *   chopped  gone, or still here in pieces the chipper or the loader can take (prog.cut, the host works it out:
+ *            sim/awards.js), the stump included.
+ * Chucked 100% means chipped and chopped 100%; chipped 100% means chopped 100%.
+ */
+export function jobShares(P) {
+  const M = P.M || 0, L = P.lost || 0, H = P.hauled || 0;
+  if (!(M > 0)) return { chopped: 0, chipped: 0, chucked: 0 };
+  const binned = P.made > 0 ? Math.min(1, P.gone / P.made) : 0;
+  const chucked = M > L ? Math.min(1, (P.chipped * binned + H) / (M - L)) : 1;
+  const chipped = Math.max(chucked, Math.min(1, (P.chipped + H + L) / M));
+  const chopped = Math.max(chipped, Math.min(1, (P.chipped + H + L + (P.cut || 0)) / M));
+  return { chopped, chipped, chucked };
+}

@@ -3,6 +3,7 @@
 // key or button name for the device they last touched.
 
 import { CFG, INJ_NAME, MODE } from '../config.js';
+import { jobShares } from '../model/world.js';
 
 const $ = (id) => document.getElementById(id);
 /** Colour of a job percentage (owner): red under 60 %, amber from 60, green from 90, blue from 99. */
@@ -81,16 +82,16 @@ export class Hud {
     while (this.toasts.children.length > 5) this.toasts.firstChild.remove();
   }
 
-  /** How far the job has got: the job tree chipped or hauled away on the log truck, and of the chips made, how many went into a bin (world.prog). */
+  /** How far the job has got: the job tree chopped, chipped and chucked (model/world.js jobShares). */
   progress() {
-    const P = this.world.prog, el = this.progEl || (this.progEl = $('prog'));
-    const tree = P.M > (P.lost || 0) ? Math.min(1, (P.chipped + (P.hauled || 0)) / (P.M - (P.lost || 0))) : 0, bin = P.made > 0 ? P.gone / P.made : null;
-    const key = `${tree.toFixed(4)} ${bin === null ? '-' : bin.toFixed(4)}`;
+    const el = this.progEl || (this.progEl = $('prog'));
+    const S = jobShares(this.world.prog);
+    const key = `${S.chopped.toFixed(4)} ${S.chipped.toFixed(4)} ${S.chucked.toFixed(4)}`;
     if (key === this.progKey) return;
     this.progKey = key;
     // to a tenth of a percent, rounded down (a big tree moves slowly; 99.96 % is not yet 100 %)
     const span = (f) => `<span style="color:${pctColour(f)}">${(Math.floor(f * 1000 + 1e-6) / 10).toFixed(1)}%</span>`;
-    el.innerHTML = `Tree ${P.hauled > 0 ? 'cleared' : 'chipped'} ${span(tree)}  ·  Chips in bins ${bin === null ? '<span style="opacity:.7">none yet</span>' : span(bin)}`;
+    el.innerHTML = `Chopped: ${span(S.chopped)}, Chipped: ${span(S.chipped)}, Chucked: ${span(S.chucked)}`;
   }
 
   /** The network box (net/stats.js), top right on a joined client; null hides it. */

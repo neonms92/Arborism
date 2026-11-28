@@ -2344,3 +2344,26 @@ held upright; refused while felled wood hangs from it; a neighbour's yard
 stump can be pulled too (and is charged as damage to their tree). Also
 fixed: a press while driving near a dormant yard tree woke the tree instead
 of working the claw.
+
+**D140 — Progress is Chopped, Chipped, Chucked.** Owner (2026-11-28): the
+progress line reads "Chopped: x%, Chipped: y%, Chucked: z%", and the
+completion stickers go by those three. Chucked is what went into a bin or
+onto the truck; chipped is what was chipped, disposed of or loaded; chopped is
+the job tree in pieces the chipper or the loader can take, stump included;
+chucked 100% implies chipped and chopped 100%, chipped 100% implies chopped
+100%. Built as `jobShares(prog)` in model/world.js, shared by the HUD and
+sim/awards.js; each share is the larger of its own count and the one it is
+implied by. Judgment calls (unreviewed): every share is weighted by kg of the
+job tree (wood and leaves, as grown, plus roots once ripped out), not by a
+count of pieces; "disposed" is twigs swept away as debris, which count as
+chipped and chopped; chucked is (kg hauled + kg chipped × share of all chips
+made that went into bins) / (M − swept), as the old 100% sticker was; a piece
+is chopped when it is loose and either weighs no more than CHIP_CAPACITY or
+is no longer than LOADER_MAX_LEN and not held on by live fibres (the claw's
+JAW_R is not checked); the stump is chopped once its top is within
+LOADER_STUMP_H of the ground and nothing hangs from it, so a stump left in
+the ground keeps chipped and chucked short of 100%. The host works out the
+chopped kg every half second and sends it as a 'chopped' event (when it moved
+by 0.01 % of the tree) so clients show the same number. Logs loaded onto the
+truck credit whoever last had them (the loader's driver, mostly) for the
+chipper sticker (kg) and the 100% (as the m³ of chips they would have made).
