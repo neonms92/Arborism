@@ -197,7 +197,7 @@ export const CFG = {
   GOE_BOX: [0.37, 0.88, 0.16],   // m, half sizes: the box he is while switched off (arms' width, his height, the torso's depth) (D118)
   GOE_OFF_FRICTION: 0.4,   // friction of that box on what it lies or slides on
   GOE_BUTTON: [0.28, 0.33],      // m: his power button, on top of his right shoulder ([right, up] from his middle)
-  GOE_FOLLOW_FAR: 3.5,     // m: his owner further off than this and he walks after them (D131)...
+  GOE_FOLLOW_FAR: 3.5,     // m: his owner further off than this and he walks after them (D134)...
   GOE_FOLLOW_NEAR: 2.0,    // m: ...until he is this close
   GOE_WAKE_T: 0.5,         // s: taken off the truck, let go of and lying still this long, he switches himself on
   GOE_BUTTON_R: 0.15,      // m: looking this close to it (across his front, back or side) is looking at the button
@@ -237,7 +237,8 @@ export const CFG = {
   // --- controls that take time (hold the button; let go to cancel) ---
   LANYARD_TIME: 2,         // s of holding {interact} to spur in or move the lanyard
   SPAWN_HEIGHT: 1.2,       // m, a respawned or landed player's middle above the ground (the feet 0.32 m up)
-  LAND_DIST: 4,            // m from the stem where a climber who reaches the ground is put down
+  LAND_DIST: 1,            // m back from where a climber who reaches the ground hung on the stem: where they are put down
+  SPAWN_SKY: 30,           // m of open sky (but for wood) a spawn or landing spot needs over it: never under a roof
   LETGO_TIME: 4,           // s of holding {drop} to let go of the tree
   // --- punch ({punch}): every press adds a short shove; presses faster than it fades stack up ---
   PUNCH_FORCE: 400,        // N added by one punch, along the look direction at the point hit

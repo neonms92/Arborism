@@ -16,7 +16,7 @@
 //                n: loads}. Parked fresh ('loader' event) with every new tree (not in the engine tests).
 
 export const LOADER_BODY_ID = 59800;       // the loader's body in transform snapshots
-// The G.O.E.s racked on the truck (D131): the one in slot i, once taken off it, is player id GOE_ID0 - i (people are
+// The G.O.E.s racked on the truck (D134): the one in slot i, once taken off it, is player id GOE_ID0 - i (people are
 // 1, 2, 3...). A slot is empty while that player exists, so the rack needs no state of its own.
 export const GOE_ID0 = 99;
 export const GOE_NAME = 'G.O.E.';
@@ -73,7 +73,7 @@ export const TRUCK = {
   BED: { lo: [-4.05, 1.2, -1.15], hi: [0.55, 4.5, 1.15] },
   HW: 1.3,                                 // half its width, for parking it
   HL: 4.5,                                 // half its length
-  // The G.O.E. rack, between the headboard and the cab (D131): a deck on the frame and a spine down the middle,
+  // The G.O.E. rack, between the headboard and the cab (D134): a deck on the frame and a spine down the middle,
   // with the groundbots stood back to back against it, two facing each side of the street, switched off.
   // Each slot: c, the middle of the bot (as his body's centre), and f, the way his front faces (+1: +z, -1: -z).
   RACK_DECK: { c: [1.6, 1.1, 0], h: [0.93, 0.04, 1.2] },

@@ -1,5 +1,5 @@
 // G.O.E., the groundbot (D117). Host only.
-// Since D131 there are four of them, racked switched off on the log truck between its bed and cab (model/loader.js
+// Since D134 there are four of them, racked switched off on the log truck between its bed and cab (model/loader.js
 // RACK_SLOTS). {interact} on one there takes him off: a real G.O.E. (a player, id GOE_ID0 - slot) is made where he
 // stood, switched off and in the hands of whoever grabbed him, who is his owner from then on. Let go of (and lying
 // still), he switches himself on. He follows his owner about, and while his owner climbs a tree he waits by it to
@@ -248,7 +248,7 @@ export class Goe {
     if (this.wrapT > 0) this.wrapT -= dt;
     if (this.treeT > 0) this.treeT -= dt;
     sim.players.setInput(this.id, inp);
-    // just taken off the truck: once nobody holds him and he lies still, he switches himself on (D131)
+    // just taken off the truck: once nobody holds him and he lies still, he switches himself on (D134)
     if (this.fresh) {
       if (!p.off) this.fresh = false;
       else {
@@ -369,7 +369,7 @@ export class Goe {
     this.fresh = false;
     if (p.off && this.aid) { this.passed.add(this.aid.id); this.aid = null; }
     if (p.off) this.path = null;
-    // switched on with nobody to work for: he works for whoever did it (D131)
+    // switched on with nobody to work for: he works for whoever did it (D134)
     const own = this.sim.players.list.get(this.owner);
     if (!p.off && (!own || own.bot) && by && !by.bot) { this.setOwner(by.id); this.sim.toast(`${GOE_NAME} works for ${this.sim.players.name(by.id)} now`); }
   }

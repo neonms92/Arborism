@@ -33,7 +33,7 @@ export class Avatar {
       const dark = new THREE.MeshLambertMaterial({ color: 0x5d6064, flatShading: true });
       box(0.17, 0.56, 0.2, 0.11, -0.58, 0, dark); box(0.17, 0.56, 0.2, -0.11, -0.58, 0, dark);
       box(0.48, 0.62, 0.3, 0, -0.0, 0);
-      // his owner's band (D131): a vertical loop round the torso (front, over the top, down the back, under), off to
+      // his owner's band (D134): a vertical loop round the torso (front, over the top, down the back, under), off to
       // his right as far as the name tag is to his left, in the shirt colour of whoever took him off the truck
       this.bandMat = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
       this.band = box(0.075, 0.632, 0.312, 0.12, 0, 0, this.bandMat); this.band.visible = false;

@@ -122,11 +122,13 @@ export class View {
 
     this.ropeMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat);
     this.ropeMesh.frustumCulled = false; this.ropeMesh.castShadow = true; this.scene.add(this.ropeMesh);
-    this.blockMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.12), new THREE.MeshLambertMaterial({ color: 0xf0c020, flatShading: true }));
-    this.deviceMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.35, 6), new THREE.MeshLambertMaterial({ color: 0xc03030, flatShading: true }));
+    // the block, its friction device and its sling wear the shirt colour of whoever set the block (rope.by); the rope stays rope-coloured
+    this.gearMat = new THREE.MeshLambertMaterial({ color: 0xf0c020, flatShading: true }); this.gearBy = undefined;
+    this.blockMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.12), this.gearMat);
+    this.deviceMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.35, 6), this.gearMat);
     this.knotMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.05), new THREE.MeshLambertMaterial({ color: 0xf2e9d0, flatShading: true }));
     // the block's sling and the knot's hitch: loops of rope round the wood they hang on (D125)
-    this.slingMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat); this.slingMesh.frustumCulled = false;
+    this.slingMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.gearMat); this.slingMesh.frustumCulled = false;
     this.hitchMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.ropeMat); this.hitchMesh.frustumCulled = false;
     this.scene.add(this.blockMesh, this.deviceMesh, this.knotMesh, this.slingMesh, this.hitchMesh);
     this.ropeTail = [];
@@ -405,13 +407,17 @@ export class View {
     return p;
   }
 
+  /** A player's shirt colour: the one picked in the lobby, or a default by player number. */
+  shirtOf(id) {
+    const w = this.world.players.get(id);
+    return w && w.color >= 0 ? w.color : PLAYER_COLORS[(Math.max(1, id) - 1) % PLAYER_COLORS.length];
+  }
+
   /** Shirt, saw, name and stickers from the model (the 'player' event), redrawn only when they change. */
   setLook(pm) {
-    const w = this.world.players.get(pm.id), name = playerName(this.world, pm.id);
-    const shirt = (id) => { const o = this.world.players.get(id); return o && o.color >= 0 ? o.color : PLAYER_COLORS[(id - 1) % PLAYER_COLORS.length]; };
-    const c = shirt(pm.id);
+    const w = this.world.players.get(pm.id), name = playerName(this.world, pm.id), c = this.shirtOf(pm.id);
     if (pm.av.setLook(name, c)) pm.engMat.color.setHex(c);
-    if (w && w.bot) pm.av.setBand(w.owner > 0 && this.world.players.has(w.owner) ? shirt(w.owner) : -1);   // G.O.E.: his owner's shirt (D131)
+    if (w && w.bot) pm.av.setBand(w.owner > 0 && this.world.players.has(w.owner) ? this.shirtOf(w.owner) : -1);   // G.O.E.: his owner's shirt (D134)
     pm.av.setStickers(w ? w.st : null);
   }
 
@@ -647,6 +653,7 @@ export class View {
     const A = new THREE.Vector3(), B = new THREE.Vector3(), D = new THREE.Vector3();
     const hasB = st >= 1 && this.nodeWorld(r.block, B), hasD = st >= 1 && this.nodeWorld(r.device, D), hasA = st >= 2 && this.nodeWorld(r.anchor, A);
     this.blockMesh.visible = !!hasB; this.deviceMesh.visible = !!hasD; this.knotMesh.visible = !!hasA;
+    if (hasB) { const c = r.by >= 0 ? this.shirtOf(r.by) : 0xf0c020; if (c !== this.gearBy) { this.gearMat.color.setHex(c); this.gearBy = c; } }
     this.ropeMesh.visible = !!(hasB && hasD);
     this.slingMesh.visible = !!hasB; this.hitchMesh.visible = !!(hasA && !r.anchor.chip);
     if (!hasB || !hasD) { this.ropeTail = []; return; }

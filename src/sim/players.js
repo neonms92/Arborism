@@ -43,6 +43,7 @@ export class Players {
       target: -1,                    // the loose wood {interact} would grab (seg id; -1: none), highlighted for its player
       grab: null,                    // holding wood on the ground: {seg, p: piece-local point, L0: rope length, prev}
       held: '',                      // what is in the other hand: '' or 'salad' (a tube salad off a chipper's rack)
+      place: true,                   // still to be checked clear of houses and the like (post: queries see new colliders only after a step)
       rtPrev: 0,                     // {throttle} last tick, for its press (eating)
     };
     if (bot) p.bot = true;         // input written on the host by a controller (G.O.E., sim/goe.js), not a person
@@ -200,37 +201,62 @@ export class Players {
   }
 
   // ---- mode changes ----
-  /** Back to where p started, 1.2 m above the ground there (the ground may have changed since). */
   /** Back to the player's own spot 4 m from the tree, or the nearest clear spot round it (safeSpot). */
   toSpawn(p) {
     const s = p.spawn, c = this.safeSpot(p, 0, 0, Math.atan2(s[2], s[0]), Math.hypot(s[0], s[2]));
     p.body.setTranslation({ x: c[0], y: c[1], z: c[2] }, true);
   }
+  /** A new player's first spot, once the queries can see everything (after their first step): if it is not clear
+   *  (clearAt: inside a house, under a roof, in a wall...) they go to the nearest clear spot round it, at rest. */
+  placeClear(p) {
+    p.place = false;
+    if (p.mode !== MODE.GROUND || p.off) return;
+    const t = p.body.translation();
+    if (this.clearAt(p, [t.x, this.sim.groundY(t.x, t.z) + CFG.SPAWN_HEIGHT, t.z])) return;
+    const c = this.safeSpot(p, t.x, t.z, Math.atan2(t.z, t.x), 0.5);
+    p.body.setTranslation({ x: c[0], y: c[1], z: c[2] }, true);
+    p.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    p.vPre.set(0, 0, 0); p.hit = 0;
+  }
   /** Where a standing player can be put down: dist from (cx, cz) at angle ang (rad, from +x towards +z), at the
    *  spawn height (SPAWN_HEIGHT over the ground there), or the nearest clear spot to it: the angle swung either way
-   *  in steps, then further out. Clear means nothing but the ground (or a sensor) where the player's capsule goes. */
+   *  in steps all the way round, then further out. Clear (clearAt) means nothing but the ground (or a sensor) where
+   *  the player's capsule goes, and open sky above it but for wood: not under a roof, so never inside a house,
+   *  a shed or anything else with a top (a room's walls leave its inside empty, so the capsule test alone passes). */
   safeSpot(p, cx, cz, ang, dist) {
-    const sim = this.sim, R = sim.R, shape = new R.Capsule(CFG.P_HALF, CFG.P_RADIUS + 0.05), q = { x: 0, y: 0, z: 0, w: 1 };
+    const sim = this.sim;
     const at = (a, r) => { const x = cx + r * Math.cos(a), z = cz + r * Math.sin(a); return [x, sim.groundY(x, z) + CFG.SPAWN_HEIGHT, z]; };
-    for (const r of [dist, dist + 1.5, dist + 3, dist + 5]) {
-      for (let i = 0; i <= 12; i++) {
-        const c = at(ang + (i & 1 ? -1 : 1) * Math.ceil(i / 2) * 0.4 * 4 / r, r);
-        let hit = false;
-        sim.rapier.intersectionsWithShape({ x: c[0], y: c[1], z: c[2] }, q, shape, (col) => {
-          if (col.handle === sim.groundCol.handle || col.isSensor()) return true;
-          hit = true; return false;
-        }, undefined, undefined, undefined, p.body);
-        if (!hit) return c;
+    for (const r of [dist, dist + 1, dist + 2, dist + 3.5, dist + 5, dist + 8, dist + 12, dist + 18, dist + 26]) {
+      const step = Math.min(0.4, 1.6 / r), n = Math.floor(Math.PI / step);
+      for (let i = 0; i <= 2 * n; i++) {
+        const c = at(ang + (i & 1 ? -1 : 1) * Math.ceil(i / 2) * step, r);
+        if (this.clearAt(p, c)) return c;
       }
     }
     return at(ang, dist);                              // nowhere clear: the spot asked for (Rapier pushes them out)
   }
+  /** Can a standing player be put with their middle at c ([x,y,z])? See safeSpot. */
+  clearAt(p, c) {
+    const sim = this.sim, R = sim.R, o = { x: c[0], y: c[1], z: c[2] };
+    const shape = new R.Capsule(CFG.P_HALF, CFG.P_RADIUS + 0.05), q = { x: 0, y: 0, z: 0, w: 1 };
+    let hit = false;
+    sim.rapier.intersectionsWithShape(o, q, shape, (col) => {
+      if (col.handle === sim.groundCol.handle || col.isSensor()) return true;
+      hit = true; return false;
+    }, undefined, undefined, undefined, p.body);
+    if (hit) return false;
+    // a roof overhead: anything above but the ground (an overhang of it), wood (the tree, a yard tree) and players
+    const roof = sim.rapier.castRay(new R.Ray(o, { x: 0, y: 1, z: 0 }), CFG.SPAWN_SKY, true, undefined, undefined, undefined, p.body,
+      (col) => !col.isSensor() && col.handle !== sim.groundCol.handle && !sim.colSeg.has(col.handle)
+        && !sim.colPlayer.has(col.handle) && !(sim.stands && sim.stands.colStand.has(col.handle)));
+    return !roof;
+  }
   /** A climber came down to the ground (D100): the lanyard comes off and they are put down standing, clear
-   *  of the tree, on the side they were climbing, with no fall. Switching a kinematic climber that is pressed into the
+   *  LAND_DIST back from where they hung on the tree, on the side they were climbing, with no fall. Switching a kinematic climber that is pressed into the
    *  ground or the trunk to a dynamic body made Rapier fling them out of it, which read as a fatal impact. */
   land(p, s) {
     const sim = this.sim, ax = sim.segToWorld(s, lerp3(s.a, s.b, p.cl.t), _c), t = p.body.translation();
-    const c = this.safeSpot(p, ax.x, ax.z, Math.atan2(t.z - ax.z, t.x - ax.x), CFG.LAND_DIST);
+    const c = this.safeSpot(p, ax.x, ax.z, Math.atan2(t.z - ax.z, t.x - ax.x), Math.hypot(t.x - ax.x, t.z - ax.z) + CFG.LAND_DIST);
     this.toGround(p);
     p.body.setTranslation({ x: c[0], y: c[1], z: c[2] }, true);
     p.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -603,10 +629,11 @@ export class Players {
     // a tube salad in hand goes first: {interact} on another player gives it to them (it takes the press)
     const sal = this.salad(p, inp, pressed);
     // G.O.E. (D118): {interact} on the red button on his right shoulder switches him off or on; switched off, anywhere else grabs him
-    const bot = !tail && !p.grab && !p.chips && !p.bot ? this.aimBot(p) : null;
-    const ld = !tail && !p.grab && !p.chips ? sim.loader.aim(p) : null;
-    // a G.O.E. racked on the log truck (D131): grabbing him takes him off it, a real one, switched off, in your hands
-    const racked = !tail && !p.grab && !p.chips && !p.bot && !bot ? sim.goe.aimRack(p) : null;
+    // {rig} takes the tail; {interact} keeps doing whatever it does here (the take-tail hint rides alongside)
+    const bot = !p.grab && !p.chips && !p.bot ? this.aimBot(p) : null;
+    const ld = !p.grab && !p.chips ? sim.loader.aim(p) : null;
+    // a G.O.E. racked on the log truck (D134): grabbing him takes him off it, a real one, switched off, in your hands
+    const racked = !p.grab && !p.chips && !p.bot && !bot ? sim.goe.aimRack(p) : null;
     if (racked) {
       if (pressed.interact) { p.chLock.add('lanyard'); sim.goe.unrack(racked.slot, p, racked.point); }
       first = '{interact}: grab G.O.E.';
@@ -618,8 +645,6 @@ export class Players {
         else p.grab = { bot: bot.o.id, p: bot.local, L0: Math.max(0.2, this.hands(p, _a).distanceTo(bot.point)), prev: 0 };
       }
       first = bot.button ? (bot.o.off ? `{interact}: switch ${nm} on` : `{interact}: switch ${nm} off`) : `{interact}: grab ${nm}`;
-    } else if (tail) {
-      first = '{rig}: take tail';
     } else if (ld && !p.chips && !p.grab) {
       // the grapple loader: {interact} anywhere on it steps up onto its platform and takes the controls
       if (pressed.interact) { sim.loader.mount(p); p.chLock.add('lanyard'); }
@@ -675,7 +700,7 @@ export class Players {
       // shown to its player as a highlight on that wood (loose wood only: the standing tree is plain to see)
       if (gaim && !atChip && !bn && pile < 0 && !sim.world.pieces.get(sim.world.segs.get(gaim.seg).piece).fixed) p.target = gaim.seg;
     }
-    if (reach && !tail) {
+    if (reach) {
       const s = sim.world.segs.get(aim.seg);
       // the standing tree, or wood cracked off it but still held by fibres (D127): both stand, both can be climbed
       const standing = sim.structure.isHeld(s.piece);
@@ -696,6 +721,7 @@ export class Players {
       } else if (standing) first += '   (too hurt to climb)';
     }
     if (p.ch && p.ch.kind === 'lanyard') first = 'keep holding {interact}: spur in';
+    if (tail) first = first ? first + '   {rig}: take tail' : '{rig}: take tail';
     this.grabStep(p, dt);
     p.prompt = this.extras(p, aim, (sal && first ? sal + '   ' + first : sal || first));
   }
@@ -791,6 +817,7 @@ export class Players {
   // ---- after physics: read impacts on dynamic players ----
   post(dt) {
     for (const p of this.list.values()) {
+      if (p.place) this.placeClear(p);
       if (p.mode === MODE.CLIMB || p.mode === MODE.DRIVE) continue;    // (a driver's jolts: sim/loader.js post)
       const v = p.body.linvel();
       if (p.off) { const t = p.body.translation(); if (t.y < this.sim.groundY(t.x, t.z) - 20) this.setPower(p, true); continue; }   // a switched-off box feels nothing

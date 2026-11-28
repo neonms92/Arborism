@@ -141,7 +141,7 @@ export class Loader {
       this.truckCols.add(sim.rapier.createCollider(R.ColliderDesc.cuboid(x.h[0], x.h[1], x.h[2]).setTranslation(x.c[0], x.c[1], x.c[2]).setFriction(0.7), tb).handle);
     }
     this.truck = { body: tb, p: ev.truck.p, q: tq };
-    sim.goe.onTruck(tb);              // the G.O.E.s still racked on it (sim/goe.js, D131)
+    sim.goe.onTruck(tb);              // the G.O.E.s still racked on it (sim/goe.js, D134)
     this.vStand = null; this.rest.clear();
     this.arm = Math.max(L.ARM_MIN, Math.min(L.ARM_MAX, this.arm));
     this.jaw = 0; this.phase = this.arm > L.ARM_MIN + 1e-3 ? LOWER : IDLE; this.phaseT = 0;

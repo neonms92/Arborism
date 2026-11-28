@@ -95,7 +95,7 @@ export class Sim {
     this.awards = new Awards(this);   // stickers for the crew (D105)
     this.lines = new Lines(this);     // the power lines; made by the 'lines' event (grow)
     this.loader = new Loader(this);   // the grapple loader and the log truck; made by the 'loader' event (grow)
-    this.goe = new Goes(this);        // the groundbots: racked on the log truck until someone takes one off (D131)
+    this.goe = new Goes(this);        // the groundbots: racked on the log truck until someone takes one off (D134)
     this.onLoads = null;              // optional fn(dt), called each tick where point loads go in (test harness)
 
     if (opts.tree !== false) this.grow();
