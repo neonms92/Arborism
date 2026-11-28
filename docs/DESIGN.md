@@ -732,10 +732,12 @@ cost `DRIVE_COST` / `STREET_COST` the first time each panel cracks.
 ### 6.5 The wood chipper
 
 A towable chipper (`model/chipper.js` shape and chip piles, `sim/chipper.js`,
-`view/chipper.js`) is parked by the yard plan (6.8) `CHIP_GAP` outside the
-tree's paving (or its clear ground) with its infeed hopper toward the trunk,
-in whichever direction it fits in the tree's lot, or in the street in front
-of the lot when it fits nowhere there. "Respawn chipper" uses the same spot. It is an
+`view/chipper.js`) is parked in the street in front of the job's lot (D140):
+along the kerb on the lot's side, behind the grapple loader (6.5b) clear of
+the way it drives out, its chute toward the lot, else past the log truck's
+cab; its chip bin stands by it. On flat ground (the engine tests) it is
+parked by the old paved circle. The yard plan (6.8) still keeps its old
+spot in the lot clear. "Respawn chipper" uses the street spot. It is an
 ordinary heavy dynamic body (`CHIP_MASS`) on two frictionless wheel balls and
 a jockey wheel; the sim models the tyres: under the axle they grip sideways
 (`CHIP_GRIP` × the weight on them) and roll with `CHIP_ROLL`, or with
@@ -866,7 +868,7 @@ lost (swept debris), made and gone (m³ of chips)}, kept by `world.apply` so
 every machine agrees; the HUD shows tree chipped = chipped / (M − lost) and
 chips in bins = gone / made, coloured by `pctColour` (hud.js).
 
-### 6.5b Grapple loader and log truck (D129, D130, D137, D139)
+### 6.5b Grapple loader and log truck (D129, D130, D137, D139, D140)
 
 `model/loader.js` (shapes), `sim/loader.js` (host), `view/loader.js`. For wood
 too heavy for the chipper (a round of the trunk, a big log). With every new
@@ -921,6 +923,15 @@ the first spot along the street where both fit (`'loader'` event; `world.loader`
     lets go and lowers, and the loader drops back under its own weight;
   - still joined to the tree by fibres: the claw does not close.
   Sawn through while held, the claw lets go of all of it.
+- **Things (D140).** With no wood between its jaws the claw takes the
+  nearest chipper (not a wreck), chip bin, player or G.O.E. standing there
+  (on the ground, not the driver), whatever it weighs: "pick up the chipper"
+  in the prompt. It is carried as wood is (a kinematic body, standing on the
+  fork as it stood, a player kept upright, in `MODE.CLAW` with no say until
+  put down) and let go the same way, falling out of the claw. Nothing about
+  it hurts it: a chipper held, or for `LOADER_SOFT_T` after, does not
+  crumple; a player or G.O.E. feels no impact from the ride or the fall
+  for that long. Whoever held its grip, handle or the G.O.E. lets go.
 - **Stumps (D139).** A rooted stump whose top is no higher than
   `LOADER_STUMP_H` (1.2 m, 4 ft) above the ground at its base is ripped out,
   roots and all: the press grows its roots (`'roots'` event: five roots
