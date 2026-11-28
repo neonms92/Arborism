@@ -640,6 +640,31 @@ goes on the truck.
 - **Measured on 2026-11-28:** 21 / 21 must points. In game on the felled
   `?solo` job oak (cut at 0.6 m): a 1 862 kg stump came out with its roots.
 
+### FM-52 Grapple loader: pick up the chipper and put it in the truck, unharmed
+
+*Why (owner, 2026-11-28, D140):* the claw picks up the chipper without harm.
+
+- **Scenario:** as FM-50, with the chipper standing 6.8 m ahead and 0.8 m to
+  the right, turned YAW. Drive up until the prompt offers "pick up the
+  chipper", press, drive to the truck, let go over the bed.
+- **Parameters:** YAW 0 – 90°.
+- **Pass if:** got on; offered and taken; up (centre of mass ≥ 1.6 m); it
+  landed in the bed; not wrecked.
+- **Measured on 2026-11-28:** 19 / 19 must points.
+
+### FM-53 Grapple loader: pick up a player and put them in the truck, unhurt
+
+*Why (owner, 2026-11-28, D140):* the claw picks up players without harm.
+
+- **Scenario:** as FM-50, with a second player standing still 7.2 m ahead, Z
+  to the right. Pick them up, drive to the truck, let go over the bed.
+- **Parameters:** Z 0 – 1.2 m.
+- **Pass if:** got on; offered and taken; up (≥ 1.6 m); back on their own
+  feet (`MODE.GROUND`); no injury.
+- **Measured on 2026-11-28:** 19 / 19 must points. In game (`?solo`, seed
+  oak): a switched-off G.O.E. and the chip bin picked up and put down, the
+  G.O.E. unhurt, the bin upright.
+
 ---
 
 ## 6. What the runner reports

@@ -16,6 +16,10 @@
 //     wheels. Once it has tipped LOADER_TIP (or the arms are up), it holds for LOADER_TIP_HOLD, lets go and lowers,
 //     and the loader drops back onto its wheels under its own weight;
 //   - wood still joined to the tree by fibres: the claw does not close (saw it free first).
+// With no wood in its jaws it takes the other things that stand there (D140): a chipper, a chip bin, a player or a
+// G.O.E. They are carried the same way (a kinematic body, standing on the fork as they stood), whatever they weigh,
+// and come to no harm from it: a chipper held, or just put down, does not crumple, and a player or G.O.E. feels
+// nothing of the ride or of the fall out of the claw (LOADER_SOFT_T after it lets go).
 //
 // The driver stands on the platform at the back: a kinematic body moved with it, that does not push it. A hard
 // enough jolt there (a crash, a roll) is an impact like any other (players.impact); hurt, or with the loader on
@@ -27,6 +31,8 @@
 
 import * as THREE from '../../vendor/three/three.module.js';
 import { CFG, MODE, INJ } from '../config.js';
+import { SHAPE as CHIP } from '../model/chipper.js';
+import { BIN } from '../model/bin.js';
 import { segRadius } from '../model/world.js';
 import { LOADER, TRUCK, LOADER_BODY_ID, jawAt, frameToWorld, worldToFrame, inBed } from '../model/loader.js';
 import { effMass } from './chipper.js';
@@ -54,6 +60,7 @@ export class Loader {
     this.arm = LOADER.ARM_MIN; this.jaw = 0; this.phase = IDLE; this.phaseT = 0;
     this.hold = null;                 // {piece, kind: 'carry'|'light'|'pin', ...}: what the claw has
     this.through = new Map();         // piece id -> s: wood dropped from the claw, not meeting the loader yet
+    this.thru = [];                   // things dropped from the claw, not meeting it yet: {body, cols, r, t}
     this.driver = -1;
     this.lastDriver = -1;             // who drove it last (blamed for what it breaks: awards.culprit)
     this.ctrl = { thr: 0, turn: 0 };
@@ -63,6 +70,7 @@ export class Loader {
   }
 
   // ---- parking: with every new tree, in the street in front of the job's lot ----
+  /** The loader and the truck; returns where the chipper parks ({x, z, yaw}, chipper.place), or undefined. */
   place(plan) {
     const sim = this.sim; if (sim.flat || !plan) return;
     const lot = plan.lots.find((l) => l.tree); if (!lot) return;
@@ -79,6 +87,13 @@ export class Loader {
       if (!pick && o === 0) pick = { T, L, bad: true };
     }
     sim.emit({ t: 'loader', p: pick.L.p, q: pick.L.q, truck: { p: pick.T.p, q: pick.T.q } });
+    // the chipper (and its bin, by it) parks in the street too (owner, 2026-11-28): along the kerb on the lot's side,
+    // behind the loader clear of the way it drives out, its chute toward the lot; else past the truck's cab
+    const cz = kerb + f * 1.6, cyaw = f > 0 ? Math.PI : 0, cq = yawQ(cyaw), T0 = pick.T.p[0], L0 = pick.L.p[0];
+    const xs = []; for (let i = 0; i < 5; i++) xs.push(L0 - 4.2 - i * 1.5);
+    for (let i = 0; i < 5; i++) xs.push(T0 + TRUCK.HL + 3.2 + i * 1.5);
+    for (const x of xs) if (this.clear([x, sim.groundY(x, cz), cz], cq, [2.7, 1.0, 1.1], 1.0)) return { x, z: cz, yaw: cyaw };
+    return { x: xs[0], z: cz, yaw: cyaw, bad: true };
   }
   /** The loader standing at (x, z) turned by q, lifted so no wheel starts in the ground. */
   pose(x, z, q) {
@@ -112,7 +127,7 @@ export class Loader {
       this.release(false);
       if (this.phase === GRAB || this.phase === LIFT || this.phase === UP || this.phase === TIP) this.setPhase(DROP);
     } else if (ev.t === 'chip' || ev.t === 'rmpiece' || ev.t === 'haul') {
-      if (h && !w.pieces.has(h.piece)) { if (h.joint) this.dropJoint(); this.hold = null; }
+      if (h && !h.thing && !w.pieces.has(h.piece)) { if (h.joint) this.dropJoint(); this.hold = null; }
       for (const id of [...this.through.keys()]) if (!w.pieces.has(id)) this.through.delete(id);
     }
   }
@@ -157,6 +172,8 @@ export class Loader {
     if (this.hold) this.release(false);
     for (const id of this.through.keys()) this.groups(id, ALL);
     this.through.clear();
+    for (const o of this.thru) this.restore(o.cols);
+    this.thru = [];
     if (this.body) sim.rapier.removeRigidBody(this.body);
     if (this.truck) { sim.rapier.removeRigidBody(this.truck.body); sim.goe.offTruck(); }
     this.body = this.truck = null;
@@ -249,11 +266,12 @@ export class Loader {
     // the one button goes the other way at any time: up (grab and lift) or down (let go and lower)
     const up = this.goingUp(), h = this.hold;
     let act;
-    if (up) act = `{interact}: let go and lower${h && h.kind === 'carry' ? ` {mass:${Math.round(h.kg)}}` : ''}`;
+    if (up) act = h && h.thing ? `{interact}: put ${h.thing.name} down` : `{interact}: let go and lower${h && h.kind === 'carry' ? ` {mass:${Math.round(h.kg)}}` : ''}`;
     else {
-      // what closing now would take: said before you press, so you know when the wood is in the jaws
-      const f = this.between();
-      act = !f ? '{interact}: lift (nothing in the claw)'
+      // what closing now would take: said before you press, so you know when the wood (or the thing) is in the jaws
+      const f = this.between(), th = !f || f.thick ? this.thingAt() : null;
+      act = th ? `{interact}: pick up ${th.name} {mass:${Math.round(th.kg)}}`
+        : !f ? '{interact}: lift (nothing in the claw)'
         : f.thick ? '{interact}: lift (too thick for the claw)'
         : !isFinite(f.kg) ? (this.stumpPrompt(f.seg))
         : `{interact}: grab and lift {mass:${Math.round(f.kg)}}`;
@@ -283,6 +301,8 @@ export class Loader {
     this.note = '';
     if (this.hold) this.release();
     const found = this.between();
+    const th = !found || found.thick ? this.thingAt() : null;
+    if (th) { this.takeThing(th, p); this.setPhase(GRAB); return; }   // a chipper, a bin, a player or a G.O.E.
     if (!found || found.thick) {
       if (found) this.note = 'Too thick for the claw';
       this.setPhase(GRAB); return;                     // nothing it can hold there: the motion, empty
@@ -310,6 +330,116 @@ export class Loader {
     this.setPhase(GRAB);
   }
   setPhase(ph) { this.phase = ph; this.phaseT = 0; }
+
+  // ---- things in the claw (D140): a chipper, a chip bin, a player or a G.O.E. ----
+  /**
+   * What thing stands in the open jaws (their line, LOADER_JAW_REACH round it): the nearest of a chipper (not a
+   * wreck), a chip bin, and a player or G.O.E. on the ground (not the driver). {kind, key, body, bodies, name, kg,
+   * hx, base} (hx: its half sizes in its own frame, base: its centre of mass above the bottom it stands on), or null.
+   */
+  thingAt() {
+    if (!this.body) return null;
+    const sim = this.sim, R = sim.R, j = jawAt(this.arm), J = this.toWorld(j, new THREE.Vector3());
+    const q = this.quat().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2));
+    const shape = new R.Capsule(LOADER.JAW_W, CFG.LOADER_JAW_REACH);
+    let best = null, bd = Infinity;
+    sim.rapier.intersectionsWithShape({ x: J.x, y: J.y, z: J.z }, { x: q.x, y: q.y, z: q.z, w: q.w }, shape, (col) => {
+      const t = this.thingOf(col.handle);
+      if (t) { const c = t.body.worldCom(), d = Math.hypot(c.x - J.x, c.y - J.y, c.z - J.z); if (d < bd) { bd = d; best = t; } }
+      return true;
+    }, undefined, undefined, undefined, this.body);
+    return best;
+  }
+  thingOf(h) {
+    const sim = this.sim, pid = sim.colPlayer.get(h);
+    if (pid !== undefined) {
+      const p = sim.players.list.get(pid);
+      if (!p || p.mode !== MODE.GROUND || p.id === this.driver) return null;
+      const r = CFG.P_RADIUS;
+      return { kind: 'player', key: p.id, body: p.body, bodies: [p.body], name: sim.players.name(p.id), kg: p.body.mass(), hx: [r, CFG.P_HALF + r, r], base: CFG.P_HALF + r };
+    }
+    const u = sim.chipper.units.find((x) => x && x.body && x.cols.has(h));
+    if (u) return { kind: 'chipper', key: u.k, body: u.body, bodies: [u.body], name: 'the chipper', kg: u.body.mass(), hx: CHIP.CHASSIS.h, base: CHIP.BODY_Y - u.body.localCom().y };
+    const bc = sim.bins.colOf.get(h), b = bc && sim.bins.units[bc.k];
+    if (b && b.body) return { kind: 'bin', key: bc.k, body: b.body, bodies: [b.body, b.lid], name: 'the chip bin', kg: b.body.mass() + b.lid.mass(), hx: BIN.BODY.h, base: BIN.BODY_Y - b.body.localCom().y };
+    return null;
+  }
+  /** Is the thing t still there, the same body (not rebuilt by a new tree, not left the game, not wrecked)? */
+  alive(t) {
+    const sim = this.sim;
+    if (t.kind === 'player') { const p = sim.players.list.get(t.key); return !!p && p.body === t.body; }
+    if (t.kind === 'chipper') return sim.chipper.units[t.key]?.body === t.body;
+    return sim.bins.units[t.key]?.body === t.body;
+  }
+  /** No harm from the claw: held, and for LOADER_SOFT_T after it lets go. */
+  soften(t) {
+    const sim = this.sim, until = sim.tick + Math.round(CFG.LOADER_SOFT_T * 60);
+    if (t.kind === 'player') { const p = sim.players.list.get(t.key); if (p) p.softT = until; }
+    else if (t.kind === 'chipper') { const u = sim.chipper.units[t.key]; if (u) u.softT = until; }
+  }
+  /** Every collider of these bodies into collision groups g; returns what they were, to put back. */
+  setGroups(bodies, g) {
+    const out = [];
+    for (const b of bodies) for (let i = 0, n = b.numColliders(); i < n; i++) { const c = b.collider(i); out.push([c, c.collisionGroups()]); c.setCollisionGroups(g); }
+    return out;
+  }
+  restore(cols) { for (const [c, g] of cols || []) { try { if (c.isValid()) c.setCollisionGroups(g); } catch (e) { /* (gone with its body) */ } } }
+
+  /** The claw takes thing t: carried as wood is, standing on the fork as it stood, the side nearest the loader against the plate. */
+  takeThing(t, by) {
+    const sim = this.sim, qL = this.quat(), qLi = qL.clone().invert(), body = t.body;
+    const J = this.toWorld(jawAt(this.arm), new THREE.Vector3()), qP = this.quat(body);
+    const wc = body.worldCom(), lc = body.localCom(), com = new THREE.Vector3(lc.x, lc.y, lc.z);
+    const p0 = new THREE.Vector3(wc.x - J.x, wc.y - J.y, wc.z - J.z).applyQuaternion(qLi), q0 = qLi.clone().multiply(qP);
+    // how far it reaches toward the loader (its half size along the loader's x, as it is turned): that far ahead of the plate
+    const ax = new THREE.Vector3(1, 0, 0).applyQuaternion(q0.clone().invert());
+    const d = Math.abs(ax.x) * t.hx[0] + Math.abs(ax.y) * t.hx[1] + Math.abs(ax.z) * t.hx[2];
+    const FORK = LOADER.FORK.c[1] + LOADER.FORK.h[1] - LOADER.JAW[1];   // the fork's top, from the jaws' middle
+    const p1 = new THREE.Vector3(Math.max(0, d - 0.3), FORK + t.base, 0);
+    // whoever was holding it lets go; a player taken stops what they were doing
+    for (const o of sim.players.list.values()) {
+      const g = o.grab; if (!g) continue;
+      if ((t.kind === 'chipper' && g.chip && (g.k || 0) === t.key) || (t.kind === 'bin' && g.bin === t.key) || (t.kind === 'player' && g.bot === t.key)) o.grab = null;
+    }
+    let fixQ = null;
+    if (t.kind === 'player') {
+      const p = sim.players.list.get(t.key);
+      sawOff(sim, p); p.grab = null; p.walk = null;
+      p.mode = MODE.CLAW;
+      fixQ = qP.clone();
+      sim.toast(`${sim.players.name(by.id)} picked you up in the loader's claw`, p.id);
+    }
+    for (const b of t.bodies) b.setBodyType(sim.R.RigidBodyType.KinematicPositionBased, true);
+    t.bodies = t.bodies.slice(0, 1);                 // (a bin's lid hangs on its hinge: only the bin is carried)
+    const cols = this.setGroups(t.kind === 'bin' ? [body, sim.bins.units[t.key].lid] : [body], HELD_G);
+    if (t.kind === 'bin') sim.bins.units[t.key].lid.setBodyType(sim.R.RigidBodyType.Dynamic, true);
+    this.soften(t);
+    this.hold = { thing: t, kind: 'carry', kg: t.kg, p0, q0, p1, q1: q0.clone(), com, body, jaw0: Math.min(0.95, this.jaw), cols, fixQ };
+  }
+
+  /** The claw lets go of the thing it holds: it falls out of the claw as wood does, harmlessly (soften). */
+  dropThing(fall = true) {
+    const sim = this.sim, h = this.hold, t = h.thing; this.hold = null;
+    if (!this.alive(t)) { this.restore(h.cols); return; }
+    const b = t.body;
+    if (t.kind === 'player') {
+      const p = sim.players.list.get(t.key);
+      p.mode = MODE.GROUND; p.col.setSensor(false);
+      p.vPre.set(0, 0, 0); p.hit = 0;
+    }
+    b.setBodyType(sim.R.RigidBodyType.Dynamic, true);
+    const v = this.body && fall ? this.body.velocityAtPoint(b.worldCom()) : { x: 0, y: 0, z: 0 };
+    b.setLinvel({ x: v.x, y: v.y, z: v.z }, true); b.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    if (t.kind === 'player') sim.players.list.get(t.key).vPre.set(v.x, v.y, v.z);
+    b.wakeUp();
+    this.soften(t);
+    this.thru.push({ body: b, cols: h.cols, r: Math.max(...t.hx), t: 0, alive: () => this.alive(t) });
+  }
+  /** Player p came out of the claw by another route (respawn, a new tree, left the game): the claw is empty. */
+  lost(p) {
+    const h = this.hold;
+    if (h && h.thing && h.thing.kind === 'player' && h.thing.key === p.id) { this.restore(h.cols); this.hold = null; }
+  }
 
   /**
    * The wood between the jaws: of the segments whose axis comes within its radius + LOADER_JAW_REACH of the jaws'
@@ -420,6 +550,7 @@ export class Loader {
   /** The claw lets go of what it holds: back to a dynamic body (falling through the claw), or unpinned. */
   release(fall = true) {
     const sim = this.sim, h = this.hold; if (!h) return;
+    if (h.thing) { this.dropThing(fall); return; }
     this.hold = null;
     if (h.joint) { this.hold = h; this.dropJoint(); this.hold = null; }
     if (!sim.world.pieces.has(h.piece) || sim.bodies.get(h.piece) !== h.body) return;
@@ -510,10 +641,14 @@ export class Loader {
   /** What the claw carries goes where the jaws will be at the end of this step. */
   carry(dt) {
     const h = this.hold; if (!h || h.kind === 'pin') return;
+    if (h.thing) {
+      if (!this.alive(h.thing)) { this.restore(h.cols); this.hold = null; return; }   // gone (a new tree, left the game)
+      this.soften(h.thing);
+    }
     const b = this.body, j = jawAt(this.arm), J = this.toWorld(j, new THREE.Vector3()), v = b.velocityAtPoint(J);
     J.x += v.x * dt; J.y += v.y * dt; J.z += v.z * dt;
     const k = smooth(this.phase === GRAB ? Math.max(0, Math.min(1, (this.jaw - h.jaw0) / (1 - h.jaw0))) : 1), qL = this.quat();
-    const q = qL.clone().multiply(h.q0.clone().slerp(h.q1, k));
+    const q = h.fixQ ? h.fixQ : qL.clone().multiply(h.q0.clone().slerp(h.q1, k));   // (a player stays upright)
     const p = h.p0.clone().lerp(h.p1, k).applyQuaternion(qL).add(J).sub(h.com.clone().applyQuaternion(q));
     h.body.setNextKinematicTranslation({ x: p.x, y: p.y, z: p.z });
     h.body.setNextKinematicRotation({ x: q.x, y: q.y, z: q.z, w: q.w });
@@ -521,6 +656,16 @@ export class Loader {
 
   /** Wood dropped from the claw meets the loader again once it is clear of the jaws (or after a while). */
   clearThrough(dt) {
+    if (this.thru.length) {
+      const J = this.toWorld(jawAt(this.arm), new THREE.Vector3());
+      this.thru = this.thru.filter((o) => {
+        o.t += dt;
+        let c = null; try { c = o.alive() ? o.body.worldCom() : null; } catch (e) { c = null; }
+        if (c && Math.hypot(c.x - J.x, c.y - J.y, c.z - J.z) <= 1.2 + o.r && o.t <= 4) return true;
+        if (c) this.restore(o.cols);
+        return false;
+      });
+    }
     if (!this.through.size) return;
     const sim = this.sim, J = this.toWorld(jawAt(this.arm), new THREE.Vector3());
     for (const [id, t] of this.through) {

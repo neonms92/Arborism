@@ -288,6 +288,7 @@ export const CFG = {
   LOADER_JAW_REACH: 0.35,  // m from the middle of the open jaws to the bark that closing still takes hold of
   LOADER_MAX_LEN: 2.44,    // m (8 ft): longer wood is too heavy: the loader tips forward trying, and the wood stays put
   LOADER_LIGHT: 0.75,      // wood lighter than this x CHIP_CAPACITY slips through the claw halfway up (it is for the chipper)
+  LOADER_SOFT_T: 2,        // s after the claw puts a thing down (a chipper, a bin, a player, a G.O.E.) in which nothing hurts it
   LOADER_STUMP_H: 1.2,     // m (4 ft): a stump no taller than this above the ground the claw rips out, roots and all
   LOADER_TIP: 0.35,        // rad the loader tips forward, trying to lift wood too long, before it gives up
   LOADER_TIP_HOLD: 0.8,    // s it stays tipped before the claw lets go and it comes back down
@@ -385,4 +386,4 @@ export const TEST_DEFAULTS = Object.freeze({ ...CFG_DEFAULTS, BARK_OPACITY: 0, T
 
 export const INJ = { OK: 0, SHAKEN: 1, HURT: 2, DOWN: 3 };
 export const INJ_NAME = ['ok', 'shaken', 'HURT', 'DOWN'];
-export const MODE = { GROUND: 0, CLIMB: 1, ROPE: 2, DRIVE: 3 };   // DRIVE: on the grapple loader's platform (sim/loader.js)
+export const MODE = { GROUND: 0, CLIMB: 1, ROPE: 2, DRIVE: 3, CLAW: 4 };   // DRIVE: on the grapple loader's platform; CLAW: held in its claw (sim/loader.js)

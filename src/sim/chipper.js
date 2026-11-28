@@ -303,6 +303,7 @@ export class Chipper {
   crumpleCheck() {
     const hit = this.hit; this.hit = null;
     if (!this.body || !hit || hit.F < CFG.CHIP_BREAK_F || this.sim.tick - this.born < 60) return;
+    if ((this.softT || 0) > this.sim.tick) return;   // in the loader's claw, or just put down by it: it does not crumple
     const sim = this.sim, b = this.body, t = b.translation(), r = b.rotation();
     const at = { p: [t.x, t.y, t.z], q: [r.x, r.y, r.z, r.w] };
     // it gave way: what hit it goes on with the velocity it had before this step; the parts start as the chipper was moving
