@@ -2194,3 +2194,10 @@ than where they hung on the stem, on the same side, through the same check.
 Found on main with seeds visibo and sofosa (player 1 under a house roof);
 none of 42 seeds after. Unreviewed: an eave or a porch roof overhead also
 counts as indoors, and so does anything loose lying on top of a spot.
+
+**D132 — Near the friction device, {interact} keeps its own actions.** Owner
+report: since D117 moved taking the tail to {rig}, being in range of the
+tail still blocked {interact} (no grab, no climb, no G.O.E. button, no
+loader). Now the tail only adds "{rig}: take tail" beside whatever
+{interact} offers there; {rig} still prefers a rigging action on the wood
+looked at, as in D117.
