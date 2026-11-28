@@ -67,7 +67,8 @@ export const TRUCK = {
   FLOOR: { c: [-1.75, 1.18, 0], h: [2.4, 0.08, 1.25] },
   SIDE: { c: [-1.75, 1.6, 1.2], h: [2.4, 0.34, 0.05] },  // (and mirrored to -z)
   HEADBOARD: { c: [0.6, 1.75, 0], h: [0.05, 0.5, 1.25] },
-  TAILGATE: { c: [-4.1, 1.6, 0], h: [0.05, 0.34, 1.25] },
+  // the tailgate is down: hinged at the back edge of the floor and hanging below it, so the wood in the bed shows from behind
+  TAILGATE: { c: [-4.2, 0.86, 0], h: [0.04, 0.32, 1.25] },
   WHEELS: [[3.3, 0.5, 1.05], [3.3, 0.5, -1.05], [-1.9, 0.5, 1.05], [-1.9, 0.5, -1.05], [-3.1, 0.5, 1.05], [-3.1, 0.5, -1.05]],
   WHEEL_R: 0.5,
   // inside the bed: wood whose centre of mass rests in here is hauled away

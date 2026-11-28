@@ -910,7 +910,7 @@ the first spot along the street where both fit (`'loader'` event; `world.loader`
     lets go and lowers, and the loader drops back under its own weight;
   - still joined to the tree by fibres: the claw does not close.
   Sawn through while held, the claw lets go of all of it.
-- **The truck** is a fixed body (cab, frame, a steel bed with sides). Loose
+- **The truck** is a fixed body (cab, frame, a steel bed with sides, its tailgate down so the load shows from behind). Loose
   wood not in the claw and not joined to the tree whose centre of mass lies
   still (under `TRUCK_REST_V`) in the bed for `TRUCK_TAKE_T` is hauled away
   (`'haul'` event: removed like swept debris, but its job-tree mass goes into

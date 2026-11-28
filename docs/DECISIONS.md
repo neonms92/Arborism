@@ -2300,3 +2300,7 @@ driver?"): its price was already charged to the job like any breakage, but
 the blame sticker (D107: house, shed, fence, wreck) went to no one, since
 `awards.culprit` knew wood and chippers, not the loader. It now names whoever
 drove the loader last (still on it, or it rolled on after they got off).
+Also (owner, same day): the log truck's tailgate is down (hanging below the
+back of the floor, collider and all), so the wood in the bed shows from the
+street behind it. Wood can now roll out of the back; the bed's floor still
+holds anything set down in it. The truck still never moves.
