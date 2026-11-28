@@ -263,21 +263,21 @@ export const CFG = {
   CHIP_CAPACITY: 150,      // kg: the heaviest contiguous piece the rollers take; heavier wood seizes them until it is sawn
   CHIP_MAX: 6,             // most chippers in the world at once ("Buy a new chipper" stops there; each is a 350 kg body with its own tyres and feed)
   CHIP_SWELL: 2.5,         // m3 of loose chips per m3 of wood chipped
-  // --- grapple loader and log truck (sim/loader.js): a stand-on loader with a boom and claw, and a truck in the street ---
+  // --- grapple loader and log truck (sim/loader.js): a stand-on skid steer with an over-and-under claw, and a truck in the street ---
   LOADER_MASS: 2800,       // kg, most of it the counterweight over the back axle (applies at the next new tree)
-  LOADER_GRAPPLE_MASS: 250, // kg, the claw
   LOADER_SPEED: 3,         // m/s at full throttle, forward or back
+  LOADER_TURN: 0.6,        // at full turn, each side drives this fraction of LOADER_SPEED, one forward and one back
   LOADER_DRIVE_F: 20000,   // N, most the four driven wheels push with between them
-  LOADER_GRIP: 0.9,        // tyre grip, as a fraction of the weight on a wheel (sideways, and most the drive or brakes get)
+  LOADER_GRIP: 0.9,        // tyre grip along the wheel (drive and brakes), as a fraction of the weight on it
+  LOADER_SKID: 0.45,       // tyre grip sideways, as a fraction of the weight on it (low enough for it to skid round)
   LOADER_BRAKE: 0.8,       // brakes with no throttle, as a fraction of the weight on a wheel
-  LOADER_STEER: 0.6,       // rad, front wheels' steering lock
-  LOADER_STEER_RATE: 1.5,  // rad/s the steering turns
-  LOADER_BOOM_RATE: 0.35,  // rad/s the boom moves at full stick
-  LOADER_BOOM_T: 80000,    // N m: the boom lifts while the claw and its load, times how far out it is, need no more than this
-  LOADER_JAW_REACH: 0.3,   // m from the middle of the open jaws to the bark that closing still takes hold of
-  LOADER_SWING_DAMP: 2,    // 1/s: the swing brake at the boom tip (how fast the claw's swinging dies away)
-  LOADER_ROTATOR_K: 20,    // 1/s2: how hard the rotator turns the claw square to the loader
-  LOADER_ROTATOR_T: 4000,  // N m, most the rotator turns it with
+  LOADER_CLOSE_T: 0.5,     // s the claw takes to close (and to open)
+  LOADER_LIFT_T: 2.5,      // s the arms take from the ground to overhead (and back down)
+  LOADER_JAW_REACH: 0.35,  // m from the middle of the open jaws to the bark that closing still takes hold of
+  LOADER_MAX_LEN: 2.44,    // m (8 ft): longer wood is too heavy: the loader tips forward trying, and the wood stays put
+  LOADER_LIGHT: 0.75,      // wood lighter than this x CHIP_CAPACITY slips through the claw halfway up (it is for the chipper)
+  LOADER_TIP: 0.35,        // rad the loader tips forward, trying to lift wood too long, before it gives up
+  LOADER_TIP_HOLD: 0.8,    // s it stays tipped before the claw lets go and it comes back down
   TRUCK_TAKE_T: 1.5,       // s loose wood lies still in the log truck's bed before it is hauled away
   TRUCK_REST_V: 0.5,       // m/s: wood slower than this is lying still
   // --- chip bins (sim/bin.js): 96 gal wheeled bins with no bottom; chips in them are gone ---

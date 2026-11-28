@@ -208,8 +208,7 @@ export class Touch {
     document.body.classList.toggle('touchui', vis);
     if (!vis) { if (this.fingers.size || this.mx || this.my) this.releaseAll(); return; }
     const pr = (a && a.pr) || '', has = (tok) => pr.includes('{' + tok + '}');
-    // on the loader the rope's slider works the boom (up raises the claw, down lowers it)
-    const tail = !!(a && a.m === MODE.ROPE), drive = !!(a && a.m === MODE.DRIVE), rope = tail || drive, sawOut = !!(a && a.saw);
+    const tail = !!(a && a.m === MODE.ROPE), rope = tail, sawOut = !!(a && a.saw);
     this.ropeMode = rope;
     if (rope) this.saw = false;
     const act = actionLabel(pr);

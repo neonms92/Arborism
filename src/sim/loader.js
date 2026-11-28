@@ -1,19 +1,21 @@
 // Host only: the grapple loader and the log truck (model/loader.js has their shapes).
 //
-// The loader is a heavy dynamic body on four frictionless wheel balls; the tyres are modelled here as the chipper's
-// are (sim/chipper.js): each one that touches the ground grips sideways up to LOADER_GRIP x its share of the weight,
-// and drives (or brakes) along its heading, up to that grip and LOADER_DRIVE_F between them. The front two steer.
+// The loader is a skid steer: a heavy dynamic body on four frictionless wheel balls; the tyres are modelled here as
+// the chipper's are (sim/chipper.js). The wheels do not steer: each side drives toward its own speed (throttle,
+// plus or minus the turn), up to LOADER_GRIP x its share of the weight and LOADER_DRIVE_F between them, and grips
+// sideways only up to LOADER_SKID x that weight, so a turn skids it round. Only the loader is physical.
 //
-// The boom is a hydraulic arm: an angle, moved by the driver at LOADER_BOOM_RATE. The grapple is its own dynamic
-// body hung by a ball joint from the boom tip (the joint's anchor on the loader follows the boom), so it swings,
-// and everything it carries pulls on the loader through that joint: a log held far out tips the loader forward.
-// The hydraulics stall rather than doing what no real one could: raising, when the held load times its reach
-// would need more than LOADER_BOOM_T, or when the back wheels are already off the ground (it is tipping);
-// lowering, when the front wheels are off the ground (the claw is pushing the loader up). A rotator keeps the
-// grapple turned square to the loader (a spring about the vertical, at most LOADER_ROTATOR_T).
-//
-// The claw closes on the loose wood between its jaws (no thicker than JAW_R): a fixed joint from the grapple to
-// that piece, where it is. Opening it lets go. Wood still standing cannot be taken.
+// The claw does not follow physics rules (D130): what it holds is moved by animation. One button, two motions:
+// grab and lift (the claw closes on the wood between its jaws, the wood is drawn square into them, and the arms
+// lift it overhead), and let go and lower (the claw opens overhead, the wood drops, the arms come down). While
+// held, the wood is a kinematic body carried at the jaws, and touches nothing of the loader; its weight is not on
+// the loader. Three kinds of wood do not go up:
+//   - lighter than LOADER_LIGHT x CHIP_CAPACITY (chipper wood): it slips through the claw halfway up, and falls;
+//   - longer than LOADER_MAX_LEN (8 ft), or the standing tree: too heavy. The wood stays where it is (held still)
+//     and the claw is pinned to it there (a ball joint), so the arms lifting tip the loader forward on its front
+//     wheels. Once it has tipped LOADER_TIP (or the arms are up), it holds for LOADER_TIP_HOLD, lets go and lowers,
+//     and the loader drops back onto its wheels under its own weight;
+//   - wood still joined to the tree by fibres: the claw does not close (saw it free first).
 //
 // The driver stands on the platform at the back: a kinematic body moved with it, that does not push it. A hard
 // enough jolt there (a crash, a roll) is an impact like any other (players.impact); hurt, or with the loader on
@@ -26,28 +28,37 @@
 import * as THREE from '../../vendor/three/three.module.js';
 import { CFG, MODE, INJ } from '../config.js';
 import { segRadius } from '../model/world.js';
-import { LOADER, TRUCK, LOADER_BODY_ID, GRAPPLE_BODY_ID, boomTip, frameToWorld, worldToFrame, inBed } from '../model/loader.js';
+import { LOADER, TRUCK, LOADER_BODY_ID, jawAt, frameToWorld, worldToFrame, inBed } from '../model/loader.js';
 import { effMass } from './chipper.js';
 import { sawOff } from './saw.js';
 
 const _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3();
 const yawQ = (a) => [0, Math.sin(a / 2), 0, Math.cos(a / 2)];
+const smooth = (k) => k * k * (3 - 2 * k);
+
+// Rapier collision groups (memberships in the high 16 bits, filter in the low 16; ground.js uses bits 0 and up).
+// The loader is in group 15; wood in the claw (and on its way out of it) is not, and does not meet it.
+const LOADER_G = (0x8000 << 16) | 0xffff;
+const HELD_G = (0x7fff << 16) | 0x7fff;
+const ALL = 0xffffffff;
+
+// what the arms and claw are doing
+const IDLE = 'down', GRAB = 'grab', LIFT = 'lift', UP = 'up', DROP = 'drop', LOWER = 'lower', TIP = 'tip';
+const PHASE_CODE = { down: 0, grab: 1, lift: 2, up: 3, drop: 4, lower: 5, tip: 6 };
 
 export class Loader {
   constructor(sim) {
     this.sim = sim;
-    this.body = null; this.grapple = null; this.link = null;
-    this.cols = new Set(); this.gcols = new Set();
+    this.body = null; this.cols = new Set();
     this.truck = null; this.truckCols = new Set();
-    this.boom = LOADER.BOOM_START; this.steer = 0; this.closed = false;
-    this.grab = null;                 // {piece, seg, joint}: what the claw holds
-    this.regrab = -1;                 // the held wood was sawn in two: take hold again of the part with this segment
+    this.arm = LOADER.ARM_MIN; this.jaw = 0; this.phase = IDLE; this.phaseT = 0;
+    this.hold = null;                 // {piece, kind: 'carry'|'light'|'pin', ...}: what the claw has
+    this.through = new Map();         // piece id -> s: wood dropped from the claw, not meeting the loader yet
     this.driver = -1;
-    this.ctrl = { thr: 0, steer: 0, boom: 0 };
-    this.stall = '';                  // why the boom would not move this tick ('' when it did, or was not asked to)
+    this.ctrl = { thr: 0, turn: 0 };
+    this.note = '';                   // a word for the driver about the last grab ('' for none)
     this.rest = new Map();            // piece id -> s it has lain still in the truck's bed
     this.vStand = null;               // the platform's velocity last tick (the driver's jolts)
-    this.lift = { front: 2, rear: 2 };
   }
 
   // ---- parking: with every new tree, in the street in front of the job's lot ----
@@ -92,50 +103,37 @@ export class Loader {
 
   // ---- model -> physics ----
   onEvent(ev, info) {
-    const w = this.sim.world, g = this.grab;
+    const w = this.sim.world, h = this.hold;
     if (ev.t === 'loader') { this.build(ev); return; }
     if (ev.t === 'reset') { this.destroy(); return; }
-    if (!g) return;
-    if (ev.t === 'split' && info.moved && info.oldPiece === g.piece && info.moved.includes(g.seg)) {
-      // the held wood was sawn through: the claw holds on to the part between its jaws (taken again next tick,
-      // once that part has a body)
-      this.dropJoint(); this.regrab = g.seg;
+    if (h && ev.t === 'split' && info.oldPiece === h.piece) {
+      // the held wood was sawn through: the claw lets go of all of it (the parts fall)
+      this.release(false);
+      if (this.phase === GRAB || this.phase === LIFT || this.phase === UP || this.phase === TIP) this.setPhase(DROP);
     } else if (ev.t === 'chip' || ev.t === 'rmpiece' || ev.t === 'haul') {
-      if (!w.pieces.has(g.piece)) { this.dropJoint(); this.grab = null; }
-      else if (!w.segs.has(g.seg)) g.seg = w.segsOf(g.piece)[0].id;
+      if (h && !w.pieces.has(h.piece)) { if (h.joint) this.dropJoint(); this.hold = null; }
+      for (const id of [...this.through.keys()]) if (!w.pieces.has(id)) this.through.delete(id);
     }
   }
 
   build(ev) {
     const sim = this.sim, R = sim.R, L = LOADER, M = CFG.LOADER_MASS;
     this.destroy();
-    this.boom = Math.max(L.BOOM_MIN, Math.min(L.BOOM_MAX, this.boom));
     const body = sim.rapier.createRigidBody(sim.dynamic().setTranslation(ev.p[0], ev.p[1], ev.p[2])
       .setRotation({ x: ev.q[0], y: ev.q[1], z: ev.q[2], w: ev.q[3] }).setLinearDamping(0.05).setAngularDamping(0.3).setCanSleep(false));
-    const add = (b, set, desc, c, mass, friction = 0.8) => {
-      desc.setTranslation(c[0], c[1], c[2]).setMass(mass).setFriction(friction)
+    const add = (desc, c, mass, friction = 0.8) => {
+      desc.setTranslation(c[0], c[1], c[2]).setMass(mass).setFriction(friction).setCollisionGroups(LOADER_G)
         .setActiveEvents(R.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(300);
       if (friction === 0) desc.setFrictionCombineRule(R.CoefficientCombineRule.Min);
-      set.add(sim.rapier.createCollider(desc, b).handle);
+      this.cols.add(sim.rapier.createCollider(desc, body).handle);
     };
-    const box = (b, set, x, mass) => add(b, set, R.ColliderDesc.cuboid(x.h[0], x.h[1], x.h[2]), x.c, mass);
-    box(body, this.cols, L.CHASSIS, M * 0.35);
-    box(body, this.cols, L.WEIGHT, M * 0.45);
-    box(body, this.cols, L.PLATFORM, M * 0.03);
-    box(body, this.cols, L.POST, M * 0.01);
-    for (const wh of L.WHEELS) add(body, this.cols, R.ColliderDesc.ball(L.WHEEL_R), wh, M * 0.04, 0);   // the tyres are tyres()
+    const box = (x, mass) => add(R.ColliderDesc.cuboid(x.h[0], x.h[1], x.h[2]), x.c, mass);
+    box(L.CHASSIS, M * 0.4);
+    box(L.WEIGHT, M * 0.4);
+    box(L.PLATFORM, M * 0.03);
+    box(L.POST, M * 0.01);
+    for (const wh of L.WHEELS) add(R.ColliderDesc.ball(L.WHEEL_R), wh, M * 0.04, 0);   // the tyres are tyres()
     this.body = body;
-    // the grapple, hanging straight down from the boom tip
-    const tip = frameToWorld(ev.p, ev.q, boomTip(this.boom));
-    const gp = [tip[0] - L.LINK[0], tip[1] - L.LINK[1], tip[2] - L.LINK[2]], G = CFG.LOADER_GRAPPLE_MASS;
-    const grapple = sim.rapier.createRigidBody(sim.dynamic().setTranslation(gp[0], gp[1], gp[2])
-      .setRotation({ x: ev.q[0], y: ev.q[1], z: ev.q[2], w: ev.q[3] }).setLinearDamping(0.1).setAngularDamping(1.5).setCanSleep(false));
-    box(grapple, this.gcols, L.HEAD, G * 0.7);
-    for (const s of [1, -1]) box(grapple, this.gcols, { c: [L.TINE.c[0], L.TINE.c[1], s * L.TINE.c[2]], h: L.TINE.h }, G * 0.15);
-    this.grapple = grapple;
-    const t = boomTip(this.boom);
-    this.link = sim.rapier.createImpulseJoint(R.JointData.spherical({ x: t[0], y: t[1], z: t[2] }, { x: L.LINK[0], y: L.LINK[1], z: L.LINK[2] }), body, grapple, true);
-    this.link.setContactsEnabled(false);
     // the truck: a fixed body of boxes
     const T = TRUCK, tq = ev.truck.q;
     const tb = sim.rapier.createRigidBody(R.RigidBodyDesc.fixed().setTranslation(ev.truck.p[0], ev.truck.p[1], ev.truck.p[2]).setRotation({ x: tq[0], y: tq[1], z: tq[2], w: tq[3] }));
@@ -144,6 +142,8 @@ export class Loader {
     }
     this.truck = { body: tb, p: ev.truck.p, q: tq };
     this.vStand = null; this.rest.clear();
+    this.arm = Math.max(L.ARM_MIN, Math.min(L.ARM_MAX, this.arm));
+    this.jaw = 0; this.phase = this.arm > L.ARM_MIN + 1e-3 ? LOWER : IDLE; this.phaseT = 0;
   }
 
   /** Gone (a new tree, or before it is parked again): the driver gets off, the claw lets go, the bodies go. */
@@ -152,19 +152,27 @@ export class Loader {
     const d = sim.players.list.get(this.driver);
     if (d && d.mode === MODE.DRIVE) sim.players.toGround(d);
     this.driver = -1;
-    this.dropJoint(); this.grab = null; this.regrab = -1; this.closed = false;
+    if (this.hold) this.release(false);
+    for (const id of this.through.keys()) this.groups(id, ALL);
+    this.through.clear();
     if (this.body) sim.rapier.removeRigidBody(this.body);
-    if (this.grapple) sim.rapier.removeRigidBody(this.grapple);
     if (this.truck) sim.rapier.removeRigidBody(this.truck.body);
-    this.body = this.grapple = this.link = this.truck = null;
-    this.cols.clear(); this.gcols.clear(); this.truckCols.clear();
+    this.body = this.truck = null;
+    this.cols.clear(); this.truckCols.clear();
   }
 
   dropJoint() {
-    if (this.grab && this.grab.joint) {
-      const j = this.grab.joint; this.grab.joint = null;
+    const h = this.hold;
+    if (h && h.joint) {
+      const j = h.joint; h.joint = null;
       if (this.sim.rapier.getImpulseJoint(j.handle)) this.sim.rapier.removeImpulseJoint(j, true);
     }
+  }
+
+  /** Every collider of piece id into collision groups g. */
+  groups(id, g) {
+    const sim = this.sim;
+    for (const s of sim.world.segsOf(id)) sim.segCol.get(s.id)?.setCollisionGroups(g);
   }
 
   // ---- frames ----
@@ -181,6 +189,7 @@ export class Loader {
     const v = new THREE.Vector3(wp.x - t.x, wp.y - t.y, wp.z - t.z).applyQuaternion(_q.set(r.x, r.y, r.z, r.w).invert());
     return [v.x, v.y, v.z];
   }
+  quat(b = this.body) { const r = b.rotation(); return new THREE.Quaternion(r.x, r.y, r.z, r.w); }
 
   // ---- the driver ----
   /** What player p is looking at on the loader within reach: {point, dist} or null. */
@@ -188,7 +197,7 @@ export class Loader {
     if (!this.body) return null;
     const sim = this.sim, { o, d } = sim.eye(p);
     const hit = sim.rapier.castRay(new sim.R.Ray(o, d), CFG.REACH, true, undefined, undefined, undefined, p.body);
-    if (!hit || !(this.cols.has(hit.collider.handle) || this.gcols.has(hit.collider.handle))) return null;
+    if (!hit || !this.cols.has(hit.collider.handle)) return null;
     return { point: o.clone().addScaledVector(d, hit.timeOfImpact), dist: hit.timeOfImpact };
   }
   /** p steps up onto the platform and takes the controls. */
@@ -205,8 +214,8 @@ export class Loader {
     p.col.setSensor(true);                       // the driver goes with the loader and does not shove it
     const s = this.toWorld(LOADER.STAND, _a);
     p.body.setTranslation({ x: s.x, y: s.y, z: s.z }, true);
-    this.vStand = null; this.ctrl = { thr: 0, steer: 0, boom: 0 };
-    sim.toast('On the loader: {move} drives, {raise} and {throttle} work the boom, {interact} the claw, {jump} gets off', p.id);
+    this.vStand = null; this.ctrl = { thr: 0, turn: 0 };
+    sim.toast('On the loader: {move} drives, {interact} grabs and lifts, then lets go and lowers, {jump} gets off', p.id);
   }
   /** The driver gets off (or is thrown off): put down on the ground behind it, moving as the platform was. */
   dismount(p, msg = '') {
@@ -225,40 +234,47 @@ export class Loader {
     if (msg) sim.toast(msg, p.id);
   }
   /** players.toGround on the driver (by any route): the loader has no driver now. */
-  left(p) { if (this.driver === p.id) { this.driver = -1; this.ctrl = { thr: 0, steer: 0, boom: 0 }; } }
+  left(p) { if (this.driver === p.id) { this.driver = -1; this.ctrl = { thr: 0, turn: 0 }; } }
 
   /** The driver's controls, from players.prePlayer each tick (before pre). */
   drive(p, inp, dt, control, pressed) {
     const sim = this.sim;
     if (!this.body || this.driver !== p.id) { sim.players.toGround(p); return; }
-    if (!control) { this.ctrl = { thr: 0, steer: 0, boom: 0 }; p.prompt = ''; return; }
+    if (!control) { this.ctrl = { thr: 0, turn: 0 }; p.prompt = ''; return; }
     if (pressed.jump) { this.dismount(p); return; }
-    this.ctrl = { thr: inp.my, steer: inp.mx, boom: (inp.lt || 0) - (inp.rt || 0) };
-    if (pressed.interact) this.toggleClaw(p);
-    const kg = this.grab ? sim.weightOf(this.grab.piece) : 0;
-    const held = this.grab ? (isFinite(kg) ? ` {mass:${Math.round(kg)}}` : '') : '';
-    p.prompt = (this.stall ? this.stall + '   ' : '') + '{move}: drive   {raise}: claw up   {throttle}: claw down   '
-      + `{interact}: ${this.closed ? 'open claw' + held : 'close claw'}   {jump}: get off`;
+    this.ctrl = { thr: inp.my, turn: inp.mx };
+    if (pressed.interact) this.toggle(p);
+    const h = this.hold, kg = h ? ` {mass:${Math.round(h.kg)}}` : '';
+    const act = this.phase === IDLE ? '{interact}: grab and lift'
+      : this.phase === UP ? `{interact}: let go and lower${h && h.kind === 'carry' ? kg : ''}`
+      : this.phase === GRAB || this.phase === LIFT ? 'lifting...' : this.phase === TIP ? 'straining...' : 'lowering...';
+    p.prompt = (this.note ? this.note + '   ' : '') + `{move}: drive   ${act}   {jump}: get off`;
   }
 
-  toggleClaw(p) {
-    if (this.closed) {
-      this.closed = false;
-      if (this.grab) { this.dropJoint(); this.grab = null; }
-      return;
-    }
-    this.closed = true;
+  /** The one button: grab and lift (arms down), or let go and lower (arms up). Mid-motion it does nothing. */
+  toggle(p) {
+    const sim = this.sim, w = sim.world;
+    if (this.phase === UP) { this.setPhase(DROP); return; }
+    if (this.phase !== IDLE) return;
+    this.note = '';
     const found = this.between();
-    if (!found) return;
-    const w = this.sim.world, s = w.segs.get(found.seg);
-    if (w.pieces.get(s.piece).fixed) { this.sim.players.say(p, 'The claw cannot pull wood off the standing tree: saw it free first'); return; }
-    this.attach(found.seg);
-    this.sim.awards.touch(s.piece, p.id);
+    if (!found) { this.setPhase(GRAB); return; }        // nothing there: the motion, empty
+    const s = w.segs.get(found.seg), piece = w.pieces.get(s.piece), body = sim.bodies.get(s.piece);
+    if (!body) { this.setPhase(GRAB); return; }
+    const kg = sim.weightOf(s.piece);
+    if (!piece.fixed && !isFinite(kg)) { sim.players.say(p, 'Still joined to the tree: saw it free first'); return; }
+    sim.awards.touch(s.piece, p.id);
+    const len = piece.fixed ? Infinity : this.lengthOf(s.piece);
+    if (!piece.fixed && kg < CFG.LOADER_LIGHT * CFG.CHIP_CAPACITY) this.take(s.piece, body, kg, 'light');
+    else if (len > CFG.LOADER_MAX_LEN) this.pin(s.piece, body, kg, piece.fixed);
+    else this.take(s.piece, body, kg, 'carry');
+    this.setPhase(GRAB);
   }
+  setPhase(ph) { this.phase = ph; this.phaseT = 0; }
 
-  /** The loose wood between the jaws: the segment whose bark comes nearest the middle of them, within reach of the tines. */
+  /** The loose wood between the jaws: the segment whose bark comes nearest the middle of them, within reach. */
   between() {
-    const sim = this.sim, w = sim.world, J = this.toWorld(LOADER.JAW, new THREE.Vector3(), this.grapple);
+    const sim = this.sim, w = sim.world, J = this.toWorld(jawAt(this.arm), new THREE.Vector3());
     let best = null, bd = Infinity;
     for (const s of w.segs.values()) {
       if (!sim.segCol.has(s.id)) continue;
@@ -273,55 +289,73 @@ export class Loader {
     return best;
   }
 
-  /** The claw takes hold of segment seg's piece where it is now (a fixed joint, so nothing jumps). */
-  attach(segId) {
-    const sim = this.sim, R = sim.R, s = sim.world.segs.get(segId); if (!s) return;
-    const pb = sim.bodies.get(s.piece); if (!pb || sim.world.pieces.get(s.piece).fixed) return;
-    const J = this.toWorld(LOADER.JAW, new THREE.Vector3(), this.grapple), a2 = this.toLocal(J, pb);
-    const gr = this.grapple.rotation(), pr = pb.rotation();
-    const qg = new THREE.Quaternion(gr.x, gr.y, gr.z, gr.w), qp = new THREE.Quaternion(pr.x, pr.y, pr.z, pr.w);
-    const f2 = qp.invert().multiply(qg);           // the piece's frame to the grapple's, as they are now
-    const data = R.JointData.fixed({ x: LOADER.JAW[0], y: LOADER.JAW[1], z: LOADER.JAW[2] }, { x: 0, y: 0, z: 0, w: 1 },
-      { x: a2[0], y: a2[1], z: a2[2] }, { x: f2.x, y: f2.y, z: f2.z, w: f2.w });
-    const joint = sim.rapier.createImpulseJoint(data, this.grapple, pb, true);
-    joint.setContactsEnabled(false);
-    this.grab = { piece: s.piece, seg: segId, joint };
+  /** How long piece id is: the farthest apart two of its segments' ends are, and that line (piece-local). */
+  lengthOf(id, out) {
+    const pts = [];
+    for (const s of this.sim.world.segsOf(id)) pts.push(s.a, s.b);
+    let m = 0, A = pts[0], B = pts[0];
+    for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+      const p = pts[i], q = pts[j], d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+      if (d > m) { m = d; A = p; B = q; }
+    }
+    if (out) out.set(B[0] - A[0], B[1] - A[1], B[2] - A[2]);
+    return m;
+  }
+
+  /**
+   * The claw takes piece id to carry (kind 'carry', or 'light': it slips out halfway up): the wood becomes a
+   * kinematic body, drawn while the claw closes from where it is to lying square across the jaws with its centre
+   * of mass in their middle; from then on it goes where the jaws go.
+   */
+  take(id, body, kg, kind) {
+    const sim = this.sim, qL = this.quat(), qLi = qL.clone().invert();
+    const J = this.toWorld(jawAt(this.arm), new THREE.Vector3()), t = body.translation(), qP = this.quat(body);
+    // now, in the loader's frame relative to the jaws
+    const p0 = new THREE.Vector3(t.x - J.x, t.y - J.y, t.z - J.z).applyQuaternion(qLi), q0 = qLi.clone().multiply(qP);
+    // square across the jaws: its length along the loader's z (the nearer way round), its centre of mass in the middle
+    const ax = new THREE.Vector3(); this.lengthOf(id, ax); if (ax.lengthSq() < 1e-9) ax.set(0, 0, 1);
+    ax.normalize().applyQuaternion(q0); if (ax.z < 0) ax.negate();
+    const q1 = new THREE.Quaternion().setFromUnitVectors(ax, new THREE.Vector3(0, 0, 1)).multiply(q0);
+    const c = body.localCom(), p1 = new THREE.Vector3(c.x, c.y, c.z).applyQuaternion(q1).negate();
+    body.setBodyType(sim.R.RigidBodyType.KinematicPositionBased, true);
+    this.groups(id, HELD_G); this.through.delete(id);
+    this.hold = { piece: id, kind, kg, p0, q0, p1, q1, body };
+  }
+
+  /** Too heavy (too long, or the standing tree): the wood is held still where it is and the claw pinned to it there. */
+  pin(id, body, kg, fixed) {
+    const sim = this.sim;
+    if (!fixed) { body.setBodyType(sim.R.RigidBodyType.KinematicPositionBased, true); this.groups(id, HELD_G); this.through.delete(id); }
+    this.hold = { piece: id, kind: 'pin', kg, body, fixed, joint: null, pitch0: 0 };
+  }
+
+  /** The claw lets go of what it holds: back to a dynamic body (falling through the claw), or unpinned. */
+  release(fall = true) {
+    const sim = this.sim, h = this.hold; if (!h) return;
+    this.hold = null;
+    if (h.joint) { this.hold = h; this.dropJoint(); this.hold = null; }
+    if (!sim.world.pieces.has(h.piece) || sim.bodies.get(h.piece) !== h.body) return;
+    if (h.fixed) return;
+    const b = h.body;
+    b.setBodyType(sim.R.RigidBodyType.Dynamic, true);
+    if (this.body && fall && h.kind !== 'pin') {
+      const c = b.worldCom(), v = this.body.velocityAtPoint(c);
+      b.setLinvel({ x: v.x, y: v.y, z: v.z }, true); b.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    } else { b.setLinvel({ x: 0, y: 0, z: 0 }, true); b.setAngvel({ x: 0, y: 0, z: 0 }, true); }
+    this.through.set(h.piece, 0);                  // it falls through the claw: it meets the loader again once clear
+    b.wakeUp();
   }
 
   // ---- each tick, before physics ----
   pre(dt) {
     if (!this.body) return;
     const sim = this.sim, L = LOADER;
-    if (this.regrab >= 0) {
-      const seg = this.regrab; this.regrab = -1; this.grab = null;
-      if (this.closed && sim.world.segs.has(seg)) this.attach(seg);
-    }
     const d = sim.players.list.get(this.driver);
-    if (!d || d.mode !== MODE.DRIVE) { this.driver = -1; this.ctrl = { thr: 0, steer: 0, boom: 0 }; }
-    const c = this.ctrl;
-    // steering: the front wheels turn toward where the stick says, at LOADER_STEER_RATE
-    const st = c.steer * CFG.LOADER_STEER, ds = CFG.LOADER_STEER_RATE * dt;
-    this.steer += Math.max(-ds, Math.min(ds, st - this.steer));
-    this.tyres(dt, c.thr);
-    // the boom
-    this.stall = '';
-    const rate = Math.max(-1, Math.min(1, c.boom)) * CFG.LOADER_BOOM_RATE;
-    if (Math.abs(rate) > 1e-4) {
-      let ok = true;
-      if (rate > 0) {
-        const held = this.grab ? sim.weightOf(this.grab.piece) : 0;
-        const tip = this.toWorld(boomTip(this.boom), _a), piv = this.toWorld(L.PIVOT, _b);
-        const need = (held + this.grapple.mass()) * CFG.GRAVITY * Math.hypot(tip.x - piv.x, tip.z - piv.z);
-        if (!isFinite(held)) { ok = false; this.stall = 'The claw holds wood still joined to the tree'; }
-        else if (need > CFG.LOADER_BOOM_T) { ok = false; this.stall = 'Too heavy to lift this far out: bring the boom in or saw it smaller'; }
-        else if (this.lift.rear === 0 && this.grab) { ok = false; this.stall = 'The loader is tipping: lower the load'; }
-      } else if (this.lift.front === 0) { ok = false; this.stall = 'The claw is pushing the loader up'; }
-      if (ok) this.boom = Math.max(L.BOOM_MIN, Math.min(L.BOOM_MAX, this.boom + rate * dt));
-      const t = boomTip(this.boom);
-      this.link.setAnchor1({ x: t[0], y: t[1], z: t[2] });
-    }
-    this.rotator(dt);
-    this.swingBrake(dt);
+    if (!d || d.mode !== MODE.DRIVE) { this.driver = -1; this.ctrl = { thr: 0, turn: 0 }; }
+    this.tyres(dt, this.ctrl.thr, this.ctrl.turn);
+    this.animate(dt);
+    this.carry(dt);
+    this.clearThrough(dt);
     // the driver rides on the platform (kinematic: where it will be at the end of this step)
     if (d && d.mode === MODE.DRIVE) {
       const s = this.toWorld(L.STAND, _a), v = this.body.velocityAtPoint(s);
@@ -329,35 +363,110 @@ export class Loader {
     }
   }
 
+  /** The claw's and the arms' motions, one step. */
+  animate(dt) {
+    const L = LOADER, h = this.hold, close = dt / Math.max(0.05, CFG.LOADER_CLOSE_T);
+    const armV = (L.ARM_MAX - L.ARM_MIN) / Math.max(0.2, CFG.LOADER_LIFT_T) * dt, mid = (L.ARM_MIN + L.ARM_MAX) / 2;
+    this.phaseT += dt;
+    switch (this.phase) {
+      case GRAB:
+        this.jaw = Math.min(1, this.jaw + close);
+        if (this.jaw >= 1) {
+          if (h && h.kind === 'pin') this.pinJoint(); else this.setPhase(LIFT);
+        }
+        break;
+      case LIFT:
+        this.arm = Math.min(L.ARM_MAX, this.arm + armV);
+        if (h && h.kind === 'light' && this.arm >= mid) {
+          this.release(); this.note = 'Too light for the claw: it slipped through (chip it)';
+        }
+        if (this.arm >= L.ARM_MAX) this.setPhase(UP);
+        break;
+      case TIP: {
+        // the arms lift against wood that does not move: the loader goes over on its front wheels instead
+        const up = this.dirToWorld([1, 0, 0], _a), pitch = -Math.asin(Math.max(-1, Math.min(1, up.y)));
+        const tipped = pitch - (h ? h.pitch0 : 0) >= CFG.LOADER_TIP || this.arm >= L.ARM_MAX;
+        if (!tipped && !h?.done) this.arm = Math.min(L.ARM_MAX, this.arm + armV);
+        else if (h && !h.done) { h.done = true; this.phaseT = 0; }
+        if (h && h.joint) { const j = jawAt(this.arm); h.joint.setAnchor1({ x: j[0], y: j[1], z: j[2] }); }
+        if (!h || (h.done && this.phaseT >= CFG.LOADER_TIP_HOLD)) {
+          this.release(false); this.setPhase(DROP);
+        }
+        break;
+      }
+      case DROP:
+        if (this.hold) this.release();
+        this.jaw = Math.max(0, this.jaw - close);
+        if (this.jaw <= 0) this.setPhase(LOWER);
+        break;
+      case LOWER:
+        this.arm = Math.max(L.ARM_MIN, this.arm - armV);
+        if (this.arm <= L.ARM_MIN) this.setPhase(IDLE);
+        break;
+      default: break;
+    }
+  }
+
+  /** The claw closed on wood too heavy to lift: a ball joint from the jaws to the wood, where they are now. */
+  pinJoint() {
+    const sim = this.sim, R = sim.R, h = this.hold;
+    const j = jawAt(this.arm), J = this.toWorld(j, new THREE.Vector3()), a2 = this.toLocal(J, h.body);
+    const data = R.JointData.spherical({ x: j[0], y: j[1], z: j[2] }, { x: a2[0], y: a2[1], z: a2[2] });
+    h.joint = sim.rapier.createImpulseJoint(data, this.body, h.body, true);
+    h.joint.setContactsEnabled(false);
+    const up = this.dirToWorld([1, 0, 0], _a); h.pitch0 = -Math.asin(Math.max(-1, Math.min(1, up.y)));
+    this.note = h.fixed ? 'The claw cannot pull up the standing tree' : 'Too heavy: over 8 ft long (saw it shorter)';
+    this.setPhase(TIP);
+  }
+
+  /** What the claw carries goes where the jaws will be at the end of this step. */
+  carry(dt) {
+    const h = this.hold; if (!h || h.kind === 'pin') return;
+    const b = this.body, j = jawAt(this.arm), J = this.toWorld(j, new THREE.Vector3()), v = b.velocityAtPoint(J);
+    J.x += v.x * dt; J.y += v.y * dt; J.z += v.z * dt;
+    const k = smooth(this.phase === GRAB ? Math.min(1, this.jaw) : 1), qL = this.quat();
+    const p = h.p0.clone().lerp(h.p1, k).applyQuaternion(qL).add(J), q = qL.multiply(h.q0.clone().slerp(h.q1, k));
+    h.body.setNextKinematicTranslation({ x: p.x, y: p.y, z: p.z });
+    h.body.setNextKinematicRotation({ x: q.x, y: q.y, z: q.z, w: q.w });
+  }
+
+  /** Wood dropped from the claw meets the loader again once it is clear of the jaws (or after a while). */
+  clearThrough(dt) {
+    if (!this.through.size) return;
+    const sim = this.sim, J = this.toWorld(jawAt(this.arm), new THREE.Vector3());
+    for (const [id, t] of this.through) {
+      const b = sim.bodies.get(id);
+      if (!b || !sim.world.pieces.has(id)) { this.through.delete(id); continue; }
+      const c = b.worldCom(), far = Math.hypot(c.x - J.x, c.y - J.y, c.z - J.z) > 1.2 + this.lengthOf(id) / 2;
+      if (far || t > 4) { this.groups(id, ALL); this.through.delete(id); } else this.through.set(id, t + dt);
+    }
+  }
+
   /**
    * The tyres (as the chipper's, sim/chipper.js): at each wheel that touches the ground an impulse across it that
-   * stops it sliding sideways (up to LOADER_GRIP x its share of the weight), and one along it toward the drive's
-   * speed (throttle x LOADER_SPEED; with no throttle, toward standing still: the brakes), up to the same grip and
-   * LOADER_DRIVE_F shared out. Solved together in a few passes, each kept within its cap.
+   * resists it sliding sideways (up to LOADER_SKID x its share of the weight), and one along it toward its side's
+   * speed (throttle minus or plus the turn, x LOADER_SPEED; with no input, toward standing still: the brakes), up to
+   * LOADER_GRIP x that weight and LOADER_DRIVE_F shared out. Solved together in a few passes, each kept within its cap.
    */
-  tyres(dt, thr) {
+  tyres(dt, thr, turn) {
     const sim = this.sim, b = this.body, L = LOADER, g = CFG.GRAVITY;
     const pts = [];
-    let front = 0, rear = 0;
-    L.WHEELS.forEach((w, i) => {
+    L.WHEELS.forEach((w) => {
       const P = this.toWorld([w[0], w[1] - L.WHEEL_R, w[2]], new THREE.Vector3());
-      const on = P.y - sim.groundY(P.x, P.z) < 0.1;
-      if (on) { pts.push({ P, i }); if (i < 2) front++; else rear++; }
+      if (P.y - sim.groundY(P.x, P.z) < 0.1) pts.push({ P, side: Math.sign(w[2]) });
     });
-    this.lift = { front, rear };
     if (!pts.length) return;
-    const held = this.grab ? (sim.bodies.get(this.grab.piece)?.mass() || 0) : 0;
-    const N = (b.mass() + this.grapple.mass() + held) * g / pts.length;
-    const drive = Math.abs(thr) > 0.05, vt = thr * CFG.LOADER_SPEED;
+    const N = b.mass() * g / pts.length;
+    const drive = Math.abs(thr) > 0.05 || Math.abs(turn) > 0.05;
     const grips = [];
-    for (const { P, i } of pts) {
+    for (const { P, side } of pts) {
       const n0 = sim.groundN(P.x, P.z), n = new THREE.Vector3(n0[0], n0[1], n0[2]);
-      const a = i < 2 ? this.steer : 0;
-      const h = this.dirToWorld([Math.cos(a), 0, Math.sin(a)], new THREE.Vector3()), l = this.dirToWorld([-Math.sin(a), 0, Math.cos(a)], new THREE.Vector3());
+      const h = this.dirToWorld([1, 0, 0], new THREE.Vector3()), l = this.dirToWorld([0, 0, 1], new THREE.Vector3());
       h.addScaledVector(n, -h.dot(n)).normalize(); l.addScaledVector(n, -l.dot(n)).normalize();
-      const grip = CFG.LOADER_GRIP * N * dt;
-      grips.push({ P, d: l, cap: grip, v: 0, J: 0 });
-      grips.push({ P, d: h, cap: drive ? Math.min(grip, CFG.LOADER_DRIVE_F / pts.length * dt) : CFG.LOADER_BRAKE * N * dt, v: drive ? vt : 0, J: 0 });
+      // (turning right, +turn: the left side, -z, goes faster)
+      const vt = Math.max(-1, Math.min(1, thr - side * turn * CFG.LOADER_TURN)) * CFG.LOADER_SPEED;
+      grips.push({ P, d: l, cap: CFG.LOADER_SKID * N * dt, v: 0, J: 0 });
+      grips.push({ P, d: h, cap: drive ? Math.min(CFG.LOADER_GRIP * N * dt, CFG.LOADER_DRIVE_F / pts.length * dt) : CFG.LOADER_BRAKE * N * dt, v: drive ? vt : 0, J: 0 });
     }
     for (const G of grips) G.m = effMass(b, G.P, G.d);
     for (let pass = 0; pass < 4; pass++) {
@@ -368,40 +477,6 @@ export class Loader {
         if (dJ) b.applyImpulseAtPoint({ x: d.x * dJ, y: d.y * dJ, z: d.z * dJ }, G.P, true);
       }
     }
-  }
-
-  /** The rotator: turns the grapple about the vertical to sit square to the loader (a damped spring, capped). */
-  rotator(dt) {
-    const gb = this.grapple, b = this.body;
-    const gz = this.dirToWorld([0, 0, 1], _a, gb), lz = this.dirToWorld([0, 0, 1], _b, b);
-    const err = Math.atan2(lz.z * gz.x - lz.x * gz.z, gz.x * lz.x + gz.z * lz.z);   // how far the grapple is turned from the loader, about +y
-    // (a log held end-on is as good as across: the nearer of the two ways is held)
-    const e = err > Math.PI / 2 ? err - Math.PI : err < -Math.PI / 2 ? err + Math.PI : err;
-    const wg = gb.angvel().y, wl = b.angvel().y, K = CFG.LOADER_ROTATOR_K;
-    const ie = gb.effectiveWorldInvInertia().elements, inv = ie[3];       // about the vertical (row y, column y)
-    const acc = -K * e - 2 * Math.sqrt(K) * (wg - wl);
-    const T = Math.max(-CFG.LOADER_ROTATOR_T, Math.min(CFG.LOADER_ROTATOR_T, acc / Math.max(1e-6, inv)));
-    gb.applyTorqueImpulse({ x: 0, y: T * dt, z: 0 }, true);
-    b.applyTorqueImpulse({ x: 0, y: -T * dt, z: 0 }, true);
-  }
-
-  /**
-   * The swing brake: the claw and what it holds swing on the link at the boom tip, and a brake there slows the
-   * swinging: a force on the claw against how fast it moves across under the tip (relative to the loader there),
-   * LOADER_SWING_DAMP per second of that speed for the claw and its load, and the same back on the loader.
-   */
-  swingBrake(dt) {
-    const sim = this.sim, gb = this.grapple, b = this.body, k = CFG.LOADER_SWING_DAMP; if (!(k > 0)) return;
-    const tip = this.toWorld(boomTip(this.boom), _a), vt = b.velocityAtPoint(tip), J = this.toWorld(LOADER.JAW, _b, gb), vj = gb.velocityAtPoint(J);
-    const held = this.grab ? (sim.bodies.get(this.grab.piece)?.mass() || 0) : 0, m = gb.mass() + held;
-    // across: the part of the relative velocity at right angles to the link (along it, the joint does the work)
-    const lx = J.x - tip.x, ly = J.y - tip.y, lz = J.z - tip.z, ll = Math.hypot(lx, ly, lz) || 1;
-    let rx = vj.x - vt.x, ry = vj.y - vt.y, rz = vj.z - vt.z;
-    const along = (rx * lx + ry * ly + rz * lz) / ll; rx -= along * lx / ll; ry -= along * ly / ll; rz -= along * lz / ll;
-    const f = Math.min(1, k * dt) * m;                 // impulse per m/s: at most what stops it this tick
-    const ix = -rx * f, iy = -ry * f, iz = -rz * f;
-    gb.applyImpulseAtPoint({ x: ix, y: iy, z: iz }, J, true);
-    b.applyImpulseAtPoint({ x: -ix, y: -iy, z: -iz }, tip, true);
   }
 
   // ---- after physics ----
@@ -430,7 +505,7 @@ export class Loader {
     const seen = new Set();
     for (const [id, b] of sim.bodies) {
       const pc = w.pieces.get(id); if (!pc || pc.fixed) continue;
-      if (this.grab && this.grab.piece === id) continue;
+      if (this.hold && this.hold.piece === id) continue;
       const c = b.worldCom(), l = worldToFrame(T.p, T.q, [c.x, c.y, c.z]);
       if (!inBed(l)) continue;
       const v = b.linvel();
@@ -447,15 +522,11 @@ export class Loader {
   }
 
   // ---- outputs ----
-  /** Is collider h the loader or its grapple (heavy: it breaks fences and cracks pavers as the chipper does)? */
-  solid(h) { return this.cols.has(h) || this.gcols.has(h); }
-  eachRigid(fn) { if (this.body) { fn(this.body); fn(this.grapple); } }
-  eachBody(fn) {
-    if (!this.body) return;
-    fn(LOADER_BODY_ID, this.body.translation(), this.body.rotation(), true);
-    fn(GRAPPLE_BODY_ID, this.grapple.translation(), this.grapple.rotation(), true);
-  }
-  bodyOf(id) { return id === LOADER_BODY_ID ? this.body : id === GRAPPLE_BODY_ID ? this.grapple : null; }
-  /** aux.ld: [claw shut 1/0, front wheels' steer (rad), boom angle (rad), driver id] or 0 with no loader. */
-  aux() { return this.body ? [this.closed ? 1 : 0, +this.steer.toFixed(3), +this.boom.toFixed(4), this.driver] : 0; }
+  /** Is collider h the loader (heavy: it breaks fences and cracks pavers as the chipper does)? */
+  solid(h) { return this.cols.has(h); }
+  eachRigid(fn) { if (this.body) fn(this.body); }
+  eachBody(fn) { if (this.body) fn(LOADER_BODY_ID, this.body.translation(), this.body.rotation(), true); }
+  bodyOf(id) { return id === LOADER_BODY_ID ? this.body : null; }
+  /** aux.ld: [how shut the claw is 0..1, what the arms are doing (PHASE_CODE), arm angle (rad), driver id] or 0 with no loader. */
+  aux() { return this.body ? [+this.jaw.toFixed(3), PHASE_CODE[this.phase] || 0, +this.arm.toFixed(4), this.driver] : 0; }
 }

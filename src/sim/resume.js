@@ -31,8 +31,8 @@ export function resume(sim, st) {
     (w.chipper.piles || []).forEach((pl, i) => sim.chipper.pileCollider(i, pl));
   }
   if (w.bins && w.bins.length) on({ t: 'bins', list: w.bins.map((b) => [b.p, b.q]) });
-  if (w.loader) {                       // the loader where it was parked (moved below), its boom as last seen, claw open
-    if (aux && Array.isArray(aux.ld)) sim.loader.boom = aux.ld[2];
+  if (w.loader) {                       // the loader where it was parked (moved below), its arms as last seen, claw open
+    if (aux && Array.isArray(aux.ld)) sim.loader.arm = aux.ld[2];
     on({ t: 'loader', p: w.loader.p, q: w.loader.q, truck: w.loader.truck });
   }
   if (w.builds && w.builds.length) on({ t: 'builds' });

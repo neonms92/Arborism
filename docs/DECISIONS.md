@@ -2144,3 +2144,32 @@ wheels lifting, not a weight table. Judgment calls the owner has not seen:
   change to the look yaw).
 Also fixed on the way: resume (D104) handed bins (59500+) to the chipper's
 id range and never put them back where they were.
+
+**D130 — The loader becomes a skid steer, and its claw is animation.** Owner
+(2026-11-28): a skid steer, driver still standing at the back, short arms
+with a front over-and-under claw; one button toggles grab-and-lift-overhead
+and release-and-lower-to-the-ground; grabbed wood follows static animations,
+not physics, and only the loader's own weight stays physical. Over 8 ft is too
+heavy: the loader tips forward and the log stays put. Under 3/4 of the
+chipper's limit is too light: it phases through the claw halfway up. This
+breaks the owner's usual physics-first rule on purpose (asked for). Replaces
+D129's boom, swinging grapple, torque cap and rotator (DESIGN.md 6.5b).
+Judgment calls the owner has not seen:
+- Light is checked before long: a long thin branch under the light limit
+  slips through rather than tipping the loader (it is chipper wood).
+- Length is the farthest apart two segment ends of the piece are.
+- Too long: the arms lift against wood held still until the loader has tipped
+  20° (`LOADER_TIP`), hold 0.8 s, then let go and lower by themselves; the
+  driver does not press again.
+- The standing tree counts as too heavy (tips); wood hanging by fibres is
+  refused with a message ("saw it free first").
+- Pressing mid-motion does nothing. With nothing in the jaws the motion runs
+  empty (a way to raise the arms).
+- The arms and claw have no colliders: they pass through things. Held wood
+  pushes other loose things (it is kinematic) but passes through the loader,
+  the truck and standing wood.
+- Overhead puts the wood's middle about 2.5 m up and 1.7 m ahead of the
+  loader's middle: drive up to the truck's side and let go, and it drops into
+  the bed. The truck, hauling and progress are as D129.
+- Turning: each side drives at throttle ∓ 0.6 × turn; sideways grip 0.45 of
+  the weight (it skids round; in place with no throttle).
