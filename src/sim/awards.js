@@ -3,13 +3,15 @@
 // model (world.awards), not here, so a player who takes over as host (D104) carries on without handing anything
 // out twice. Runs in a worker too: no DOM.
 //
-//   tree   share of the job tree chopped: chipped, swept away, or in loose sections each light enough for the
-//          chipper to take (CHIP_CAPACITY, the weight that seizes its rollers, D66): brown at STICKER_T1, yellow
-//          at T2, green at T3. Only to players who did STICKER_SHARE of the sawing (cross-section cut).
-//   chip   share of the job tree chipped (as the HUD shows it): bronze, silver, gold at the same marks. Only to
-//          players who fed STICKER_SHARE of the wood chipped.
-//   bin    the "100%" (gold, tier 1, if the cash is above zero when it is reached): share chipped times the share of the chips that went into bins, at STICKER_BIN. Only to
-//          players who put STICKER_SHARE of the chips in bins (fed from their feeds, or tipped in by hand).
+//   tree   share of the job tree chopped (model/world.js jobShares, as the HUD shows it: gone, or in loose pieces the
+//          chipper (CHIP_CAPACITY, D66) or the loader (LOADER_MAX_LEN) can take, the stump once it is short enough to
+//          rip out): brown at STICKER_T1, yellow at T2, green at T3. Only to players who did STICKER_SHARE of the
+//          sawing (cross-section cut).
+//   chip   share of the job tree chipped (chipped, swept away or loaded on the truck): bronze, silver, gold at the
+//          same marks. Only to players who fed or loaded STICKER_SHARE of it (kg).
+//   bin    the "100%" (gold, tier 1, if the cash is above zero when it is reached): share chucked (into bins or on
+//          the truck) at STICKER_BIN. Only to players who put STICKER_SHARE of it there (chips into bins from their
+//          feeds or by hand, logs on the truck counted as the chips they would have made).
 //   skull  the player who went DOWN (once per job each)
 //   salad  the player who has eaten STICKER_SALADS tube salads this job (one handed over counts for whoever ate it)
 //   house, shed, fence, car, wreck (a chipper)   the player whose wood or runaway chipper broke one (D107). Wood is
@@ -26,7 +28,7 @@
 // player's browser keeps them only the first time ever (stickerui.js).
 
 import { CFG, MODE } from '../config.js';
-import { segMass } from '../model/world.js';
+import { segMass, jobShares } from '../model/world.js';
 import { tierOf } from '../model/stickers.js';
 
 export class Awards {
@@ -167,35 +169,48 @@ export class Awards {
   /** Every half second or so: the work done since last time into the model, then how far the job has got. */
   check() {
     const sim = this.sim, w = sim.world, A = w.awards, P = w.prog;
-    if (!A.job || !(P.M > 0)) return;
+    if (!(P.M > 0)) return;
+    const cut = this.cut();
+    if (Math.abs(cut - (P.cut || 0)) > 1e-4 * P.M || (cut === 0) !== !(P.cut > 0)) sim.emit({ t: 'chopped', kg: cut });
+    if (!A.job) return;
     if (this.any) {
       const r = (o) => { const out = {}; for (const k in o) out[k] = +o[k].toPrecision(6); return out; };
       sim.emit({ t: 'work', chop: r(this.owed.chop), chip: r(this.owed.chip), bin: r(this.owed.bin) });
       this.owed = { chop: {}, chip: {}, bin: {} }; this.any = false;
     }
-    const t = tierOf(this.chopped());
+    const S = jobShares(P);
+    const t = tierOf(S.chopped);
     if (t >= 0) this.give('tree', t, this.workers('chop'));
-    const chipped = P.M > (P.lost || 0) ? Math.min(1, P.chipped / (P.M - (P.lost || 0))) : 0;
-    const c = tierOf(chipped);
+    const c = tierOf(S.chipped);
     if (c >= 0) this.give('chip', c, this.workers('chip'));
     // the 100%: gold if the job still has money left when it is reached (it stays gold whatever happens after)
-    // (wood hauled away on the log truck is as good as chipped and binned)
-    const hauled = P.M > (P.lost || 0) ? (P.hauled || 0) / (P.M - (P.lost || 0)) : 0;
-    if ((P.made > 0 || hauled > 0) && chipped * (P.made > 0 ? Math.min(1, P.gone / P.made) : 0) + hauled >= CFG.STICKER_BIN) this.give('bin', w.cash() > 0 ? 1 : 0, this.workers('bin'));
+    if (S.chucked >= CFG.STICKER_BIN) this.give('bin', w.cash() > 0 ? 1 : 0, this.workers('bin'));
     // bankrupt: everyone here when the cash first goes below zero, once a job
     if (!A.got.broke && w.cash() !== null && w.cash() < 0) this.give('broke', 0, [...sim.players.list.keys()]);
   }
 
-  /** Share of the job tree chipped, hauled away on the log truck, swept away as debris, or lying in loose sections the chipper could take whole. */
-  chopped() {
-    const sim = this.sim, w = sim.world, P = w.prog;
-    let done = P.chipped + (P.hauled || 0) + (P.lost || 0);
+  /** kg of the job tree still here in pieces the chipper can take whole (CHIP_CAPACITY) or the loader can lift
+   *  (LOADER_MAX_LEN, not held on by live fibres), and the stump once it is short enough for the loader to rip out. */
+  cut() {
+    const sim = this.sim, w = sim.world;
+    let done = 0;
     for (const pc of w.pieces.values()) {
-      if (pc.fixed) continue;
       let m = 0;
       for (const s of w.segsOf(pc.id)) if (!s.yd) m += segMass(s) + s.leaf;
-      if (m > 0 && sim.weightOf(pc.id) <= CFG.CHIP_CAPACITY) done += m;
+      if (!(m > 0)) continue;
+      if (pc.fixed) { const st = sim.loader && sim.loader.stump(pc.id); if (st && !st.why) done += m; continue; }
+      const kg = sim.weightOf(pc.id);
+      if (kg <= CFG.CHIP_CAPACITY || (isFinite(kg) && (!sim.loader || sim.loader.lengthOf(pc.id) <= CFG.LOADER_MAX_LEN))) done += m;
     }
-    return Math.min(1, done / P.M);
+    return done;
+  }
+
+  /** Loose piece id is about to go on the log truck: whoever last had it (the loader's driver, mostly) loaded it. */
+  hauled(id) {
+    const w = this.sim.world; let kg = 0;
+    for (const s of w.segsOf(id)) if (!s.yd) kg += segMass(s) + s.leaf;
+    const by = this.by.get(id);
+    this.credit('chip', by, kg);
+    this.credit('bin', by, kg / CFG.DENSITY * CFG.CHIP_SWELL);    // as the chips it would have made
   }
 }

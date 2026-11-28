@@ -215,10 +215,10 @@ export const CFG = {
   PLAYER_NAME_MAX: 16,     // characters in a player's name (lobby box, toasts, name tag, helmet)
   BLINK_GAP: 4,            // s, mean time between blinks (view only)
   // --- stickers (achievements, D105, D106): handed out by the host (sim/awards.js) ---
-  STICKER_T1: 0.6,         // share of the job tree chopped into chipper-sized sections / chipped for the brown tree / bronze chipper sticker
+  STICKER_T1: 0.6,         // share of the job tree chopped (chipper- or loader-sized) / chipped for the brown tree / bronze chipper sticker
   STICKER_T2: 0.9,         // ... yellow tree / silver chipper
   STICKER_T3: 0.99,        // ... green tree / gold chipper
-  STICKER_BIN: 0.99,       // share of the job tree chipped and in bins for the 100% sticker
+  STICKER_BIN: 0.99,       // share of the job tree chucked (chips in bins, logs on the truck) for the 100% sticker
   STICKER_SALADS: 3,       // tube salads a player eats in a job for the salad sticker
   STICKER_LOWER_KG: 600,   // kg: the piece let down on the rope for the "lower" sticker (owner)
   STICKER_LOWER_T: 10,     // s after it touches down with nothing damaged (owner)

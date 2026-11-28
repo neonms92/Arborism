@@ -667,7 +667,7 @@ goes on the truck.
 
 ### FM-54 Grapple loader: tear a length out of a utility pole and put it in the truck
 
-*Why (owner, 2026-11-28, D141).*
+*Why (owner, 2026-11-28, D142).*
 
 - **Scenario:** as FM-50, with a dormant utility pole (no lines) 7 m ahead,
   Z to the right. Drive up until the prompt offers "tear out a length of the

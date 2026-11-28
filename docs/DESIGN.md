@@ -864,11 +864,14 @@ its own: open means swung more than 1.2 rad up, read from the bodies on the
 host. Chips that land in an open, upright bin's mouth go in and are gone: the
 'chip' event carries `bin: k`, a player's carried chips go in as
 'chips' `{dump: V}`. `world.prog` = {M: kg of the job tree as grown, chipped,
-lost (swept debris), made and gone (m³ of chips)}, kept by `world.apply` so
-every machine agrees; the HUD shows tree chipped = chipped / (M − lost) and
-chips in bins = gone / made, coloured by `pctColour` (hud.js).
+lost (swept debris), hauled (on the log truck), made and gone (m³ of chips),
+cut (kg still here in chipper- or loader-sized pieces, set by the host's
+'chopped' event)}, kept by `world.apply` so every machine agrees. The HUD
+shows "Chopped: x%, Chipped: y%, Chucked: z%" from `jobShares` (D141),
+coloured by `pctColour` (hud.js); the tree, chipper and 100% stickers go by
+the same three shares.
 
-### 6.5b Grapple loader and log truck (D129, D130, D137, D139, D140, D141)
+### 6.5b Grapple loader and log truck (D129, D130, D137, D139, D140, D142)
 
 `model/loader.js` (shapes), `sim/loader.js` (host), `view/loader.js`. For wood
 too heavy for the chipper (a round of the trunk, a big log). With every new
@@ -923,7 +926,7 @@ the first spot along the street where both fit (`'loader'` event; `world.loader`
     lets go and lowers, and the loader drops back under its own weight;
   - still joined to the tree by fibres: the claw does not close.
   Sawn through while held, the claw lets go of all of it.
-- **Utility poles (D141).** A pole in the jaws (a dormant one, or a yard
+- **Utility poles (D142).** A pole in the jaws (a dormant one, or a yard
   tree, is woken into wood by the press) has a length `LOADER_POLE_LEN`
   (1.5 m) torn out of it at the jaws' height, never lower than 0.3 m off the
   ground: two clean breaks (`'split'`), so the pole above comes free (its

@@ -16,7 +16,7 @@
 //     wheels. Once it has tipped LOADER_TIP (or the arms are up), it holds for LOADER_TIP_HOLD, lets go and lowers,
 //     and the loader drops back onto its wheels under its own weight;
 //   - wood still joined to the tree by fibres: the claw does not close (saw it free first).
-// A utility pole in the jaws (D141): the claw tears a length of it out (LOADER_POLE_LEN, from the jaws' height, never
+// A utility pole in the jaws (D142): the claw tears a length of it out (LOADER_POLE_LEN, from the jaws' height, never
 // lower than 0.3 m off the ground): two clean breaks, the pole above it comes down (with its lines), the grounded
 // stub stays, and the claw carries the length. A dormant pole or yard tree in the jaws is woken into wood first.
 // With no wood in its jaws it takes the other things that stand there (D140): a chipper, a chip bin, a player or a
@@ -811,6 +811,7 @@ export class Loader {
       if (t < CFG.TRUCK_TAKE_T) { this.rest.set(id, t); continue; }
       this.rest.delete(id);
       const kg = b.mass();
+      sim.awards.hauled(id);
       sim.emit({ t: 'haul', piece: id });
       sim.toast(`A log went on the truck: {mass:${Math.round(kg)}}`);
     }
