@@ -114,7 +114,7 @@ export class Hud {
     if (cash !== null) s += `  |  cash ${cash < 0 ? '-' : ''}${money(Math.abs(cash))}${dbg ? `, ${wageMath(aux ? aux.pl.length : 1)}` : ''}`;
     if (a && a.ck > 0) s += `  |  carrying ${qty('vol', a.ck * 1000, 0)} of chips`;
     if (a && a.hd) s += '  |  holding a tube salad';
-    if (a) s += `  |  ${a.m === MODE.CLIMB ? 'on spurs, lanyard on' : a.m === MODE.ROPE ? 'on the rope' : a.m === MODE.DRIVE ? 'driving the loader' : 'on the ground'}  |  ${INJ_NAME[a.inj]}`;
+    if (a) s += `  |  ${a.m === MODE.CLIMB ? 'on spurs, lanyard on' : a.m === MODE.ROPE ? 'on the rope' : a.m === MODE.DRIVE ? 'driving the loader' : a.m === MODE.CLAW ? "in the loader's claw" : 'on the ground'}  |  ${INJ_NAME[a.inj]}`;
     this.status.textContent = s;
     this.progress();
     this.prompt.textContent = a ? describe(a.pr, device, device === 'touch' && a.m === MODE.ROPE ? TOUCH_ROPE : null) : '';

@@ -12,7 +12,7 @@ import { generateTree } from '../model/treegen.js';
 import { frameApply } from '../model/flex.js';
 import { DEG, Member, dot, sub, norm } from './harness.js';
 import { cantilever, yieldMoment, edgeStress, bimodularCircle } from './analytic.js';
-import { TRUCK } from '../model/loader.js';
+import { TRUCK, worldToFrame } from '../model/loader.js';
 
 // ---------- criteria ----------
 const rel = (lim) => Math.abs(lim) || 1;
@@ -249,8 +249,11 @@ async function loaderRun(env, p, place, offer) {
   // the loader at the origin facing +x; the truck ahead and to its left, its side toward the loader's path
   const lp = ld.pose(0, 0, yawQ(0)), T = { p: [8, 0, 8], q: yawQ(0) };
   sim.emit({ t: 'loader', p: lp.p, q: lp.q, truck: T });
-  const seg = place(ctx, p);
-  const piece = () => w.segs.get(seg)?.piece, kg0 = sim.weightOf(piece());
+  const tg = place(ctx, p);
+  // what the claw goes for: wood (a segment id) or a thing ({at, body, kg, done}: a chipper, a bin, a player)
+  const seg = typeof tg === 'number' ? tg : -1, thing = seg < 0 ? tg : null;
+  const piece = () => w.segs.get(seg)?.piece, kg0 = thing ? thing.kg() : sim.weightOf(piece());
+  const bodyOf = () => thing ? thing.body() : sim.bodies.get(piece());
   // the player, behind the loader, looking at it
   sim.players.add(1, 'Tester', 0x3a9be8, [], false, [-3.2, 0.3]);
   const pl = sim.players.list.get(1), inp = { mx: 0, my: 0, yaw: -Math.PI / 2, pitch: -0.25, sy: 0, sp: 0, rt: 0, lt: 0, hi: 0, hd: 0, c: { ...pl.input.c } };
@@ -267,14 +270,14 @@ async function loaderRun(env, p, place, offer) {
   // INV-3 judges free fall. Wood in the claw is moved by it (squaring up, a stump coming out of the ground: up to
   // about 2.5 m/s), so while held it is judged as though it fell from 0.5 m above where it is, and once let go,
   // from where the claw let it go
-  ctx.hooks.push(() => { const b = sim.bodies.get(piece()); if (b && ld.hold) ctx.h0.set(piece(), Math.max(ctx.h0.get(piece()) || 0, b.worldCom().y + 0.5)); });
+  if (!thing) ctx.hooks.push(() => { const b = sim.bodies.get(piece()); if (b && ld.hold) ctx.h0.set(piece(), Math.max(ctx.h0.get(piece()) || 0, b.worldCom().y + 0.5)); });
   await ctx.run(1);
   press();                                                       // {interact} on the loader
   if (!(await ctx.run(2, () => pl.mode === 3))) return { ...m, why: 'did not get on' };
   m.mounted = +ctx.t.toFixed(2);
   // up to the round until the prompt offers to grab it
   const got = await ctx.run(30, () => {
-    const sg = w.segs.get(seg), q = sim.segToWorld(sg, sg.a);
+    const q = thing ? thing.at() : (() => { const sg = w.segs.get(seg); return sim.segToWorld(sg, sg.a); })();
     steer(q.x, q.z, 0.5);
     return offer.test(pl.prompt || '');
   });
@@ -283,9 +286,9 @@ async function loaderRun(env, p, place, offer) {
   if (!got) return { ...m, why: 'never had the wood in the jaws' };
   press();                                                       // grab and lift
   if (!(await ctx.run(1, () => ld.hold && ld.hold.kind === 'carry'))) return { ...m, why: 'the claw did not take it: ' + (ld.hold ? ld.hold.kind : ld.note || 'nothing') };
-  m.grabbed = +ctx.t.toFixed(2); m.kg = Math.round(sim.weightOf(piece()));
+  m.grabbed = +ctx.t.toFixed(2); m.kg = Math.round(thing ? thing.kg() : sim.weightOf(piece()));
   if (!(await ctx.run(10, () => ld.phase === 'up'))) return { ...m, why: 'the arms did not get up' };
-  m.lifted = +ctx.t.toFixed(2); m.topY = +sim.bodies.get(piece()).worldCom().y.toFixed(2);
+  m.lifted = +ctx.t.toFixed(2); m.topY = +bodyOf().worldCom().y.toFixed(2);
   // to the truck: out to a spot in front of its side, turn to face it, drive in until it stops
   const bx = T.p[0] + (TRUCK.BED.lo[0] + TRUCK.BED.hi[0]) / 2, wz = T.p[2] - TRUCK.HW - 3.5;
   if (!(await ctx.run(30, () => steer(bx, wz, 0.6) < 0.6))) return { ...m, why: 'did not reach the truck' };
@@ -295,6 +298,7 @@ async function loaderRun(env, p, place, offer) {
   inp.mx = inp.my = 0;
   press();                                                       // let go and lower
   m.released = +ctx.t.toFixed(2);
+  if (thing) { await ctx.run(6); await ctx.run(5, () => ld.phase === 'down'); return { ...m, ...thing.done() }; }
   if (!(await ctx.run(20, () => !w.segs.has(seg)))) return { ...m, why: 'it was not hauled away' };
   m.hauled = +ctx.t.toFixed(2); m.truckKg = Math.round(w.loader.kg); m.dirt = (w.loader.dirt || []).length;
   await ctx.run(3, () => ld.phase === 'down');
@@ -804,6 +808,56 @@ export const TESTS = [
       ge('lifted it overhead (centre of mass, m)', m.topY, 1.6),
       is('let go over the truck, it was hauled away', m.hauled !== null, m.why || m.truckKg),
       is('a dirt patch where it stood', m.dirt === 1, m.dirt),
+    ],
+    view: () => ({ target: [5, 1, 4], dist: 16, yaw: -0.6, pitch: 0.45 }),
+  },
+  {
+    id: 'FM-52', title: 'Grapple loader: pick up the chipper and put it in the truck, unharmed', time: 90,
+    params: { YAW: P([0, 90], [0, 180], 90, '°') },
+    run: (env, p) => loaderRun(env, p, (ctx) => {
+      // a chipper (alone: no bin) 6.5 m ahead and a little to the right, turned YAW from lying along the loader
+      const sim = ctx.sim, a = p.YAW * Math.PI / 180, pose = sim.chipper.pose({ x: 6.8, z: 0.8, yaw: a });
+      sim.emit({ t: 'chipper', p: pose.p, q: pose.q });
+      const u = () => sim.chipper.units[0];
+      return {
+        at: () => { const t = u().body.translation(); return { x: t.x - 1, z: t.z }; },
+        body: () => u().body, kg: () => u().body.mass(),
+        done: () => {
+          const t = u().body ? u().body.translation() : null, T = sim.world.loader.truck;
+          const l = t && worldToFrame(T.p, T.q, [t.x, t.y, t.z]);
+          return { wrecked: !!sim.world.chipper.units[0].wreck, inBed: !!l && l[1] > TRUCK.FLOOR.c[1] && Math.abs(l[2]) < TRUCK.HW + 0.3 && l[0] < 1 && l[0] > -4.5 };
+        },
+      };
+    }, /pick up the chipper/),
+    judge: (m) => [
+      is('got on the loader with {interact}', m.mounted !== null, m.mounted),
+      is('the prompt offered the chipper, and {interact} took it', m.grabbed !== null, m.why || m.prompt),
+      ge('lifted it overhead (centre of mass, m)', m.topY, 1.6),
+      is('let go over the truck, it landed in the bed', m.inBed === true, m.why || m.inBed),
+      is('not wrecked', m.wrecked === false, m.wrecked),
+    ],
+    view: () => ({ target: [5, 1, 4], dist: 16, yaw: -0.6, pitch: 0.45 }),
+  },
+  {
+    id: 'FM-53', title: 'Grapple loader: pick up a player and put them in the truck, unhurt', time: 90,
+    params: { Z: P([0, 1.2], [-0.5, 1.2], 0.8, 'm') },
+    run: (env, p) => loaderRun(env, p, (ctx) => {
+      // a second player standing 6.5 m ahead, Z to the right, doing nothing
+      const sim = ctx.sim;
+      sim.players.add(2, 'Passenger', 0xe8a03a, [], false, [7.2, p.Z]);
+      const q = () => sim.players.list.get(2);
+      return {
+        at: () => { const t = q().body.translation(); return { x: t.x - 1, z: t.z }; },
+        body: () => q().body, kg: () => q().body.mass(),
+        done: () => ({ inj: q().inj, mode: q().mode, y: +q().body.translation().y.toFixed(2) }),
+      };
+    }, /pick up Passenger/),
+    judge: (m) => [
+      is('got on the loader with {interact}', m.mounted !== null, m.mounted),
+      is('the prompt offered the player, and {interact} took them', m.grabbed !== null, m.why || m.prompt),
+      ge('lifted them overhead (centre of mass, m)', m.topY, 1.6),
+      is('put down, back on their own feet', m.mode === 0, m.why || m.mode),
+      is('unhurt (no injury from the ride or the fall)', m.inj === 0, m.inj),
     ],
     view: () => ({ target: [5, 1, 4], dist: 16, yaw: -0.6, pitch: 0.45 }),
   },

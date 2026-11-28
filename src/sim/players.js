@@ -58,6 +58,7 @@ export class Players {
   name(id) { return playerName(this.sim.world, id); }
   remove(id) {
     const p = this.list.get(id); if (!p) return;
+    if (p.mode === MODE.CLAW) this.sim.loader.lost(p);
     if (this.sim.rope.holder === id) this.sim.rope.holder = -1;
     this.sim.colPlayer.delete(p.col.handle);
     this.sim.rapier.removeRigidBody(p.body);
@@ -117,6 +118,9 @@ export class Players {
 
   /** n: the client's input sequence number, echoed in aux so a client predicting itself knows what the host has used (D103). */
   setInput(id, inp, n) { const p = this.list.get(id); if (p) { p.input = inp; if (n !== undefined) p.inN = n; } }
+
+  /** Just put down by the loader's claw (sim/loader.js): the fall out of it does not hurt. */
+  soft(p) { return (p.softT || 0) > this.sim.tick; }
 
   say(p, msg) { if (p.toastT <= 0) { this.sim.toast(msg, p.id); p.toastT = 1.5; } }
 
@@ -266,7 +270,7 @@ export class Players {
   /** New ground: anyone standing where it now rises is lifted onto it. */
   onTerrain() {
     for (const p of this.list.values()) {
-      if (p.mode === MODE.CLIMB) continue;
+      if (p.mode === MODE.CLIMB || p.mode === MODE.CLAW) continue;
       const t = p.body.translation(), y = this.sim.groundY(t.x, t.z) + CFG.P_HALF + CFG.P_RADIUS + 0.05;
       if (t.y < y) p.body.setTranslation({ x: t.x, y, z: t.z }, true);
     }
@@ -274,7 +278,8 @@ export class Players {
 
   toGround(p, vel) {
     if (p.mode === MODE.DRIVE) this.sim.loader.left(p);
-    if (p.mode === MODE.CLIMB || p.mode === MODE.DRIVE) {
+    if (p.mode === MODE.CLAW) this.sim.loader.lost(p);      // (out of the claw by another route: respawn, a new tree)
+    if (p.mode === MODE.CLIMB || p.mode === MODE.DRIVE || p.mode === MODE.CLAW) {
       p.body.setBodyType(this.sim.R.RigidBodyType.Dynamic, true);
       p.body.setLinvel(vel || { x: 0, y: 0, z: 0 }, true);
     }
@@ -297,7 +302,7 @@ export class Players {
     for (const p of this.list.values()) {
       sawOff(this.sim, p); p.grab = null; p.chips = 0;
       if (p.mode === MODE.ROPE) this.leaveRope(p);
-      if (p.mode === MODE.CLIMB) this.toGround(p);
+      if (p.mode === MODE.CLIMB || p.mode === MODE.CLAW) this.toGround(p);
     }
   }
   onDivide(ev) {
@@ -475,7 +480,7 @@ export class Players {
     const mv = Math.hypot(inp.mx, inp.my); if (mv > 1) { inp.mx /= mv; inp.my /= mv; }
     if (p.toastT > 0) p.toastT -= dt;
     if (p.shakenT > 0) { p.shakenT -= dt; if (p.shakenT <= 0 && p.inj === INJ.SHAKEN) p.inj = INJ.OK; }
-    if (p.hit) { const dv = p.hit; p.hit = 0; this.impact(p, dv); }
+    if (p.hit) { const dv = p.hit; p.hit = 0; if (!this.soft(p)) this.impact(p, dv); }
 
     if (pressed.buyChip) sim.chipper.buy(p);
     if (pressed.respawn) {
@@ -492,7 +497,7 @@ export class Players {
     // one of the other trees in the yards, still without wood of its own (sim/stands.js): starting to saw it
     // (holding {raise}), climb or grab it ({interact}) or rig it ({rig}) grows its wood. Rapier only finds the new
     // colliders after the next step, so the press that did it is handed on to the next tick.
-    const stand = control && !aim && p.mode !== MODE.ROPE && p.mode !== MODE.DRIVE ? sim.stands.aim(p, Math.max(CFG.REACH, CFG.SAW_REACH)) : null;
+    const stand = control && !aim && p.mode !== MODE.ROPE && p.mode !== MODE.DRIVE && p.mode !== MODE.CLAW ? sim.stands.aim(p, Math.max(CFG.REACH, CFG.SAW_REACH)) : null;
     let standHint = '';
     if (stand) {
       const sawIt = inp.lt >= 0.3 && stand.dist <= CFG.SAW_REACH, near = stand.dist < CFG.REACH;
@@ -508,9 +513,9 @@ export class Players {
 
     // chainsaw (no tool to pick: it is always to hand): {raise} plants it on the wood looked at;
     // look controls pivot it, {throttle} presses it in
-    const canSaw = control && p.mode !== MODE.ROPE && p.mode !== MODE.DRIVE && !p.ride;
+    const canSaw = control && p.mode !== MODE.ROPE && p.mode !== MODE.DRIVE && p.mode !== MODE.CLAW && !p.ride;
     sawStep(sim, p, inp, dt, canSaw, aim);
-    if (control && p.mode !== MODE.ROPE && p.mode !== MODE.DRIVE && pressed.punch) this.punchPress(p, aim);
+    if (control && p.mode !== MODE.ROPE && p.mode !== MODE.DRIVE && p.mode !== MODE.CLAW && pressed.punch) this.punchPress(p, aim);
     this.punchStep(p, dt);
     if (p.mode !== MODE.GROUND || !control) p.grab = null;
 
@@ -524,6 +529,8 @@ export class Players {
       this.climb(p, inp, dt, control, pressed, aim);
     } else if (p.mode === MODE.DRIVE) {
       sim.loader.drive(p, inp, dt, control, pressed);     // on the grapple loader's platform (sim/loader.js)
+    } else if (p.mode === MODE.CLAW) {
+      p.prompt = `In the loader's claw (${this.name(sim.loader.driver)} has you)`;   // carried: no say in it (sim/loader.js)
     } else {
       this.ground(p, inp, dt, control, pressed, aim);
     }
@@ -815,11 +822,11 @@ export class Players {
   post(dt) {
     for (const p of this.list.values()) {
       if (p.place) this.placeClear(p);
-      if (p.mode === MODE.CLIMB || p.mode === MODE.DRIVE) continue;    // (a driver's jolts: sim/loader.js post)
+      if (p.mode === MODE.CLIMB || p.mode === MODE.DRIVE || p.mode === MODE.CLAW) continue;    // (a driver's jolts: sim/loader.js post)
       const v = p.body.linvel();
       if (p.off) { const t = p.body.translation(); if (t.y < this.sim.groundY(t.x, t.z) - 20) this.setPower(p, true); continue; }   // a switched-off box feels nothing
       const dv = Math.hypot(v.x - p.vPre.x, v.y - p.vPre.y, v.z - p.vPre.z);
-      if (dv > CFG.DV_SHAKEN) this.impact(p, dv);
+      if (dv > CFG.DV_SHAKEN && !this.soft(p)) this.impact(p, dv);
       const t = p.body.translation();
       if (t.y < this.sim.groundY(t.x, t.z) - 20) this.toSpawn(p);
     }

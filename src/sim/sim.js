@@ -104,8 +104,9 @@ export class Sim {
   grow() {
     const plan = this.builds.plan();      // the yards round the tree: the ground is made with the level pads they ask for
     this.emit({ t: 'terrain', spec: this.flat ? null : terrainSpec(CFG, plan.pads, plan.streets), seed: this.flat ? '' : String(CFG.WORLD_SEED || '') });   // seed: the world's word, shown in the Tab menu
-    this.pavers.lay(plan.areas, plan.streets); this.chipper.place(false, plan.chipper); this.builds.place();
-    if (!this.flat) this.bins.place(); else this.emit({ t: 'bins', list: [] });   // (none in the engine tests)
+    this.pavers.lay(plan.areas, plan.streets); this.builds.place();
+    // (the engine tests' flat ground: the chipper by the old paved circle, no bins; otherwise both in the street, below)
+    if (this.flat) { this.chipper.place(false, plan.chipper); this.emit({ t: 'bins', list: [] }); }
     // the other trees, then the utility poles (stands of kind 1), and the lines between them and to the houses
     const poles = plan.poles || [];
     if (plan.trees.length || poles.length) this.emit({ t: 'stands', ...this.standList(plan.trees, poles) });
@@ -117,7 +118,8 @@ export class Sim {
     // the budget goes by the lots' width for the yard density (each lot is that within 15%), so it does not jump about
     // from seed to seed
     const d = Math.min(1, Math.max(0, CFG.YARD_DENSITY));
-    this.loader.place(plan);             // the loader and the log truck in the street in front of the lot (not on flat ground)
+    const street = this.loader.place(plan);   // the loader and the log truck in the street in front of the lot (not on flat ground)
+    if (!this.flat) { this.chipper.place(false, street ? { x: street.x, z: street.z, yaw: street.yaw } : plan.chipper); this.bins.place(); }   // ... and the chipper and its bin
     this.damage.job(this.flat ? 0 : CFG.YARD_LOT_MAX + (CFG.YARD_LOT_MIN - CFG.YARD_LOT_MAX) * d);
     if (!this.flat) this.awards.begin();   // (not in the engine tests: the job id is random, and FM-21 wants the same events twice)
   }

@@ -490,7 +490,7 @@ function newAwards() { return { job: '', got: {}, ate: {}, work: { chop: {}, chi
 function newProg() { return { M: 0, chipped: 0, hauled: 0, lost: 0, made: 0, gone: 0, cut: 0 }; }
 
 /**
- * How far the job has got, as the HUD shows it and the stickers go by (D140), each a share 0..1 of the job tree's kg:
+ * How far the job has got, as the HUD shows it and the stickers go by (D141), each a share 0..1 of the job tree's kg:
  *   chucked  deposited: hauled away on the log truck, or chipped with its chips in a bin (the share of all chips made
  *            that went into bins), of the tree less what was swept away as debris;
  *   chipped  gone: chipped, swept away as debris, or hauled away on the truck;

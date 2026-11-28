@@ -2345,7 +2345,26 @@ stump can be pulled too (and is charged as damage to their tree). Also
 fixed: a press while driving near a dormant yard tree woke the tree instead
 of working the claw.
 
-**D140 — Progress is Chopped, Chipped, Chucked.** Owner (2026-11-28): the
+**D140 — The loader picks up the chipper, chip bins, players and G.O.E.s;
+the chipper and bin start in the street.** Owner (2026-11-28): let the
+loader pick up the chipper, bin, robots and players, without damaging them;
+start the chipper and bin in the street. The claw's animation (D130) is
+reused as it is: the thing becomes a kinematic body carried at the jaws, and
+falls out when let go. Judgment calls (unreviewed): wood in the jaws comes
+first, then the nearest thing; any weight goes up (the 8 ft and too-light
+rules are for wood); "no damage" covers the ride and the fall out of the
+claw (`LOADER_SOFT_T`, 2 s after it lets go: no chipper crumple, no player
+impact), not what the carried thing then hits (a chipper swung into a house
+breaks it, and the driver is blamed as for the loader itself); a held
+player has no controls and can't wriggle free (respawn still works); a
+G.O.E. still on the truck's rack is not a thing (take him off first). The
+chipper parks along the kerb on the lot's side 4.2 m or more behind the
+loader, chute toward the lot (chips land on the verge), else past the
+truck's cab; the bin stays at its old place beside it. The yard plan still
+reserves the old chipper spot in the lot, so every seed's yards are as
+before.
+
+**D141 — Progress is Chopped, Chipped, Chucked.** Owner (2026-11-28): the
 progress line reads "Chopped: x%, Chipped: y%, Chucked: z%", and the
 completion stickers go by those three. Chucked is what went into a bin or
 onto the truck; chipped is what was chipped, disposed of or loaded; chopped is
