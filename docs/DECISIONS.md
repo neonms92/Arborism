@@ -2173,3 +2173,10 @@ Judgment calls the owner has not seen:
   the bed. The truck, hauling and progress are as D129.
 - Turning: each side drives at throttle ∓ 0.6 × turn; sideways grip 0.45 of
   the weight (it skids round; in place with no throttle).
+
+**D131 — Near the friction device, {interact} keeps its own actions.** Owner
+report: since D117 moved taking the tail to {rig}, being in range of the
+tail still blocked {interact} (no grab, no climb, no G.O.E. button, no
+loader). Now the tail only adds "{rig}: take tail" beside whatever
+{interact} offers there; {rig} still prefers a rigging action on the wood
+looked at, as in D117.
