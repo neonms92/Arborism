@@ -22,7 +22,7 @@ import { Builds } from './builds.js';
 import { Ground } from './ground.js';
 import { Awards } from './awards.js';
 import { Lines } from './lines.js';
-import { Goe } from './goe.js';
+import { Goes } from './goe.js';
 import { Loader } from './loader.js';
 import { CHIPPER_BODY_ID } from '../model/chipper.js';
 import { terrainSpec, groundY, groundN } from '../model/terrain.js';
@@ -95,7 +95,7 @@ export class Sim {
     this.awards = new Awards(this);   // stickers for the crew (D105)
     this.lines = new Lines(this);     // the power lines; made by the 'lines' event (grow)
     this.loader = new Loader(this);   // the grapple loader and the log truck; made by the 'loader' event (grow)
-    this.goe = new Goe(this);         // the groundbot: nobody until goe.spawn() (solo games, main.js)
+    this.goe = new Goes(this);        // the groundbots: racked on the log truck until someone takes one off (D131)
     this.onLoads = null;              // optional fn(dt), called each tick where point loads go in (test harness)
 
     if (opts.tree !== false) this.grow();

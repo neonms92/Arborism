@@ -408,8 +408,10 @@ export class View {
   /** Shirt, saw, name and stickers from the model (the 'player' event), redrawn only when they change. */
   setLook(pm) {
     const w = this.world.players.get(pm.id), name = playerName(this.world, pm.id);
-    const c = w && w.color >= 0 ? w.color : PLAYER_COLORS[(pm.id - 1) % PLAYER_COLORS.length];
+    const shirt = (id) => { const o = this.world.players.get(id); return o && o.color >= 0 ? o.color : PLAYER_COLORS[(id - 1) % PLAYER_COLORS.length]; };
+    const c = shirt(pm.id);
     if (pm.av.setLook(name, c)) pm.engMat.color.setHex(c);
+    if (w && w.bot) pm.av.setBand(w.owner > 0 && this.world.players.has(w.owner) ? shirt(w.owner) : -1);   // G.O.E.: his owner's shirt (D131)
     pm.av.setStickers(w ? w.st : null);
   }
 

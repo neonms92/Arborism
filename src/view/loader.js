@@ -2,7 +2,8 @@
 // (shapes from model/loader.js), posed from the snapshots and aux. No game rules.
 
 import * as THREE from 'three';
-import { LOADER, TRUCK, LOADER_BODY_ID, armTip } from '../model/loader.js';
+import { LOADER, TRUCK, LOADER_BODY_ID, GOE_ID0, GOE_NAME, GOE_COLOR, armTip } from '../model/loader.js';
+import { Avatar } from './avatar.js';
 
 const _v = new THREE.Vector3();
 const LOG_KG = 250;                // kg of hauled wood per log drawn in the bed
@@ -103,7 +104,17 @@ export class LoaderView {
     // stakes along the sides
     for (let x = T.FLOOR.c[0] - T.FLOOR.h[0] + 0.3; x < T.FLOOR.c[0] + T.FLOOR.h[0]; x += 1.1) for (const s of [false, true]) box({ c: [x, T.SIDE.c[1], T.SIDE.c[2] + 0.06], h: [0.05, T.SIDE.h[1] + 0.05, 0.03] }, M.dark, s);
     for (const w of T.WHEELS) { const m = new THREE.Mesh(new THREE.CylinderGeometry(T.WHEEL_R, T.WHEEL_R, 0.4, 16).rotateX(Math.PI / 2), M.dark); m.position.set(...w); parts.push(m); }
+    // the G.O.E. rack between the bed and the cab: a deck, a spine down the middle, a rail along its top, and the
+    // groundbots stood switched off against it (a slot is drawn empty once its G.O.E. is a player, updateRack)
+    box(T.RACK_DECK, M.steel); box(T.RACK_SPINE, M.grey);
+    box({ c: [T.RACK_SPINE.c[0], T.RACK_SPINE.c[1] + T.RACK_SPINE.h[1], 0], h: [T.RACK_SPINE.h[0] + 0.03, 0.03, 0.06] }, M.dark);
+    for (const x of [-1, 0, 1]) box({ c: [T.RACK_SPINE.c[0] + x * (T.RACK_SPINE.h[0] - 0.02), T.RACK_SPINE.c[1], 0], h: [0.03, T.RACK_SPINE.h[1], 0.06] }, M.dark);
     for (const m of parts) { m.castShadow = true; m.receiveShadow = true; g.add(m); }
+    this.racked = T.RACK_SLOTS.map((s) => {
+      const av = new Avatar(true); av.setPower(false); av.setLook(GOE_NAME, GOE_COLOR);
+      av.group.position.set(...s.c); av.group.rotation.y = s.f > 0 ? Math.PI : 0;     // he faces -z in his own frame
+      g.add(av.group); return av;
+    });
     this.logs = new THREE.Group(); g.add(this.logs);
     return g;
   }
@@ -133,7 +144,13 @@ export class LoaderView {
     return Math.atan2(-f.x, -f.z);
   }
 
+  /** Racked G.O.E.s show only in slots whose G.O.E. has not been taken off (is not a player). */
+  updateRack() {
+    if (this.racked) this.racked.forEach((av, i) => { av.group.visible = !this.world.players.has(GOE_ID0 - i); });
+  }
+
   update(dt, src, aux) {
+    this.updateRack();
     const u = this.loader; if (!u) return;
     const pb = src.pose(LOADER_BODY_ID), ld = aux && aux.ld, L = LOADER;
     if (pb) { u.g.position.set(pb.p.x, pb.p.y, pb.p.z); u.g.quaternion.set(pb.q.x, pb.q.y, pb.q.z, pb.q.w); }
