@@ -2232,9 +2232,10 @@ tree his owner is climbing."
   while that player exists, so the rack has no state of its own; a new truck
   (new tree) does not refill it.
 - {interact} on a racked one makes him a player there, switched off (the
-  D118 box), held by the grabber as a switched-off G.O.E. is. Once nobody
-  holds him and he has lain still `GOE_WAKE_T` (0.5 s) he switches himself
-  on: "activated" read as this.
+  D118 box), held by the grabber as a switched-off G.O.E. is. He stays off
+  until someone presses his power button (owner, 2026-11-28: "Don't auto
+  switch on Goe after we first grab him." An earlier version woke him once
+  let go of and lying still).
 - Owner = the grabber, on the player record (`owner`), so every machine
   draws the band: a loop round the box torso (front, top, back, under), 7.5 cm
   wide, 12 cm to his right (the tag is 12 cm to his left), in the owner's
