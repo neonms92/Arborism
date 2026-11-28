@@ -40,7 +40,6 @@ export class Players {
       ride: null, prompt: '',
       ch: null, chLock: new Set(),   // channel in progress {kind, t, need, seen}; kinds done and not yet let go of
       punch: null,                   // {seg, p: piece-local point, d: world direction, F: N}, fading
-      target: -1,                    // the loose wood {interact} would grab (seg id; -1: none), highlighted for its player
       grab: null,                    // holding wood on the ground: {seg, p: piece-local point, L0: rope length, prev}
       held: '',                      // what is in the other hand: '' or 'salad' (a tube salad off a chipper's rack)
       place: true,                   // still to be checked clear of houses and the like (post: queries see new colliders only after a step)
@@ -465,7 +464,7 @@ export class Players {
     p.body.resetForces(true);          // the legs' hold on a slope (ground) is set again each tick it applies
     if (p.off) {                       // switched off (G.O.E.): a box with no legs, no hands and no say
       for (const k of COUNTERS) p.last[k] = inp.c[k];
-      p.prompt = ''; p.target = -1; p.grab = null; p.walk = null;
+      p.prompt = ''; p.grab = null; p.walk = null;
       const v = p.body.linvel(); p.vPre.set(v.x, v.y, v.z);
       return;
     }
@@ -489,7 +488,7 @@ export class Players {
     if (pressed.buyBin) sim.bins.buy(p);          // the Tab menu's "Buy a new chip bin": put down in front of them
     const control = p.inj < INJ.DOWN && p.shakenT <= 0;
     const aim = control ? sim.aim(p) : null;
-    p.prompt = ''; p.target = -1;
+    p.prompt = '';
     // one of the other trees in the yards, still without wood of its own (sim/stands.js): starting to saw it
     // (holding {raise}), climb or grab it ({interact}) or rig it ({rig}) grows its wood. Rapier only finds the new
     // colliders after the next step, so the press that did it is handed on to the next tick.
@@ -697,8 +696,6 @@ export class Players {
         : bn.part === 'handle' ? '{interact}: grab bin' : 'Chip bin: {interact} on its lid opens it, its handle moves it. Chips in it are gone';
       else if (pile >= 0) first = '{interact}: take chips';
       else first = gaim ? '{interact}: grab' + kg(sim.world.segs.get(gaim.seg).piece) : '';
-      // shown to its player as a highlight on that wood (loose wood only: the standing tree is plain to see)
-      if (gaim && !atChip && !bn && pile < 0 && !sim.world.pieces.get(sim.world.segs.get(gaim.seg).piece).fixed) p.target = gaim.seg;
     }
     if (reach) {
       const s = sim.world.segs.get(aim.seg);
@@ -833,7 +830,7 @@ export class Players {
     for (const p of this.list.values()) {
       const s = p.saw;
       out.push({
-        id: p.id, m: p.mode, inj: p.inj, sk: p.shakenT > 0 ? 1 : 0, ck: +(p.chips || 0).toFixed(4), hd: p.held ? 1 : 0, gk: p.grab && p.grab.chip ? p.grab.k || 0 : 0, gr: p.grab && p.grab.bot === undefined ? [p.grab.chip ? -1 : p.grab.bin !== undefined ? -2 - p.grab.bin : p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, gb: p.grab && p.grab.bot !== undefined ? [p.grab.bot, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, of: p.off ? 1 : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pt: +p.input.pitch.toFixed(2), pr: p.prompt, tg: p.target >= 0 && !p.grab ? p.target : -1,
+        id: p.id, m: p.mode, inj: p.inj, sk: p.shakenT > 0 ? 1 : 0, ck: +(p.chips || 0).toFixed(4), hd: p.held ? 1 : 0, gk: p.grab && p.grab.chip ? p.grab.k || 0 : 0, gr: p.grab && p.grab.bot === undefined ? [p.grab.chip ? -1 : p.grab.bin !== undefined ? -2 - p.grab.bin : p.grab.seg, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, gb: p.grab && p.grab.bot !== undefined ? [p.grab.bot, ...p.grab.p.map((x) => +x.toFixed(3))] : 0, of: p.off ? 1 : 0, ch: p.ch ? +Math.min(1, p.ch.t / Math.max(1e-3, p.ch.need)).toFixed(2) : 0, yaw: +p.input.yaw.toFixed(2), pt: +p.input.pitch.toFixed(2), pr: p.prompt,
         // [seg, t, side, end stop, armed, riding]: enough for a client to carry on climbing from (net/predict.js)
         cl: p.cl ? [p.cl.seg, +p.cl.t.toFixed(5), p.cl.side.map((x) => +x.toFixed(4)), p.cl.end || 0, p.cl.armed ? 1 : 0, p.ride ? 1 : 0] : 0, n: p.inN || 0,
         saw: s.on ? [...s.A.toArray(), ...s.b.toArray(), ...s.f.toArray(), s.stuck ? 1 : 0, s.cutting ? 1 : 0, s.len].map((x) => +x.toFixed(3)) : 0,

@@ -2251,3 +2251,10 @@ tree his owner is climbing."
   G.O.E.s (they were plain players before; they are not held for anyone to
   come back to).
 - Now in online games too (D117 was solo only).
+
+**D135 — No highlight on the wood {interact} would grab.** Owner asked
+(2026-11-28) to remove the faint pulsing sleeve D101 drew round the targeted
+segment. The grab assist itself is unchanged (exact ray first, then the
+`GRAB_CONE` cone); only the drawing went, along with the player's `target`
+field and the aux `tg` that carried it to the view. The prompt
+("{interact}: grab, N kg") is now the only sign of what a press would take.
