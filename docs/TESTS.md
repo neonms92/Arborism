@@ -597,6 +597,34 @@ Cheap static checks on every FM-40 tree, before simulating:
 
 ---
 
+## 5b. Machines
+
+### FM-50 Grapple loader: drive up, grab a round, put it in the truck
+
+*Why (owner, 2026-11-28):* they had not managed to grab a log in play. This
+drives the loader the way a player does, with every control going through
+the player's input (`players.setInput`, button presses as counters), as a
+client's would.
+
+- **Scenario:** flat ground. The loader at the origin facing +x, the log
+  truck ahead and to its left (`'loader'` event), a round lying 6.5 m ahead
+  and 0.8 m to the right, turned from square to the loader. A player behind
+  the loader looks at it and presses {interact} (gets on). Stick and
+  throttle only: turn toward the round and drive at half throttle until the
+  prompt offers "grab and lift"; press {interact}; wait for the arms to be
+  up; drive to a spot in front of the truck's side, turn to face it, drive
+  in at 0.4 until stopped for 0.5 s; press {interact} (let go and lower).
+  The held round's free-fall height (INV-3) is taken from where the claw
+  let it go.
+- **Parameters:** radius 0.3 – 0.55 m, length 0.8 – 1.6 m, turned 0 – 40°.
+- **Pass if:** got on; the prompt offered the round and the press took it;
+  it went up overhead (centre of mass ≥ 2 m); let go over the truck, it was
+  hauled away.
+- **Measured on 2026-11-28:** 25 / 25 (667 kg at the default point). Before
+  the D137 fix the turned rounds broke INV-3 while the claw squared them up.
+
+---
+
 ## 6. What the runner reports
 
 Per run, one record (JSON):

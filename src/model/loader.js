@@ -26,7 +26,7 @@ export const LOADER = {
   BODY_Y: 0.7,
   CHASSIS: { c: [0, 0, 0], h: [1.0, 0.35, 0.6] },
   // the counterweight over the back axle: most of the mass
-  WEIGHT: { c: [-0.7, 0.15, 0], h: [0.28, 0.2, 0.58] },
+  WEIGHT: { c: [-0.72, 0.17, 0], h: [0.3, 0.22, 0.62] },   // (stands proud of the chassis: no faces shared)
   // the platform the driver stands on, behind the chassis, and the control post in front of them
   PLATFORM: { c: [-1.3, -0.33, 0], h: [0.3, 0.04, 0.5] },
   POST: { c: [-0.95, 0.45, 0.0], h: [0.05, 0.1, 0.25] },
@@ -35,16 +35,17 @@ export const LOADER = {
   WHEEL_R: 0.4, WHEEL_W: 0.3,
   // the arms: hinged at PIVOT (on towers at the back), ARM_L long, one each side at ARM_Z; angle from level, up
   // positive. Down, the claw's fork is on the ground; up, the claw is overhead, above a truck's side.
-  PIVOT: [-0.7, 0.85, 0], ARM_L: 2.3, ARM_Z: 0.72,
-  ARM_MIN: -0.42, ARM_MAX: 0.62,
+  PIVOT: [-0.7, 0.85, 0], ARM_L: 2.1, ARM_Z: 0.72,
+  ARM_MIN: -0.45, ARM_MAX: 0.62,
   // the claw, in its own frame: origin at the arms' ends, axes the loader's (it is kept level). A plate on the
   // arms, a fork of tines underneath (the under), and a clamp hinged on top of the plate that closes down (the over)
-  PLATE: { c: [0.08, -0.22, 0], h: [0.04, 0.32, 0.62] },
+  PLATE: { c: [0.0, -0.22, 0], h: [0.04, 0.32, 0.62] },
   TINES: [-0.45, -0.15, 0.15, 0.45],       // z of each tine of the fork
-  FORK: { c: [0.5, -0.55, 0], h: [0.42, 0.03, 0.05] },
-  CLAMP_HINGE: [0.12, 0.1, 0], CLAMP_Z: 0.42, CLAMP_L: 0.62,
-  JAW: [0.55, -0.35, 0],                   // the middle of the jaws: what it holds is held with its middle here
-  JAW_R: 0.4,                              // the thickest wood the claw closes on (radius, m)
+  FORK: { c: [0.42, -0.55, 0], h: [0.4, 0.03, 0.05] },
+  CLAMP_HINGE: [0.05, 0.1, 0], CLAMP_Z: 0.42, CLAMP_L: 0.6,
+  JAW: [0.38, -0.33, 0],                   // the middle of the jaws: what it holds is held with its middle here
+  JAW_W: 0.6,                              // the jaws reach this far either side of the middle (z)
+  JAW_R: 0.65,                             // the thickest wood the claw closes on (radius, m): a trunk round
 };
 
 /** The arms' ends (the claw's origin) in loader-local coordinates for arm angle a (rad). */
