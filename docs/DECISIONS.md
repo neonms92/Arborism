@@ -2204,13 +2204,13 @@ looked at, as in D117.
 
 **D133 — Rigging gear wears its owner's shirt colour.** Owner ask: the
 block, its friction device and the sling it hangs on take the shirt colour
-of the player who set the block; the rope itself (the line, its tail and the
-hitch at the knot) stays rope-coloured. The host records the setter in the
+of the player who set the block; the rope itself (the line and its tail)
+stays rope-coloured. The host records the setter in the
 rope state (`rope.by`, a player id), so it reaches every client through the
 'rope' event and the join snapshot. Untying keeps `by`; a new block takes the
 new setter's colour. A player who picked no shirt colour gets their default
-one, as on their body. Unreviewed: the hitch at the knot counts as rope, not
-as the "tie loop"; if the setter leaves, the gear keeps the default colour
+one, as on their body. Follow-up (owner): the tie on the branch (knot and hitch)
+takes the same colour. Unreviewed: if the setter leaves, the gear keeps the default colour
 for that player number.
 
 **D134 — G.O.E.s are racked on the log truck and follow whoever takes one.**
