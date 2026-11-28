@@ -75,6 +75,7 @@ const GHOST = {
   fence: '<path d="M26 70 V40 L31 33 L36 40 V70 Z M41 70 V37 L46 30 L51 37 V70 Z M56 70 V37 L61 30 L66 37 V70 Z"/><rect x="22" y="44" width="52" height="6"/><rect x="22" y="58" width="52" height="6"/>',
   wrongtree: '<rect x="42" y="44" width="16" height="26"/><circle cx="50" cy="36" r="15"/><circle cx="37" cy="44" r="11"/><circle cx="63" cy="44" r="11"/>',
   power: '<path d="M60 14 L22 54 L45 54 L42.7 60 L55.9 60 L80 37 L57 37 L67 14 Z"/>',   // the bolt's lower tip becomes the tail
+  car: '<path d="M18 70 L18 58 Q18 54 24 53 L33 51 L40 40 Q42 37 46 37 L60 37 Q64 37 66 40 L73 51 L78 52 Q82 53 82 58 L82 70 Z"/>',
   wreck: '<path d="M20 46 L34 51 L34 63 L20 66 Z"/><rect x="33" y="45" width="34" height="25" rx="3"/><path d="M50 45 L52 31 Q54 24 63 24 L73 26 L71 32 L63 31 Q60 31 59 35 L58 45 Z"/>',
 };
 const FACE = { power: -13, wrongtree: -16 };
@@ -82,7 +83,7 @@ const FACE = { power: -13, wrongtree: -16 };
 const UNION = new Set(['wrongtree', 'power']);   // the face higher up, where the thing is widest
 // where the tail hangs from: the body's bottom edge [left x, right x, y, how far the tail's top tucks up into the
 // body (default 3; the fence's covers the gaps between its pickets)], so the tail joins the body it belongs to
-const TAIL = { house: [30, 70, 70], shed: [30, 70, 70], fence: [26, 66, 70, 6], wrongtree: [42, 58, 70], power: [42.7, 55.9, 60], wreck: [33, 67, 70] };
+const TAIL = { house: [30, 70, 70], shed: [30, 70, 70], fence: [26, 66, 70, 6], wrongtree: [42, 58, 70], power: [42.7, 55.9, 60], wreck: [33, 67, 70], car: [26, 74, 70] };
 function ghostTail([x0, x1, y, tuck = 3]) {
   // the wavy tail drawn for a 40-wide body ending at y 67, stretched to this body's width and down to y 92 (inside
   // the sticker's rim); its top tucks up into the body so the join is hidden under the fill pass
@@ -151,7 +152,7 @@ function broke() {
     '<text x="50" y="91" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-weight="900" font-size="11" fill="#fff">$0</text>');
 }
 
-const ART = { tree, chip, bin, skull, salad, wrongtree: () => ghost('wrongtree'), broke, house: () => ghost('house'), shed: () => ghost('shed'), fence: () => ghost('fence'), wreck: () => ghost('wreck'), power: () => ghost('power'),
+const ART = { tree, chip, bin, skull, salad, wrongtree: () => ghost('wrongtree'), broke, house: () => ghost('house'), shed: () => ghost('shed'), fence: () => ghost('fence'), wreck: () => ghost('wreck'), power: () => ghost('power'), car: () => ghost('car'),
   cutself: () => lanyard('OOPS!', '#f2c230'), cutother: () => lanyard('SORRY!', '#8e5bd0'), rigcut, lower,
   perch: () => perch('#e0663a', 'GOING DOWN!'), perchother: () => perch('#8e5bd0', 'LOOK OUT!') };
 
@@ -182,6 +183,7 @@ export function stickerInfo(k, t = 0) {
     case 'shed': return { name: 'Sorry, Shed!', desc: 'Wood you sent, or a chipper running away from you, broke a shed this job.' };
     case 'fence': return { name: 'Sorry, Fence!', desc: 'Wood you sent, or a chipper running away from you, broke a fence this job.' };
     case 'power': return { name: 'Sorry, Electricity!', desc: 'You sawed through a power line, or your wood brought one down, this job.' };
+    case 'car': return { name: 'Sorry, Car!', desc: 'Wood you sent, or a chipper or loader running away from you, smashed part of a parked car this job.' };
     case 'wreck': return { name: 'Sorry, Chipper!', desc: 'Wood you sent wrecked a chipper this job.' };
     case 'rigcut': return { name: 'Rigged', desc: 'On your spurs, you sawed free wood that was tied to the rigging rope.' };
     case 'lower': return { name: 'Soft landing', desc: `On the rope, you let a piece of ${CFG.STICKER_LOWER_KG} kg or more down onto the ground, and nothing broke for ${CFG.STICKER_LOWER_T} seconds after.` };

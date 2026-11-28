@@ -148,7 +148,7 @@ export class View {
     const bo = CFG.BARK_OPACITY;
     this.barkMat.opacity = bo; this.barkMat.depthWrite = bo > 0.95;
     this.leafMat.opacity = CFG.LEAF_OPACITY; this.leafMat.depthWrite = CFG.LEAF_OPACITY > 0.95;
-    if (this.paverView.gravel !== CFG.PAVER_GRAVEL) { this.paverView.gravel = CFG.PAVER_GRAVEL; this.paverView.refresh(); }
+    { const g = `${CFG.PAVER_GRAVEL},${CFG.DRIVE_GRAVEL},${CFG.STREET_GRAVEL}`; if (this.paverView.gravel !== g) { this.paverView.gravel = g; this.paverView.refresh(); } }
     for (const p of this.pieces.values()) { p.bark.visible = bo > 0.01; p.leaves.visible = CFG.LEAF_OPACITY > 0.01; p.fibres.visible = CFG.SHOW_FIBRES; }
     // solid bark hides whole bundles, see-through bark shows them: crossing over redraws the fibres
     if (this.hideWhole !== hidesWhole()) { this.hideWhole = hidesWhole(); for (const [id, p] of this.pieces) { this.buildFibres(p, this.world.segsOf(id)); p.ver = -1; } }

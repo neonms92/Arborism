@@ -54,7 +54,7 @@ export class WeedsView {
     // footprints of everything standing on the ground: {cx, cz, ax, az, ha, bx, bz, hb} (two horizontal half axes)
     const feet = [];
     for (const b of w.builds) for (const m of b.mods) {
-      if (!m.ground || m.ids) continue;                       // broken modules: their weeds went with them
+      if (!m.ground || m.ids || b.kind === 'car') continue;   // (a parked car stands on its driveway: nothing grows round it)                       // broken modules: their weeds went with them
       const start = m.body === b.id ? { p: b.p, q: b.q } : b.bodies[m.body]; if (!start) continue;
       const mf = compose(start.p, start.q, m.p, m.q);
       for (const pt of m.parts) {

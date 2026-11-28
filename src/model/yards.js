@@ -15,6 +15,7 @@
 // inside the lot and clear of what is already there. Each lot may have:
 //   a house (rooms glued on a foundation, model/builds.js) facing the street, with a porch of pavers
 //     at its door, a paver sidewalk out to the street, or both;
+//   a driveway of concrete slabs from the street, beside the house or in front of it, sometimes with a car parked on it;
 //   a patio of pavers behind the house; a shed in a back corner;
 //   a fence round its sides and back, and sometimes along the front with a gap where the path is;
 //   trees (model/stands.js), wherever there is room left, clear of everything above.
@@ -47,6 +48,7 @@ const r4 = (v) => +v.toFixed(4);
 /**
  * The plan for these settings.
  * o = {seed, density, lotMax, lotMin, extent, street, fence, blend, paver (cell),
+ *      drive: {chance, cars (chance of a car on a driveway), w (width), cell (slab length), car: {L, W}} (optional),
  *      tree: {foot: [[x, z]...] (points on the trunk's axis from its base up to the height of a pole, the base at
  *             [0, 0]), r (its radius at the base), edge (m from the trunk to the lot's lines), clear (m beyond the
  *             trunk kept free of houses, sheds and the chipper), paveMax (largest paving round it), pit,
@@ -268,6 +270,33 @@ function fillLot(plan, lot, R, d, o, posts, edges, key) {
     }
     house.door = du;
 
+    // a driveway from the street, beside the house if there is room there, else in front of it clear of the path
+    // and porch; and sometimes a car parked on it, near the house end. Its own random numbers (seeded by the lot),
+    // so that adding driveways did not move anything else that was already planned.
+    const DV = o.drive;
+    if (DV && DV.chance > 0) {
+      const Rd = rng(o.seed * 6007 + Math.round(lot.x0 * 10) * 92821 + Math.round(lot.z0 * 10) * 31337);
+      const dw = DV.w, CL = DV.car ? DV.car.L : 4.6, side0 = Rd() < 0.5 ? -1 : 1;
+      // (to the street's edge: no margin at the front, the usual half metre from the side lines)
+      const room = (u0, u1, w0) => u0 >= -W / 2 + 0.5 && u1 <= W / 2 - 0.5 && w0 >= 0.5 && !taken.some((t) => u0 < t[1] && u1 > t[0] && w0 < t[3] && D > t[2]);
+      const tries = [];
+      for (const sd of [side0, -side0]) tries.push([u + sd * (hw / 2 + 0.4 + dw / 2), w]);        // beside the house, back to its middle
+      for (const sd of [side0, -side0]) for (const off of [0.6, 1.2, 2.5]) tries.push([du + sd * (walkW / 2 + off + dw / 2), front + 2.05]);   // in front of it
+      if (Rd() < DV.chance) for (const [cu, w0] of tries) {
+        const L = D - w0;
+        if (L < CL + 0.8 || !room(cu - dw / 2, cu + dw / 2, w0)) continue;
+        const [x, z] = toW(cu, w0 + L / 2);
+        plan.areas.push({ shape: 'rect', x: r4(x), z: r4(z), yaw, w: dw, d: r4(L), mat: 'slab', c: DV.cell });
+        take(cu - dw / 2, cu + dw / 2, w0, D);
+        house.drive = [cu - dw / 2, cu + dw / 2];
+        if (DV.car && Rd() < DV.cars) {
+          const cw = w0 + 0.4 + CL / 2 + Rd() * Math.max(0, Math.min(2, L - CL - 0.8)), nose = Rd() < 0.7 ? Math.PI : 0;   // usually parked nose in
+          add('car', cu + (Rd() - 0.5) * Math.max(0, dw - DV.car.W - 0.4), cw, nose);
+        }
+        break;
+      }
+    }
+
     // a patio behind the house
     if (pick(0.25 + 0.3 * d)) {
       const pw = cells(Math.min(hw, 3.6)), pd = cells(3), pu = u + (R() - 0.5) * (hw - pw), pwc = w - hd / 2 - pd / 2 - 0.05;
@@ -303,9 +332,13 @@ function fillLot(plan, lot, R, d, o, posts, edges, key) {
     fenceRun(plan, style, corners.fl, corners.bl, posts, edges, key);
     fenceRun(plan, style, corners.br, corners.fr, posts, edges, key);
     if (pick(0.35)) {
-      const g = house ? house.door : 0, gap = 0.8;
-      fenceRun(plan, style, corners.fr, L(g + gap, D), posts, edges, key);
-      fenceRun(plan, style, L(g - gap, D), corners.fl, posts, edges, key);
+      // along the front from right to left, with a gap at the path and one at the driveway
+      const g = house ? house.door : 0, gap = 0.8, gaps = [[g - gap, g + gap]];
+      if (house && house.drive) gaps.push(house.drive);
+      gaps.sort((a, b) => b[0] - a[0]);
+      let from = W / 2;
+      for (const [g0, g1] of gaps) { if (g1 < from) fenceRun(plan, style, L(from, D), L(g1, D), posts, edges, key); from = Math.min(from, g0); }
+      if (from > -W / 2) fenceRun(plan, style, L(from, D), corners.fl, posts, edges, key);
     }
   }
 

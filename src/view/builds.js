@@ -8,13 +8,17 @@ import { compose } from '../model/builds.js';
 const COLORS = {
   wall: 0x7a5534, door: 0x5e7f4a, floor: 0x8f6a42, post: 0x6b4a2c, roof: 0x3b3f44, rail: 0xb08a5a, picket: 0xc19a66, rough: 0xa39a8a,
   found: 0x8d8a84, glass: 0xd4dee2,   // frosted: pale and opaque, no seeing in
+  // parked cars ('paint' is picked per car)
+  tyre: 0x1c1c1e, cglass: 0x26313b, under: 0x2c2c2e, engine: 0x4b4d50, grille: 0x1f2022, bumper: 0x34363a, lamp: 0xf1eedc, tail: 0xa8221e, seat: 0x3b3632,
 };
+const PAINT = [0xb3261e, 0x1f4e8c, 0xe8e6e1, 0x2b2d30, 0x8a9096, 0x2f6b3c, 0xc9a227, 0x6b2a5a, 0x9fb7c9];
 // house siding and roofing, picked per house
 const SIDING = [0xd8d2c4, 0xa9b8c4, 0xc9b48a, 0x8e9f86, 0xb8826a, 0xe6e1d3, 0x9a8f86];
 const ROOFING = [0x3b3f44, 0x5a3b32, 0x4a4f45, 0x2f3438];
 
 const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _v = new THREE.Vector3(), _n = new THREE.Vector3();
 const UNIT = new THREE.BoxGeometry(1, 1, 1);
+const WHEEL = new THREE.CylinderGeometry(0.5, 0.5, 1, 14, 1).rotateZ(Math.PI / 2);   // a wheel: its box, drawn round about x
 
 export class BuildsView {
   constructor(scene, world) {
@@ -44,6 +48,7 @@ export class BuildsView {
       const i = (pt.mat === 'wall' ? h : h >>> 8) % pal.length;
       return [`${pt.mat}${i}`, pal[i]];
     }
+    if (pt.mat === 'paint') { const i = (Math.imul(b.id + 3, 2246822519) >>> 0) % PAINT.length; return [`paint${i}`, PAINT[i]]; }
     return [pt.mat in COLORS ? pt.mat : 'wall', COLORS[pt.mat] ?? COLORS.wall];
   }
 
@@ -53,8 +58,9 @@ export class BuildsView {
   }
 
   box(pt) {
-    const k = pt.h.join(',');
-    let g = this.geo.get(k); if (!g) this.geo.set(k, g = new THREE.BoxGeometry(pt.h[0] * 2, pt.h[1] * 2, pt.h[2] * 2));
+    const round = pt.mat === 'tyre', k = pt.h.join(',') + (round ? 'w' : '');
+    let g = this.geo.get(k);
+    if (!g) this.geo.set(k, g = round ? WHEEL.clone().scale(pt.h[0] * 2, pt.h[1] * 2, pt.h[2] * 2) : new THREE.BoxGeometry(pt.h[0] * 2, pt.h[1] * 2, pt.h[2] * 2));
     return g;
   }
 
@@ -101,7 +107,7 @@ export class BuildsView {
       g.position.set(...start.p); g.quaternion.set(...start.q);
       for (const [key, e] of M) {
         const lit = key === 'glass' && b.kind === 'house' && body === b.id;    // a window of the house as it stands: lit at night
-        const mesh = new THREE.Mesh(mergedBoxes(e.list, lit ? windowShade(b.id) : null), this.mat(key, e.col));
+        const mesh = new THREE.Mesh(mergedBoxes(e.list, lit ? windowShade(b.id) : null, key === 'tyre' ? WHEEL : UNIT), this.mat(key, e.col));
         mesh.userData.own = true;
         if (lit) { mesh.userData.day = mesh.material; this.glass.set(b.id, mesh); }
         mesh.castShadow = true; mesh.receiveShadow = true;
@@ -141,9 +147,9 @@ function windowShade(id) {
   };
 }
 
-/** One geometry of boxes: list of [part {h}, frame {p, q}] in the body's frame; shade(k): [r, g, b] for box k (a colour attribute). */
-function mergedBoxes(list, shade = null) {
-  const up = UNIT.attributes.position, un = UNIT.attributes.normal, ui = UNIT.index, nv = up.count, ni = ui.count;
+/** One geometry of boxes (or of `unit` shapes, a unit box by default): list of [part {h}, frame {p, q}] in the body's frame; shade(k): [r, g, b] for box k (a colour attribute). */
+function mergedBoxes(list, shade = null, unit = UNIT) {
+  const up = unit.attributes.position, un = unit.attributes.normal, ui = unit.index, nv = up.count, ni = ui.count;
   const pos = new Float32Array(list.length * nv * 3), nor = new Float32Array(list.length * nv * 3), col = shade ? new Float32Array(list.length * nv * 3) : null;
   const idx = new (list.length * nv > 65535 ? Uint32Array : Uint16Array)(list.length * ni);
   list.forEach(([pt, f], k) => {

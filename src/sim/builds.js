@@ -23,7 +23,7 @@
 
 import { CFG } from '../config.js';
 import { groundRange } from '../model/terrain.js';
-import { compose, regroup, partMass, breakForce, qrot, modProxies, SHED, FENCE } from '../model/builds.js';
+import { compose, regroup, partMass, breakForce, qrot, qmul, modProxies, buildDensity, SHED, FENCE, CAR } from '../model/builds.js';
 import { planYards, footprint } from '../model/yards.js';
 import { generateTree } from '../model/treegen.js';
 import { trunkOf } from '../model/stands.js';
@@ -58,6 +58,7 @@ export class Builds {
     const P = planYards({
       seed: CFG.YARD_SEED, density: CFG.YARD_DENSITY, lotMax: CFG.YARD_LOT_MAX, lotMin: CFG.YARD_LOT_MIN, extent: CFG.YARD_EXTENT,
       street: CFG.YARD_STREET, fence: CFG.YARD_FENCE, blend: CFG.TERRAIN_BLEND, paver: CFG.PAVER_SIZE,
+      drive: { chance: CFG.YARD_DRIVE, cars: CFG.YARD_CARS, w: CFG.DRIVE_WIDTH, cell: CFG.DRIVE_CELL, car: { L: CAR.L + 0.1, W: CAR.W } },
       poles: { spacing: Math.max(5, CFG.POLE_SPACING), size: CFG.TERRAIN_SIZE, dropMax: CFG.DROP_MAX },
       trees: { n: CFG.YARD_TREES, hmin: CFG.YARD_TREES_HMIN, hmax: CFG.YARD_TREES_HMAX, thick: CFG.YARD_TREES_THICK },
       tree: {
@@ -101,6 +102,15 @@ export class Builds {
         for (let i = 0; i <= b.n; i++) { const [x, z] = toW([i * span, 0, 0]); post.push(sim.groundY(x, z)); }
         b.p[1] = post[0];
         b.ys = []; for (let i = 0; i < b.n; i++) b.ys.push(+(Math.min(post[i], post[i + 1]) - b.p[1]).toFixed(4));
+      } else if (b.kind === 'car') {
+        // a parked car stands on its four wheels, tilted to the ground under them
+        const C = CAR, y = {};
+        for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const [x, z] = toW([sx * C.TRACK, 0, sz * C.AXLE]); y[`${sx}${sz}`] = sim.groundY(x, z); }
+        const front = (y['-11'] + y['11']) / 2, back = (y['-1-1'] + y['1-1']) / 2, left = (y['1-1'] + y['11']) / 2, right = (y['-1-1'] + y['-11']) / 2;
+        const ax = Math.atan2(-(front - back), 2 * C.AXLE), az = Math.atan2(left - right, 2 * C.TRACK);
+        const tilt = qmul([Math.sin(ax / 2), 0, 0, Math.cos(ax / 2)], [0, 0, Math.sin(az / 2), Math.cos(az / 2)]);
+        b.q = qmul(b.q, tilt).map((v) => +v.toFixed(6));
+        b.p[1] = +((y['-11'] + y['11'] + y['-1-1'] + y['1-1']) / 4 + 0.012).toFixed(4);   // (on the drawn slab's top)
       } else {
         const g = groundRange(w.terrain, footprint(b));
         if (b.kind === 'house') {
@@ -144,7 +154,7 @@ export class Builds {
     for (const pt of px) {
       const f = compose(m.p, m.q, pt.c, pt.q);
       const d = R.ColliderDesc.cuboid(pt.h[0], pt.h[1], pt.h[2]).setTranslation(f.p[0], f.p[1], f.p[2])
-        .setRotation({ x: f.q[0], y: f.q[1], z: f.q[2], w: f.q[3] }).setMass(pt.v * CFG.SHED_DENSITY).setFriction(0.7).setRestitution(0.1)
+        .setRotation({ x: f.q[0], y: f.q[1], z: f.q[2], w: f.q[3] }).setMass(pt.v * buildDensity(b, CFG)).setFriction(0.7).setRestitution(0.1)
         .setActiveEvents(R.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(CONTACT_EVENT_F);
       const c = sim.rapier.createCollider(d, body);
       cols.push(c); this.colMod.set(c.handle, [b.id, i]);
@@ -180,7 +190,7 @@ export class Builds {
       const l = compose(m.p, m.q, pt.c, pt.q), f = compose(ev.at.p, ev.at.q, l.p, l.q);
       const body = sim.rapier.createRigidBody(sim.dynamic().setTranslation(f.p[0], f.p[1] + 0.002, f.p[2]).setRotation({ x: f.q[0], y: f.q[1], z: f.q[2], w: f.q[3] })
         .setLinvel(v[0], v[1], v[2]).setAngvel({ x: w[0], y: w[1], z: w[2] }).setLinearDamping(0.05).setAngularDamping(0.3).setCcdEnabled(true));
-      const c = sim.rapier.createCollider(R.ColliderDesc.cuboid(pt.h[0], pt.h[1], pt.h[2]).setMass(partMass(pt, CFG.SHED_DENSITY)).setFriction(0.7).setRestitution(0.1), body);
+      const c = sim.rapier.createCollider(R.ColliderDesc.cuboid(pt.h[0], pt.h[1], pt.h[2]).setMass(partMass(pt, buildDensity(b, CFG))).setFriction(0.7).setRestitution(0.1), body);
       this.bodies.set(ev.parts[k], body); this.partCol.set(c.handle, ev.parts[k]); this.born.set(ev.parts[k], [sim.tick, b.id]);
     });
     // what hit it goes on as if the module had not been there; the parts are in its way now, so it still pays for them
@@ -297,7 +307,7 @@ export class Builds {
       other: other && other.isDynamic() ? other : null, otherPre,
     };
     const { loose } = regroup(b, m.body, mi);
-    sim.awards.broke(m.shape === 'shed' ? 'shed' : m.shape === 'room' || m.shape === 'found' ? 'house' : 'fence', hit.o);   // a sticker for whoever sent it (D107)
+    sim.awards.broke(b.kind === 'car' ? 'car' : m.shape === 'shed' ? 'shed' : m.shape === 'room' || m.shape === 'found' ? 'house' : 'fence', hit.o);   // a sticker for whoever sent it (D107)
     sim.emit({
       t: 'smash', b: bid, m: mi, at, parts: m.parts.map(() => w.newId()),
       loose: loose.map((mods) => ({ body: w.newId(), mods, p: at.p, q: at.q })),
