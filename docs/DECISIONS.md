@@ -2363,3 +2363,18 @@ loader, chute toward the lot (chips land on the verge), else past the
 truck's cab; the bin stays at its old place beside it. The yard plan still
 reserves the old chipper spot in the lot, so every seed's yards are as
 before.
+
+**D141 — The loader tears a length out of a utility pole.** Owner
+(2026-11-28): the loader should grab power poles, tearing a length of the
+pole from the upper and grounded portions. Under the claw's animation
+exception (D130) this is two `'split'` events, as the stump rip-out (D139)
+is one: no new rule for how wood fails. Judgment calls (unreviewed): the
+length is 1.5 m (`LOADER_POLE_LEN`, Tab menu, about one of the pole's
+segments), centred on the jaws but its bottom at least 0.3 m off the
+ground, so with the arms down it is the bottom 0.3 – 1.8 m; the breaks are
+clean (no splinters); the length is carried whatever it weighs (about 90 kg,
+under the too-light limit for other wood); the top drops 1.5 m onto the stub
+and does whatever its lines let it (on the seed tried it stood on the stub,
+held up by them); a dormant pole or yard tree in the jaws is woken by the
+press (yard trees then tip the loader as the standing tree does); costs are
+the usual ones for wood off a pole (about $7 300 on the first tear).

@@ -862,6 +862,36 @@ export const TESTS = [
     view: () => ({ target: [5, 1, 4], dist: 16, yaw: -0.6, pitch: 0.45 }),
   },
   {
+    id: 'FM-54', title: 'Grapple loader: tear a length out of a utility pole and put it in the truck', time: 90,
+    params: { Z: P([0, 1.0], [-0.5, 1.2], 0.8, 'm') },
+    run: (env, p) => loaderRun(env, p, (ctx) => {
+      // a dormant utility pole (no lines) 7 m ahead, Z to the right
+      const sim = ctx.sim, w = sim.world, x = 7, z = p.Z;
+      sim.emit({ t: 'stands', ...sim.standList([], [[x, z]]) });
+      const ld = sim.loader;
+      return {
+        at: () => ({ x: x - 1, z }), body: () => ld.hold ? ld.hold.body : null, kg: () => ld.hold ? Math.round(ld.hold.kg) : 0,
+        done: () => {
+          let stub = -Infinity, upper = 0;
+          for (const g of w.segs.values()) {
+            if (!g.pl) continue;
+            if (w.pieces.get(g.piece).fixed) stub = Math.max(stub, g.b[1]); else upper++;
+          }
+          return { hauledN: w.loader.n, stubH: +stub.toFixed(2), upperSegs: upper };
+        },
+      };
+    }, /tear out a length of the pole/),
+    judge: (m) => [
+      is('got on the loader with {interact}', m.mounted !== null, m.mounted),
+      is('the prompt offered the pole, and {interact} tore a length out', m.grabbed !== null, m.why || m.prompt),
+      ge('lifted it overhead (centre of mass, m)', m.topY, 1.6),
+      is('let go over the truck, it was hauled away', m.hauledN === 1, m.why || m.hauledN),
+      is('a grounded stub stays, 0.2 - 1 m', m.stubH > 0.2 && m.stubH < 1, m.stubH),
+      is('the pole above came free', m.upperSegs > 0, m.upperSegs),
+    ],
+    view: () => ({ target: [5, 2, 3], dist: 18, yaw: -0.6, pitch: 0.4 }),
+  },
+  {
     id: 'FM-40', title: 'A generated tree stands up', time: 30, exploreN: 2000, seed: TREE_SEED,
     params: TREE_PARAMS, fix: fixTree,
     maps: [['TREE_HEIGHT', 'TREE_DIAMETER'], ['BRANCH_DENSITY', 'BRANCH_LENGTH'], ['MOR', 'DENSITY']],

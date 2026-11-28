@@ -665,6 +665,19 @@ goes on the truck.
   oak): a switched-off G.O.E. and the chip bin picked up and put down, the
   G.O.E. unhurt, the bin upright.
 
+### FM-54 Grapple loader: tear a length out of a utility pole and put it in the truck
+
+*Why (owner, 2026-11-28, D141).*
+
+- **Scenario:** as FM-50, with a dormant utility pole (no lines) 7 m ahead,
+  Z to the right. Drive up until the prompt offers "tear out a length of the
+  pole", press, drive to the truck, let go.
+- **Parameters:** Z 0 – 1 m.
+- **Pass if:** got on; offered and torn out; up (≥ 1.6 m); hauled; a
+  grounded stub 0.2 – 1 m tall stays; the pole above came free.
+- **Measured on 2026-11-28:** 19 / 19 must points (an 89 kg length, a
+  0.25 m stub).
+
 ---
 
 ## 6. What the runner reports
