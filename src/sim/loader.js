@@ -16,6 +16,9 @@
 //     wheels. Once it has tipped LOADER_TIP (or the arms are up), it holds for LOADER_TIP_HOLD, lets go and lowers,
 //     and the loader drops back onto its wheels under its own weight;
 //   - wood still joined to the tree by fibres: the claw does not close (saw it free first).
+// A utility pole in the jaws (D142): the claw tears a length of it out (LOADER_POLE_LEN, from the jaws' height, never
+// lower than 0.3 m off the ground): two clean breaks, the pole above it comes down (with its lines), the grounded
+// stub stays, and the claw carries the length. A dormant pole or yard tree in the jaws is woken into wood first.
 // With no wood in its jaws it takes the other things that stand there (D140): a chipper, a chip bin, a player or a
 // G.O.E. They are carried the same way (a kinematic body, standing on the fork as they stood), whatever they weigh,
 // and come to no harm from it: a chipper held, or just put down, does not crumple, and a player or G.O.E. feels
@@ -270,7 +273,9 @@ export class Loader {
     else {
       // what closing now would take: said before you press, so you know when the wood (or the thing) is in the jaws
       const f = this.between(), th = !f || f.thick ? this.thingAt() : null;
+      const sd = !f && !th ? this.standAt() : null;
       act = th ? `{interact}: pick up ${th.name} {mass:${Math.round(th.kg)}}`
+        : sd !== null ? (sim.world.stands.list[sd].k === 1 ? '{interact}: tear out a length of the pole' : '{interact}: grab (the standing tree)')
         : !f ? '{interact}: lift (nothing in the claw)'
         : f.thick ? '{interact}: lift (too thick for the claw)'
         : !isFinite(f.kg) ? (this.stumpPrompt(f.seg))
@@ -284,6 +289,7 @@ export class Loader {
     const w = this.sim.world, s = w.segs.get(seg), pc = s && w.pieces.get(s.piece);
     if (!pc || !pc.fixed) return '{interact}: grab (still joined to the tree)';
     const st = this.stump(s.piece);
+    if (!st && s.pl) return '{interact}: tear out a length of the pole';
     return !st ? '{interact}: grab (the standing tree)' : st.why ? `{interact}: grab (${st.why.split(':')[0].toLowerCase()})` : '{interact}: rip out the stump';
   }
 
@@ -300,8 +306,12 @@ export class Loader {
     if (this.goingUp()) { if (this.hold && this.hold.kind !== 'pin') this.release(); this.setPhase(DROP); return; }
     this.note = '';
     if (this.hold) this.release();
-    const found = this.between();
+    let found = this.between();
     const th = !found || found.thick ? this.thingAt() : null;
+    if (!found && !th) {                               // a dormant pole or yard tree in the jaws: its wood grows, then as below
+      const sd = this.standAt();
+      if (sd !== null) { sim.stands.wake(sd); found = this.between(); }
+    }
     if (th) { this.takeThing(th, p); this.setPhase(GRAB); return; }   // a chipper, a bin, a player or a G.O.E.
     if (!found || found.thick) {
       if (found) this.note = 'Too thick for the claw';
@@ -321,6 +331,7 @@ export class Loader {
         this.setPhase(GRAB); return;
       }
       if (st && st.why) { sim.players.say(p, st.why); return; }
+      if (!st && s.pl) { if (this.tearPole(s, p)) return; }   // a utility pole: a length of it comes out
     }
     sim.awards.touch(s.piece, p.id);
     const len = piece.fixed ? Infinity : this.lengthOf(s.piece);
@@ -330,6 +341,57 @@ export class Loader {
     this.setPhase(GRAB);
   }
   setPhase(ph) { this.phase = ph; this.phaseT = 0; }
+
+  /** The dormant stand (pole or yard tree, sim/stands.js) in the open jaws: its index, or null. */
+  standAt() {
+    const sim = this.sim, st = sim.stands; if (!this.body || !st.colStand.size) return null;
+    const R = sim.R, J = this.toWorld(jawAt(this.arm), new THREE.Vector3());
+    const q = this.quat().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2));
+    let out = null;
+    sim.rapier.intersectionsWithShape({ x: J.x, y: J.y, z: J.z }, { x: q.x, y: q.y, z: q.z, w: q.w }, new R.Capsule(LOADER.JAW_W, CFG.LOADER_JAW_REACH), (col) => {
+      const i = st.colStand.get(col.handle); if (i === undefined) return true;
+      out = i; return false;
+    }, undefined, undefined, undefined, this.body);
+    return out;
+  }
+
+  /**
+   * The claw closes on standing pole s (a segment of its trunk): a length LOADER_POLE_LEN is torn out of it at the
+   * jaws (its bottom no lower than 0.3 m off the ground). Two clean breaks ('split'): the pole above comes free
+   * and falls, the grounded stub stays, and the length between is carried as any wood. False if there is not
+   * that much pole above the jaws to tear (the claw then pins, as on the standing tree).
+   */
+  tearPole(s, p) {
+    const sim = this.sim, w = sim.world, id = s.piece, LEN = CFG.LOADER_POLE_LEN;
+    // the trunk, from its base up (the arm and braces branch off it)
+    const chain = []; let g = [...w.segsOf(id)].find((x) => x.parent < 0 && x.pl);
+    while (g) {
+      chain.push(g.id);
+      const b = g.b; g = w.kids(g.id).map((k) => w.segs.get(k)).find((k) => k && Math.abs(k.a[1] - b[1]) < 1e-6 && Math.hypot(k.b[0] - k.a[0], k.b[2] - k.a[2]) < 0.2 * (k.b[1] - k.a[1]));
+    }
+    if (!chain.length) return false;
+    const base = w.segs.get(chain[0]).a[1], top = w.segs.get(chain[chain.length - 1]).b[1];
+    const J = this.toWorld(jawAt(this.arm), new THREE.Vector3());
+    const y0 = Math.max(base + 0.3, J.y - LEN / 2), y1 = y0 + LEN;
+    if (y1 > top - 0.3) return false;
+    const cut = (y) => {
+      for (const sid of chain) {
+        const c = w.segs.get(sid); if (!c || c.piece !== id || !(c.a[1] <= y && y < c.b[1])) continue;
+        const np = w.newId(), at = Math.max(0.02, Math.min(0.98, (y - c.a[1]) / (c.b[1] - c.a[1])));
+        sim.emit({ t: 'split', seg: c.id, at, newSeg: w.newId(), newPiece: np });
+        return np;
+      }
+      return null;
+    };
+    const up = cut(y1), mid = up !== null ? cut(y0) : null;
+    if (up !== null) sim.awards.touch(up, p.id);
+    if (mid === null) return up !== null;
+    sim.awards.touch(mid, p.id);
+    this.take(mid, sim.bodies.get(mid), sim.weightOf(mid), 'carry');   // (whatever it weighs: it is the length torn out)
+    this.note = 'Tore a length out of the pole';
+    this.setPhase(GRAB);
+    return true;
+  }
 
   // ---- things in the claw (D140): a chipper, a chip bin, a player or a G.O.E. ----
   /**

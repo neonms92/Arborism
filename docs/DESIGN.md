@@ -871,7 +871,7 @@ shows "Chopped: x%, Chipped: y%, Chucked: z%" from `jobShares` (D141),
 coloured by `pctColour` (hud.js); the tree, chipper and 100% stickers go by
 the same three shares.
 
-### 6.5b Grapple loader and log truck (D129, D130, D137, D139, D140)
+### 6.5b Grapple loader and log truck (D129, D130, D137, D139, D140, D142)
 
 `model/loader.js` (shapes), `sim/loader.js` (host), `view/loader.js`. For wood
 too heavy for the chipper (a round of the trunk, a big log). With every new
@@ -926,6 +926,14 @@ the first spot along the street where both fit (`'loader'` event; `world.loader`
     lets go and lowers, and the loader drops back under its own weight;
   - still joined to the tree by fibres: the claw does not close.
   Sawn through while held, the claw lets go of all of it.
+- **Utility poles (D142).** A pole in the jaws (a dormant one, or a yard
+  tree, is woken into wood by the press) has a length `LOADER_POLE_LEN`
+  (1.5 m) torn out of it at the jaws' height, never lower than 0.3 m off the
+  ground: two clean breaks (`'split'`), so the pole above comes free (its
+  lines hold it or let it down) and the grounded stub stays. The claw
+  carries the length whatever it weighs. Not enough pole above the jaws:
+  it pins, as on the standing tree. A neighbour's pole is charged as any
+  wood off it (6.9), and the short stub can then be ripped out as a stump.
 - **Things (D140).** With no wood between its jaws the claw takes the
   nearest chipper (not a wreck), chip bin, player or G.O.E. standing there
   (on the ground, not the driver), whatever it weighs: "pick up the chipper"

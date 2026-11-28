@@ -145,6 +145,7 @@ export const ROWS = [
   ['LOADER_MAX_LEN', 'Loader: longest wood it lifts (m; longer tips it forward)', 0.5, 8, 0.05, 1, true],
   ['LOADER_LIGHT', 'Loader: lightest it holds (x chipper limit; lighter slips through)', 0, 2, 0.05, 1, true],
   ['LOADER_JAW_REACH', 'Loader: how far from the jaws the claw still takes hold (m)', 0, 1, 0.05, 1, true],
+  ['LOADER_POLE_LEN', 'Loader: length of pole it tears out (m)', 0.3, 4, 0.1, 1, true],
   ['LOADER_SOFT_T', 'Loader: no harm after putting a thing down (s)', 0, 10, 0.5, 1, true],
   ['LOADER_STUMP_H', 'Loader: tallest stump it rips out (m)', 0.2, 4, 0.05, 1, true],
   ['LOADER_TIP', 'Loader: how far it tips before giving up (°)', 5, 60, 1, Math.PI / 180, true],

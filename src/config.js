@@ -288,6 +288,7 @@ export const CFG = {
   LOADER_JAW_REACH: 0.35,  // m from the middle of the open jaws to the bark that closing still takes hold of
   LOADER_MAX_LEN: 2.44,    // m (8 ft): longer wood is too heavy: the loader tips forward trying, and the wood stays put
   LOADER_LIGHT: 0.75,      // wood lighter than this x CHIP_CAPACITY slips through the claw halfway up (it is for the chipper)
+  LOADER_POLE_LEN: 1.5,    // m of a utility pole the claw tears out, from the jaws' height up
   LOADER_SOFT_T: 2,        // s after the claw puts a thing down (a chipper, a bin, a player, a G.O.E.) in which nothing hurts it
   LOADER_STUMP_H: 1.2,     // m (4 ft): a stump no taller than this above the ground the claw rips out, roots and all
   LOADER_TIP: 0.35,        // rad the loader tips forward, trying to lift wood too long, before it gives up
