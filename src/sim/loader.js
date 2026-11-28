@@ -749,6 +749,7 @@ export class Loader {
       if (t < CFG.TRUCK_TAKE_T) { this.rest.set(id, t); continue; }
       this.rest.delete(id);
       const kg = b.mass();
+      sim.awards.hauled(id);
       sim.emit({ t: 'haul', piece: id });
       sim.toast(`A log went on the truck: {mass:${Math.round(kg)}}`);
     }

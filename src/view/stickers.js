@@ -166,19 +166,19 @@ export function stickerInfo(k, t = 0) {
   switch (k) {
     case 'tree': return {
       name: ['Brown tree', 'Yellow tree', 'Green tree'][t],
-      desc: [`60% of the job tree is chopped into pieces the chipper can take, and you did at least ${share()} of the sawing. It turns yellow at 90% and green at 99% this job.`,
-        `90% of the job tree is chopped into pieces the chipper can take, and you did at least ${share()} of the sawing. Green at 99%.`,
-        `99% of the job tree is chopped into pieces the chipper can take, and you did at least ${share()} of the sawing.`][t],
+      desc: [`60% of the job tree is chopped into pieces the chipper or the loader can take (the stump too), and you did at least ${share()} of the sawing. It turns yellow at 90% and green at 99% this job.`,
+        `90% of the job tree is chopped into pieces the chipper or the loader can take (the stump too), and you did at least ${share()} of the sawing. Green at 99%.`,
+        `99% of the job tree is chopped into pieces the chipper or the loader can take (the stump too), and you did at least ${share()} of the sawing.`][t],
     };
     case 'chip': return {
       name: ['Bronze chipper', 'Silver chipper', 'Gold chipper'][t],
-      desc: [`The crew has chipped 60% of the job tree, and you fed at least ${share()} of it. Silver at 90%, gold at 99% this job.`,
-        `The crew has chipped 90% of the job tree, and you fed at least ${share()} of it. Gold at 99%.`,
-        `The crew has chipped 99% of the job tree, and you fed at least ${share()} of it.`][t],
+      desc: [`The crew has chipped (or loaded) 60% of the job tree, and you fed or loaded at least ${share()} of it. Silver at 90%, gold at 99% this job.`,
+        `The crew has chipped (or loaded) 90% of the job tree, and you fed or loaded at least ${share()} of it. Gold at 99%.`,
+        `The crew has chipped (or loaded) 99% of the job tree, and you fed or loaded at least ${share()} of it.`][t],
     };
     case 'wrongtree': return { name: 'Sorry, Tree!', desc: 'You sawed down a neighbour\'s tree. Wrong tree!' };
     case 'broke': return { name: 'Bankrupt', desc: 'The job\'s cash went below zero.' };
-    case 'bin': return { name: t ? 'Gold 100%' : '100%', desc: `99% of the job tree went through the chipper and into the bins, and you put at least ${share()} of those chips there.` + (t ? ' And the job still had money left.' : '') };
+    case 'bin': return { name: t ? 'Gold 100%' : '100%', desc: `99% of the job tree is chucked: chipped into the bins or loaded on the log truck, and you put at least ${share()} of it there.` + (t ? ' And the job still had money left.' : '') };
     case 'house': return { name: 'Sorry, House!', desc: 'Wood you sent, or a chipper running away from you, broke part of a house this job.' };
     case 'shed': return { name: 'Sorry, Shed!', desc: 'Wood you sent, or a chipper running away from you, broke a shed this job.' };
     case 'fence': return { name: 'Sorry, Fence!', desc: 'Wood you sent, or a chipper running away from you, broke a fence this job.' };

@@ -864,9 +864,12 @@ its own: open means swung more than 1.2 rad up, read from the bodies on the
 host. Chips that land in an open, upright bin's mouth go in and are gone: the
 'chip' event carries `bin: k`, a player's carried chips go in as
 'chips' `{dump: V}`. `world.prog` = {M: kg of the job tree as grown, chipped,
-lost (swept debris), made and gone (m³ of chips)}, kept by `world.apply` so
-every machine agrees; the HUD shows tree chipped = chipped / (M − lost) and
-chips in bins = gone / made, coloured by `pctColour` (hud.js).
+lost (swept debris), hauled (on the log truck), made and gone (m³ of chips),
+cut (kg still here in chipper- or loader-sized pieces, set by the host's
+'chopped' event)}, kept by `world.apply` so every machine agrees. The HUD
+shows "Chopped: x%, Chipped: y%, Chucked: z%" from `jobShares` (D141),
+coloured by `pctColour` (hud.js); the tree, chipper and 100% stickers go by
+the same three shares.
 
 ### 6.5b Grapple loader and log truck (D129, D130, D137, D139, D140)
 
