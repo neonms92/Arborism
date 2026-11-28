@@ -13,7 +13,7 @@ export class LoaderView {
   constructor(scene, world) {
     this.scene = scene; this.world = world;
     const lam = (c, extra) => new THREE.MeshLambertMaterial({ color: c, flatShading: true, ...extra });
-    this.mats = { yellow: lam(0xf2b51c), dark: lam(0x262626), grey: lam(0x8a8d90), steel: lam(0x5d6166), red: lam(0xb8322a),
+    this.mats = { yellow: lam(0xf2b51c), green: lam(0x3f8a2e), dark: lam(0x262626), grey: lam(0x8a8d90), steel: lam(0x5d6166), red: lam(0xb8322a),
       white: lam(0xe8e8e2), glass: lam(0x223344), wood: lam(0x8a6236), end: lam(0xd9b98a) };
     this.loader = null; this.truck = null; this.logs = null; this.shown = -1;
     this.lastW = null;
@@ -37,7 +37,7 @@ export class LoaderView {
   buildLoader() {
     const L = LOADER, M = this.mats, g = new THREE.Group(), parts = [];
     const box = (b, mat, par = parts) => { const m = new THREE.Mesh(new THREE.BoxGeometry(b.h[0] * 2, b.h[1] * 2, b.h[2] * 2), mat); m.position.set(...b.c); par.push(m); return m; };
-    box(L.CHASSIS, M.yellow);
+    box(L.CHASSIS, M.green);
     box(L.WEIGHT, M.dark);
     box({ c: [L.CHASSIS.c[0] + 0.55, L.CHASSIS.h[1] + 0.02, 0], h: [0.4, 0.03, 0.45] }, M.dark);      // the engine hood's grille
     box(L.PLATFORM, M.steel);
@@ -48,13 +48,13 @@ export class LoaderView {
     for (const z of [-0.5, 0.5]) box({ c: [L.PLATFORM.c[0] - 0.05, 0.15, z], h: [0.25, 0.02, 0.02] }, M.grey);
     for (const z of [-0.5, 0.5]) box({ c: [L.PLATFORM.c[0] - 0.28, -0.1, z], h: [0.02, 0.25, 0.02] }, M.grey);
     // the arms' towers at the back, either side of the driver
-    for (const s of [-1, 1]) box({ c: [L.PIVOT[0], (L.PIVOT[1] + L.CHASSIS.h[1]) / 2 - 0.05, s * L.ARM_Z], h: [0.14, (L.PIVOT[1] - L.CHASSIS.h[1]) / 2 + 0.15, 0.05] }, M.yellow);
+    for (const s of [-1, 1]) box({ c: [L.PIVOT[0], (L.PIVOT[1] + L.CHASSIS.h[1]) / 2 - 0.05, s * L.ARM_Z], h: [0.14, (L.PIVOT[1] - L.CHASSIS.h[1]) / 2 + 0.15, 0.05] }, M.green);
     // wheels: each in its own group, rolled by how far it went along the loader's heading (the sides differ in a turn)
     this.wheels = [];
     for (const w of L.WHEELS) {
       const wg = new THREE.Group(); wg.position.set(...w);
       const tyre = new THREE.Mesh(new THREE.CylinderGeometry(L.WHEEL_R, L.WHEEL_R, L.WHEEL_W, 16).rotateX(Math.PI / 2), M.dark);
-      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, L.WHEEL_W + 0.02, 8).rotateX(Math.PI / 2), M.yellow);
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, L.WHEEL_W + 0.02, 8).rotateX(Math.PI / 2), M.green);
       const roll = new THREE.Group(); roll.add(tyre, hub);
       for (const m of [tyre, hub]) { m.castShadow = true; m.receiveShadow = true; }
       wg.add(roll); g.add(wg); this.wheels.push({ wg, roll, spin: 0 });
@@ -62,8 +62,8 @@ export class LoaderView {
     // the arms: one each side from the pivot, a cross tube behind the claw; drawn along +x, turned about the pivot
     const arms = new THREE.Group(); arms.position.set(...L.PIVOT);
     const ap = [];
-    for (const s of [-1, 1]) box({ c: [L.ARM_L / 2, 0, s * L.ARM_Z], h: [L.ARM_L / 2 + 0.06, 0.08, 0.05] }, M.yellow, ap);
-    box({ c: [L.ARM_L * 0.62, 0, 0], h: [0.06, 0.06, L.ARM_Z] }, M.yellow, ap);
+    for (const s of [-1, 1]) box({ c: [L.ARM_L / 2, 0, s * L.ARM_Z], h: [L.ARM_L / 2 + 0.06, 0.08, 0.05] }, M.green, ap);
+    box({ c: [L.ARM_L * 0.62, 0, 0], h: [0.06, 0.06, L.ARM_Z] }, M.green, ap);
     for (const m of ap) { m.castShadow = true; m.receiveShadow = true; arms.add(m); }
     g.add(arms);
     // the lift rams, one beside each arm: from low on the chassis to half way along the arm

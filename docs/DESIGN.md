@@ -855,7 +855,7 @@ lost (swept debris), made and gone (m³ of chips)}, kept by `world.apply` so
 every machine agrees; the HUD shows tree chipped = chipped / (M − lost) and
 chips in bins = gone / made, coloured by `pctColour` (hud.js).
 
-### 6.5b Grapple loader and log truck (D129, D130)
+### 6.5b Grapple loader and log truck (D129, D130, D137)
 
 `model/loader.js` (shapes), `sim/loader.js` (host), `view/loader.js`. For wood
 too heavy for the chipper (a round of the trunk, a big log). With every new
@@ -892,9 +892,15 @@ the first spot along the street where both fit (`'loader'` event; `world.loader`
   `LOADER_LIFT_T`), and *let go and lower* (arms up: the clamp opens, the wood
   drops, the arms come down). Held wood is a kinematic body carried at the
   jaws; it and wood falling out of the claw do not meet the loader (collision
-  groups) until clear. The claw takes the wood whose bark is within
-  `LOADER_JAW_REACH` of the jaws' middle (no thicker than `JAW_R`, 0.4 m);
-  with nothing there it does the motion empty. Three cases do not go up:
+  groups) until clear. The claw takes the wood whose bark comes within
+  `LOADER_JAW_REACH` of the jaws' line (across the claw, `JAW_W` either side
+  of its middle, just ahead of the front wheels), no thicker than `JAW_R`
+  (0.65 m: a trunk round). While the arms are down the prompt says what
+  closing would take ("grab and lift" with its weight, "nothing in the
+  claw", "too thick"); with nothing it can hold there it does the motion
+  empty. Pressing mid-motion turns it round at once (D137): going up, the
+  claw opens and lets go and the arms come down; going down, it closes on
+  what is in its jaws there and goes up. Three cases do not go up:
   - lighter than `LOADER_LIGHT` × `CHIP_CAPACITY` (chipper wood): it slips
     through the claw halfway up and falls;
   - longer than `LOADER_MAX_LEN` (8 ft), or the standing tree: too heavy. The

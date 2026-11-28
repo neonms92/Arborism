@@ -2275,3 +2275,28 @@ shifts relative to it. A spec without `root` (older saves) keeps the old
 ground. On a ledge or steep slope the uphill side buries the base deeper
 (about 1 m on seed "g"), as a real tree on a bank would be.
 
+**D137 — The loader's claw finds wood the way a player brings it, says so,
+and turns round on a press.** Owner (2026-11-28): they had not managed to
+grab a log in play; asked for a test that shows it working, a green loader,
+no flickering panel on top, and the button to reverse a motion at once.
+Found: the trunk rounds people want to load are 0.4 – 0.6 m in radius, and
+the claw took nothing thicker than 0.4 m, closing on nothing without a word;
+and the jaws sat 0.8 m past the front wheels, so a thin log the wheels had
+bumped was out of reach. Also, squaring up the wood in the claw turned it
+about its body's origin, which for wood cut from the tree is at the stump,
+not in the wood: the wood swung through a wide arc for half a second.
+Changes: `JAW_R` 0.65 m; shorter arms (2.1 m) put the jaws' middle just
+ahead of the wheels; the claw reaches along a line across its width, not a
+point; the prompt names what it would take before you press; squaring up
+moves the wood's centre of mass and turns it about that; the counterweight
+stands proud of the chassis (its top was the chassis top: the flicker);
+green paint. FM-50 (TESTS.md 5b) drives it as a player does. Judgment
+calls: wood too thick still runs the motion empty (with a note), so the
+button always does something; the arms overhead now hold the wood 1.4 m
+ahead of the loader's middle (was 1.7), still over a truck's side once the
+loader's nose is under the bed.
+Also (owner, same day: "does driving through an obstacle count against the
+driver?"): its price was already charged to the job like any breakage, but
+the blame sticker (D107: house, shed, fence, wreck) went to no one, since
+`awards.culprit` knew wood and chippers, not the loader. It now names whoever
+drove the loader last (still on it, or it rolled on after they got off).

@@ -114,7 +114,7 @@ export class Awards {
     this.lowered.add(piece);
     this.landing = { id: holder, piece, until: sim.tick + Math.round(CFG.STICKER_LOWER_T / CFG.TICK), dmg: w.damage };
   }
-  /** Who is to blame for collider h hitting something: the player behind that wood or chipper, or -1. */
+  /** Who is to blame for collider h hitting something: the player behind that wood, chipper or loader, or -1. */
   culprit(h) {
     const sim = this.sim, seg = sim.colSeg.get(h);
     if (seg !== undefined) {
@@ -122,6 +122,7 @@ export class Awards {
       return sim.world.pieces.get(s.piece)?.fixed ? -1 : this.by.get(s.piece) ?? -1;
     }
     for (const u of sim.chipper.units) if (u && u.solid(h)) return this.chipBy.get(u.k) ?? -1;
+    if (sim.loader.solid(h)) return sim.loader.lastDriver;      // the loader: whoever drove it last (still driving, or it rolled on)
     return -1;
   }
   /** Something of kind ('house', 'shed', 'fence', 'wreck') broke, hit by collider h. */

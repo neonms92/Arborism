@@ -55,6 +55,7 @@ export class Loader {
     this.hold = null;                 // {piece, kind: 'carry'|'light'|'pin', ...}: what the claw has
     this.through = new Map();         // piece id -> s: wood dropped from the claw, not meeting the loader yet
     this.driver = -1;
+    this.lastDriver = -1;             // who drove it last (blamed for what it breaks: awards.culprit)
     this.ctrl = { thr: 0, turn: 0 };
     this.note = '';                   // a word for the driver about the last grab ('' for none)
     this.rest = new Map();            // piece id -> s it has lain still in the truck's bed
@@ -142,7 +143,7 @@ export class Loader {
     }
     this.truck = { body: tb, p: ev.truck.p, q: tq };
     sim.goe.onTruck(tb);              // the G.O.E.s still racked on it (sim/goe.js, D134)
-    this.vStand = null; this.rest.clear();
+    this.vStand = null; this.rest.clear(); this.lastDriver = -1;
     this.arm = Math.max(L.ARM_MIN, Math.min(L.ARM_MAX, this.arm));
     this.jaw = 0; this.phase = this.arm > L.ARM_MIN + 1e-3 ? LOWER : IDLE; this.phaseT = 0;
   }
@@ -210,7 +211,7 @@ export class Loader {
       sim.players.say(p, `${sim.players.name(this.driver)} is driving the loader`); return;
     }
     sawOff(sim, p); p.grab = null; p.cl = null; p.lan = false; p.ride = null;
-    p.mode = MODE.DRIVE; this.driver = p.id;
+    p.mode = MODE.DRIVE; this.driver = p.id; this.lastDriver = p.id;
     p.body.setBodyType(sim.R.RigidBodyType.KinematicPositionBased, true);
     p.col.setSensor(true);                       // the driver goes with the loader and does not shove it
     const s = this.toWorld(LOADER.STAND, _a);
@@ -245,24 +246,42 @@ export class Loader {
     if (pressed.jump) { this.dismount(p); return; }
     this.ctrl = { thr: inp.my, turn: inp.mx };
     if (pressed.interact) this.toggle(p);
-    const h = this.hold, kg = h ? ` {mass:${Math.round(h.kg)}}` : '';
-    const act = this.phase === IDLE ? '{interact}: grab and lift'
-      : this.phase === UP ? `{interact}: let go and lower${h && h.kind === 'carry' ? kg : ''}`
-      : this.phase === GRAB || this.phase === LIFT ? 'lifting...' : this.phase === TIP ? 'straining...' : 'lowering...';
+    // the one button goes the other way at any time: up (grab and lift) or down (let go and lower)
+    const up = this.goingUp(), h = this.hold;
+    let act;
+    if (up) act = `{interact}: let go and lower${h && h.kind === 'carry' ? ` {mass:${Math.round(h.kg)}}` : ''}`;
+    else {
+      // what closing now would take: said before you press, so you know when the wood is in the jaws
+      const f = this.between();
+      act = !f ? '{interact}: lift (nothing in the claw)'
+        : f.thick ? '{interact}: lift (too thick for the claw)'
+        : !isFinite(f.kg) ? '{interact}: grab (still part of the tree)'
+        : `{interact}: grab and lift {mass:${Math.round(f.kg)}}`;
+    }
     p.prompt = (this.note ? this.note + '   ' : '') + `{move}: drive   ${act}   {jump}: get off`;
   }
 
-  /** The one button: grab and lift (arms down), or let go and lower (arms up). Mid-motion it does nothing. */
+  /** Are the arms on their way up, or up (closing, lifting, holding overhead, straining)? */
+  goingUp() { return this.phase === GRAB || this.phase === LIFT || this.phase === UP || this.phase === TIP; }
+
+  /**
+   * The one button: it turns the motion round at once, whatever it is doing. Going up (closing, lifting, up,
+   * straining): the claw opens, lets go, and the arms come down. Going down, or down: the claw closes on what is
+   * between its jaws there and the arms go up.
+   */
   toggle(p) {
     const sim = this.sim, w = sim.world;
-    if (this.phase === UP) { this.setPhase(DROP); return; }
-    if (this.phase !== IDLE) return;
+    if (this.goingUp()) { if (this.hold && this.hold.kind !== 'pin') this.release(); this.setPhase(DROP); return; }
     this.note = '';
+    if (this.hold) this.release();
     const found = this.between();
-    if (!found) { this.setPhase(GRAB); return; }        // nothing there: the motion, empty
+    if (!found || found.thick) {
+      if (found) this.note = 'Too thick for the claw';
+      this.setPhase(GRAB); return;                     // nothing it can hold there: the motion, empty
+    }
     const s = w.segs.get(found.seg), piece = w.pieces.get(s.piece), body = sim.bodies.get(s.piece);
     if (!body) { this.setPhase(GRAB); return; }
-    const kg = sim.weightOf(s.piece);
+    const kg = found.kg;
     if (!piece.fixed && !isFinite(kg)) { sim.players.say(p, 'Still joined to the tree: saw it free first'); return; }
     sim.awards.touch(s.piece, p.id);
     const len = piece.fixed ? Infinity : this.lengthOf(s.piece);
@@ -273,21 +292,26 @@ export class Loader {
   }
   setPhase(ph) { this.phase = ph; this.phaseT = 0; }
 
-  /** The loose wood between the jaws: the segment whose bark comes nearest the middle of them, within reach. */
+  /**
+   * The wood between the jaws: of the segments whose axis comes within its radius + LOADER_JAW_REACH of the jaws'
+   * line (across the claw, JAW_W either side of the middle), the nearest. {seg, kg, thick} (thick: more than
+   * JAW_R: the claw cannot close on it), or null.
+   */
   between() {
-    const sim = this.sim, w = sim.world, J = this.toWorld(jawAt(this.arm), new THREE.Vector3());
-    let best = null, bd = Infinity;
+    const sim = this.sim, w = sim.world, j = jawAt(this.arm), W = LOADER.JAW_W;
+    const P = this.toWorld([j[0], j[1], j[2] - W], new THREE.Vector3()), Q = this.toWorld([j[0], j[1], j[2] + W], new THREE.Vector3());
+    let best = null, bd = Infinity, thick = null, td = Infinity;
     for (const s of w.segs.values()) {
       if (!sim.segCol.has(s.id)) continue;
       const A = sim.segToWorld(s, s.a, _a), B = sim.segToWorld(s, s.b, _b);
-      const dx = B.x - A.x, dy = B.y - A.y, dz = B.z - A.z, L2 = dx * dx + dy * dy + dz * dz || 1;
-      const t = Math.max(0, Math.min(1, ((J.x - A.x) * dx + (J.y - A.y) * dy + (J.z - A.z) * dz) / L2));
-      const r = segRadius(s, t), d = Math.hypot(A.x + dx * t - J.x, A.y + dy * t - J.y, A.z + dz * t - J.z);
-      if (r > LOADER.JAW_R) continue;
-      const gap = d - r;                          // from the jaws' middle to the bark (< 0: inside the wood)
-      if (gap < CFG.LOADER_JAW_REACH && gap < bd) { bd = gap; best = { seg: s.id }; }
+      const { d, t } = segSeg(A, B, P, Q), r = segRadius(s, t);
+      const gap = d - r;                          // from the jaws to the bark (< 0: the jaws are inside the wood)
+      if (gap >= CFG.LOADER_JAW_REACH) continue;
+      if (r > LOADER.JAW_R) { if (gap < td) { td = gap; thick = s.id; } continue; }
+      if (gap < bd) { bd = gap; best = s.id; }
     }
-    return best;
+    if (best !== null) return { seg: best, kg: sim.weightOf(w.segs.get(best).piece), thick: false };
+    return thick !== null ? { seg: thick, thick: true } : null;
   }
 
   /** How long piece id is: the farthest apart two of its segments' ends are, and that line (piece-local). */
@@ -312,15 +336,17 @@ export class Loader {
     const sim = this.sim, qL = this.quat(), qLi = qL.clone().invert();
     const J = this.toWorld(jawAt(this.arm), new THREE.Vector3()), t = body.translation(), qP = this.quat(body);
     // now, in the loader's frame relative to the jaws
-    const p0 = new THREE.Vector3(t.x - J.x, t.y - J.y, t.z - J.z).applyQuaternion(qLi), q0 = qLi.clone().multiply(qP);
+    // (its centre of mass is moved, and the body turned about it: its own origin can be far from the wood)
+    const wc = body.worldCom(), lc = body.localCom(), com = new THREE.Vector3(lc.x, lc.y, lc.z);
+    const p0 = new THREE.Vector3(wc.x - J.x, wc.y - J.y, wc.z - J.z).applyQuaternion(qLi), q0 = qLi.clone().multiply(qP);
     // square across the jaws: its length along the loader's z (the nearer way round), its centre of mass in the middle
     const ax = new THREE.Vector3(); this.lengthOf(id, ax); if (ax.lengthSq() < 1e-9) ax.set(0, 0, 1);
     ax.normalize().applyQuaternion(q0); if (ax.z < 0) ax.negate();
     const q1 = new THREE.Quaternion().setFromUnitVectors(ax, new THREE.Vector3(0, 0, 1)).multiply(q0);
-    const c = body.localCom(), p1 = new THREE.Vector3(c.x, c.y, c.z).applyQuaternion(q1).negate();
+    const p1 = new THREE.Vector3();
     body.setBodyType(sim.R.RigidBodyType.KinematicPositionBased, true);
     this.groups(id, HELD_G); this.through.delete(id);
-    this.hold = { piece: id, kind, kg, p0, q0, p1, q1, body };
+    this.hold = { piece: id, kind, kg, p0, q0, p1, q1, com, body, jaw0: Math.min(0.95, this.jaw) };
   }
 
   /** Too heavy (too long, or the standing tree): the wood is held still where it is and the claw pinned to it there. */
@@ -378,7 +404,7 @@ export class Loader {
         break;
       case LIFT:
         this.arm = Math.min(L.ARM_MAX, this.arm + armV);
-        if (h && h.kind === 'light' && this.arm >= mid) {
+        if (h && h.kind === 'light' && this.arm >= mid && this.phaseT > 0.3) {
           this.release(); this.note = 'Too light for the claw: it slipped through (chip it)';
         }
         if (this.arm >= L.ARM_MAX) this.setPhase(UP);
@@ -425,8 +451,9 @@ export class Loader {
     const h = this.hold; if (!h || h.kind === 'pin') return;
     const b = this.body, j = jawAt(this.arm), J = this.toWorld(j, new THREE.Vector3()), v = b.velocityAtPoint(J);
     J.x += v.x * dt; J.y += v.y * dt; J.z += v.z * dt;
-    const k = smooth(this.phase === GRAB ? Math.min(1, this.jaw) : 1), qL = this.quat();
-    const p = h.p0.clone().lerp(h.p1, k).applyQuaternion(qL).add(J), q = qL.multiply(h.q0.clone().slerp(h.q1, k));
+    const k = smooth(this.phase === GRAB ? Math.max(0, Math.min(1, (this.jaw - h.jaw0) / (1 - h.jaw0))) : 1), qL = this.quat();
+    const q = qL.clone().multiply(h.q0.clone().slerp(h.q1, k));
+    const p = h.p0.clone().lerp(h.p1, k).applyQuaternion(qL).add(J).sub(h.com.clone().applyQuaternion(q));
     h.body.setNextKinematicTranslation({ x: p.x, y: p.y, z: p.z });
     h.body.setNextKinematicRotation({ x: q.x, y: q.y, z: q.z, w: q.w });
   }
@@ -530,4 +557,19 @@ export class Loader {
   bodyOf(id) { return id === LOADER_BODY_ID ? this.body : null; }
   /** aux.ld: [how shut the claw is 0..1, what the arms are doing (PHASE_CODE), arm angle (rad), driver id] or 0 with no loader. */
   aux() { return this.body ? [+this.jaw.toFixed(3), PHASE_CODE[this.phase] || 0, +this.arm.toFixed(4), this.driver] : 0; }
+}
+
+/** Closest approach of segments AB and PQ (THREE vectors): {d, t} with t along AB (0..1). */
+function segSeg(A, B, P, Q) {
+  const ux = B.x - A.x, uy = B.y - A.y, uz = B.z - A.z, vx = Q.x - P.x, vy = Q.y - P.y, vz = Q.z - P.z;
+  const wx = A.x - P.x, wy = A.y - P.y, wz = A.z - P.z;
+  const a = ux * ux + uy * uy + uz * uz, b = ux * vx + uy * vy + uz * vz, c = vx * vx + vy * vy + vz * vz;
+  const d = ux * wx + uy * wy + uz * wz, e = vx * wx + vy * wy + vz * wz, D = a * c - b * b;
+  let s = D > 1e-12 ? (b * e - c * d) / D : 0;
+  s = Math.max(0, Math.min(1, s));
+  let t = c > 1e-12 ? (b * s + e) / c : 0;
+  if (t < 0) { t = 0; s = a > 1e-12 ? Math.max(0, Math.min(1, -d / a)) : 0; }
+  else if (t > 1) { t = 1; s = a > 1e-12 ? Math.max(0, Math.min(1, (b - d) / a)) : 0; }
+  const x = wx + ux * s - vx * t, y = wy + uy * s - vy * t, z = wz + uz * s - vz * t;
+  return { d: Math.hypot(x, y, z), t: s };
 }
