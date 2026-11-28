@@ -1,8 +1,8 @@
 // G.O.E., the groundbot (D117). Host only.
 // Since D134 there are four of them, racked switched off on the log truck between its bed and cab (model/loader.js
 // RACK_SLOTS). {interact} on one there takes him off: a real G.O.E. (a player, id GOE_ID0 - slot) is made where he
-// stood, switched off and in the hands of whoever grabbed him, who is his owner from then on. Let go of (and lying
-// still), he switches himself on. He follows his owner about, and while his owner climbs a tree he waits by it to
+// stood, switched off and in the hands of whoever grabbed him, who is his owner from then on. He stays off until
+// someone presses his power button (owner, 2026-11-28). He follows his owner about, and while his owner climbs a tree he waits by it to
 // tend it. With his owner gone from the game he switches himself off; switched back on by hand, he works for
 // whoever did it.
 // Each is an ordinary player (sim/players.js): this controller writes his input each tick, the way a person's
@@ -74,10 +74,9 @@ export class Goes {
     p.body.setTranslation({ x: c[0], y: c[1] + 0.01, z: c[2] }, true); p.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     p.input.yaw = g.inp.yaw = yawTo(f[0], f[2]);
     sim.players.setPower(p, false);
-    g.fresh = true;
     this.bots.set(p.id, g);
     by.grab = { bot: p.id, p: sim.players.botLocal(p, pt), L0: Math.max(0.2, sim.players.hands(by, _o).distanceTo(pt)), prev: 0 };
-    sim.toast(`${sim.players.name(by.id)} took a ${GOE_NAME} off the truck`);
+    sim.toast(`${sim.players.name(by.id)} took a ${GOE_NAME} off the truck: the red button on his shoulder switches him on`);
   }
 
   /** Host handover (resume.js): a G.O.E. that was a player on the old host, as the world has him. */
@@ -106,7 +105,7 @@ export class Goe {
     this.path = null; this.goalKey = ''; this.planT = 0; this.stuckT = 0; this.stuckN = 0; this.from = null;
     this.grip = 1; this.restT = 0; this.wrapT = 0; this.rigT = 0; this.lowering = false;
     this.aid = null; this.passed = new Set(); this.aidT = 0;
-    this.fresh = false; this.stillT = 0; this.tree = null; this.treeT = 0; this.spot = null; this.following = false; this.fTo = null;
+    this.tree = null; this.treeT = 0; this.spot = null; this.following = false; this.fTo = null;
     return this.p;
   }
   /** A new owner: the world hears of it (his band, view/avatar.js). */
@@ -248,17 +247,6 @@ export class Goe {
     if (this.wrapT > 0) this.wrapT -= dt;
     if (this.treeT > 0) this.treeT -= dt;
     sim.players.setInput(this.id, inp);
-    // just taken off the truck: once nobody holds him and he lies still, he switches himself on (D134)
-    if (this.fresh) {
-      if (!p.off) this.fresh = false;
-      else {
-        const held = [...sim.players.list.values()].some((o) => o.grab && o.grab.bot === this.id), v = p.body.linvel();
-        this.stillT = !held && Math.hypot(v.x, v.y, v.z) < 0.3 ? this.stillT + dt : 0;
-        if (this.stillT < CFG.GOE_WAKE_T) return;
-        this.fresh = false; sim.players.setPower(p, true);
-        sim.toast(`${GOE_NAME} switched on: he works for ${sim.players.name(this.owner)}`);
-      }
-    }
     // his owner left the game: he switches himself off (switched on again by hand, he works for whoever did it)
     const own = sim.players.list.get(this.owner);
     if (!own || own.bot) {
@@ -366,7 +354,6 @@ export class Goe {
   /** Someone pressed his button (players.act): switched off by hand, he drops what he was doing for whoever is down. */
   switched(p, by) {
     if (p !== this.p) return;
-    this.fresh = false;
     if (p.off && this.aid) { this.passed.add(this.aid.id); this.aid = null; }
     if (p.off) this.path = null;
     // switched on with nobody to work for: he works for whoever did it (D134)
